@@ -31,4 +31,27 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    "smartpayment" => [
+        "notice_push_url" => env(
+            "SMARTPAYMENT_NOTICE_PUSH_URL",
+            "http://mobile.smartpayment.co.id:8888/YogyaMuallimaat/Token/eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJNRVRIT0QiOiJOb3RpY2VQdXNoIn0.Zhzaxz9T9pq2tJgfpgh9ldJ0HEKUGS3mnd9RnSISu6Y",
+        ),
+    ],
+
+    "turnstile" => [
+        "enabled" => env("TURNSTILE_ENABLED", true),
+        "site_key" => env("TURNSTILE_SITE_KEY")
+            ?: env(
+                env("APP_ENV", "production") === "local"
+                    ? "TURNSTILE_SITE_KEY_LOCAL"
+                    : "TURNSTILE_SITE_KEY_PROD",
+            ),
+        "secret_key" => env("TURNSTILE_SECRET_KEY")
+            ?: env(
+                env("APP_ENV", "production") === "local"
+                    ? "TURNSTILE_SECRET_KEY_LOCAL"
+                    : "TURNSTILE_SECRET_KEY_PROD",
+            ),
+    ],
+
 ];

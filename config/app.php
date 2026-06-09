@@ -17,6 +17,16 @@ return [
     */
 
     'name' => env('APP_NAME', 'Laravel'),
+    'nama_instansi' => env('APP_NAMA_INSTANSI', 'YAYASAN PENDIDIKAN ISLAM SABILUL'),
+    'alamat' => env('APP_ALAMAT', 'SIKEU'),
+    'email' => env('APP_EMAIL', 'ypisabkho@gmail.com'),
+    'telepon' => env('APP_TELEPON', 'SIKEU'),
+    'domisili' => env('APP_DOMISILI', 'SALATIGA'),
+    'nova' => env('APP_NOVA', 123456),
+    'biaya_admin' => env('BIAYA_ADMIN', 0),
+    'dummy_seeder' => env('DUMMY_SEEDER',false),
+    'demo_mode' => env('DEMO_MODE',false),
+    'cashless' => env('APP_CASHLESS',true),
 
     /*
     |--------------------------------------------------------------------------
@@ -70,7 +80,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'Asia/Jakarta',
 
     /*
     |--------------------------------------------------------------------------
@@ -83,7 +93,7 @@ return [
     |
     */
 
-    'locale' => 'en',
+    'locale' => 'id',
 
     /*
     |--------------------------------------------------------------------------
@@ -168,6 +178,7 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        Mews\Captcha\CaptchaServiceProvider::class,
     ])->toArray(),
 
     /*
@@ -182,6 +193,8 @@ return [
     */
 
     'aliases' => Facade::defaultAliases()->merge([
+        'Captcha' => Mews\Captcha\Facades\Captcha::class,
+
         // 'Example' => App\Facades\Example::class,
     ])->toArray(),
 

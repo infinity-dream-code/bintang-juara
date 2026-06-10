@@ -63,7 +63,7 @@ class ManualPembayaranController extends Controller
                 'name' => 'Nominal Bayar',
                 'columnType' => 'input',
                 'inputType' => 'text',
-                'inputClass' => 'form-control bg-body formattedNumber nominal-bayar-input',
+                'inputClass' => 'form-control bg-body nominal-bayar-input',
                 'inputName' => 'tagihan[nominal_bayar][]',
                 'inputPlaceholder' => 'nominal bayar',
                 'excludeFromSelection' => true,
@@ -156,9 +156,7 @@ class ManualPembayaranController extends Controller
                     } else {
                         $item->NOVA = '-';
                     }
-                    $billAm = (int) ($item->BILLAM ?? 0);
-                    $billPaid = (int) ($item->BILLPAID ?? 0);
-                    $item->sisa_bayar = max(0, $billAm - $billPaid);
+                    $item->sisa_bayar = $this->resolvePaymentLeft($item);
                     $item->can_cicil = mst_tagihan::canInstallment($item->BILLNM) ? 1 : 0;
                     unset($item->AA);
                     return $item;
@@ -375,7 +373,7 @@ class ManualPembayaranController extends Controller
                 $nominal = (int) $nominalBayar[$keyForSearch];
                 $billAm = (int) $item->BILLAM;
                 $billPaid = (int) ($item->BILLPAID ?? 0);
-                $paymentLeft = max(0, $billAm - $billPaid);
+                $paymentLeft = $this->resolvePaymentLeft($item);
 
                 if ($nominal <= 0 && $paymentLeft > 0) {
                     DB::rollBack();
@@ -643,5 +641,27 @@ class ManualPembayaranController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Gagal memperbarui nomor VA', 'error' => $e->getMessage()], 422);
         }
+    }
+
+    private function resolvePaymentLeft(object $item): int
+    {
+        $billAm = (int) ($item->BILLAM ?? 0);
+        $billPaid = (int) ($item->BILLPAID ?? 0);
+        $paymentLeft = (int) ($item->PAYMENTLEFT ?? 0);
+
+        if ($paymentLeft > 0) {
+            return $paymentLeft;
+        }
+
+        $remaining = max(0, $billAm - $billPaid);
+        if ($remaining > 0) {
+            return $remaining;
+        }
+
+        if ((int) ($item->PAIDST ?? 0) === 0 && $billAm > 0) {
+            return $billAm;
+        }
+
+        return 0;
     }
 }

@@ -403,6 +403,28 @@
                 return parseInt(String(value).replace(/\./g, ''), 10) || 0;
             };
 
+            const formatNominal = (value) => {
+                const amount = parseNominal(value);
+                return amount > 0 ? amount.toLocaleString('id-ID') : '';
+            };
+
+            const configureNominalInput = (input, rowData, fillDefault = false) => {
+                const sisaBayar = Number(rowData.sisa_bayar ?? rowData.BILLAM) || 0;
+                const canCicil = Number(rowData.can_cicil ?? 0) === 1;
+
+                input.prop('disabled', false).prop('readonly', false).attr('required', true);
+                input.removeAttr('max min');
+                input.attr('data-sisa-bayar', sisaBayar);
+                input.attr('title', canCicil
+                    ? 'Tagihan ini dapat dicicil'
+                    : 'Tagihan ini tidak dapat dicicil, pembayaran harus lunas');
+
+                const current = parseNominal(input.val());
+                if (fillDefault && current <= 0 && sisaBayar > 0) {
+                    input.val(formatNominal(sisaBayar));
+                }
+            };
+
             const updateTotalTagihan = () => {
                 const table = $(`#${dtOptions.tableId}`).DataTable();
                 let totalTagihan = 0;
@@ -441,13 +463,7 @@
                         if (!checkbox.prop('checked')) {
                             checkbox.prop('checked', true);
                         }
-                        const sisaBayar = Number(rowData.sisa_bayar ?? rowData.BILLAM) || 0;
-                        input.prop('disabled', false).prop('readonly', false).attr('required', true);
-                        input.attr('min', 0);
-                        input.attr('max', sisaBayar);
-                        if (!input.val()) {
-                            input.val(sisaBayar.toLocaleString('id-ID'));
-                        }
+                        configureNominalInput(input, rowData, true);
                     } else {
                         checkbox.prop('checked', false);
                         input.prop('disabled', true).val('').removeAttr('required');
@@ -457,18 +473,19 @@
                 updateTotalTagihan();
             };
 
-            const activateNominalRow = (inputEl) => {
+            const activateNominalRow = (inputEl, fillDefault = false) => {
                 const rowNode = $(inputEl).closest('tr');
                 const checkbox = rowNode.find('input[name="tagihan[post][]"]');
                 const table = $(`#${dtOptions.tableId}`).DataTable();
+                const rowData = table.row(rowNode).data();
 
                 checkbox.prop('checked', true);
                 if (!rowNode.hasClass('selected')) {
                     table.row(rowNode).select();
                 }
 
-                $(inputEl).prop('disabled', false).prop('readonly', false);
-                syncNominalBayarInputs();
+                configureNominalInput($(inputEl), rowData, fillDefault);
+                updateTotalTagihan();
             };
 
             $(`#${dtOptions.tableId}`)
@@ -479,12 +496,12 @@
                         ? $(this)
                         : $(this).find('input.nominal-bayar-input');
                     if (input.length) {
-                        activateNominalRow(input[0]);
+                        activateNominalRow(input[0], true);
                         setTimeout(() => input.trigger('focus'), 0);
                     }
                 })
                 .on('focus', 'input.nominal-bayar-input', function () {
-                    activateNominalRow(this);
+                    activateNominalRow(this, false);
                 })
                 .on('change', 'input[name="tagihan[post][]"]', function () {
                     const table = $(`#${dtOptions.tableId}`).DataTable();
@@ -510,7 +527,20 @@
                     });
                     syncNominalBayarInputs();
                 })
-                .on('input', 'input.nominal-bayar-input', updateTotalTagihan);
+                .on('input', 'input.nominal-bayar-input', function () {
+                    const sisaBayar = Number($(this).attr('data-sisa-bayar')) || 0;
+                    let amount = parseNominal($(this).val());
+                    if (sisaBayar > 0 && amount > sisaBayar) {
+                        amount = sisaBayar;
+                        $(this).val(formatNominal(amount));
+                    }
+                    updateTotalTagihan();
+                })
+                .on('blur', 'input.nominal-bayar-input', function () {
+                    const amount = parseNominal($(this).val());
+                    $(this).val(amount > 0 ? formatNominal(amount) : '');
+                    updateTotalTagihan();
+                });
 
             function AlertPrint(Message = null) {
                 Message = Message ?? 'Tagihan sukses dibayar, apakah anda ingin mencetak tagihan?';

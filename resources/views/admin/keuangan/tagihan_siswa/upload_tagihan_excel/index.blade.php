@@ -273,7 +273,6 @@
             </div>
         </div>
     </form>
-    '
     <link rel="stylesheet" href="{{asset('libs/filepond/dist/filepond.min.css')}}">
     <link rel="stylesheet" href="{{asset('libs/filepond/dist/custom.css')}}">
     <script
@@ -352,6 +351,41 @@
             window.history.pushState(null, '', newUrl);
         }
 
+        async function parseJsonResponse(response) {
+            const contentType = response.headers.get('content-type') || '';
+            const raw = await response.text();
+
+            if (contentType.includes('application/json')) {
+                try {
+                    return JSON.parse(raw);
+                } catch (error) {
+                    throw {status: response.status, message: 'Respons server tidak valid (JSON rusak).'};
+                }
+            }
+
+            throw {
+                status: response.status,
+                message: raw?.trim()
+                    ? 'Server mengembalikan respons non-JSON. Periksa log Laravel.'
+                    : 'Server tidak mengembalikan data.',
+            };
+        }
+
+        function appendImportFileToFormData(formData) {
+            const pond = filePondElements['file'];
+            if (!pond) {
+                return formData;
+            }
+
+            const pondFile = pond.getFiles()[0]?.file;
+            if (pondFile) {
+                formData.delete('fileImport');
+                formData.append('fileImport', pondFile, pondFile.name);
+            }
+
+            return formData;
+        }
+
         function createPeriode() {
             let tahun_pelajaran = $('#tahun_pelajaran');
             let fungsi = $('#fungsi');
@@ -427,7 +461,8 @@
                         loadingAlert('Mengunggah data tagihan');
                         url = '{{route('admin.keuangan.tagihan-siswa.upload-tagihan-excel.store')}}';
                         method = 'POST';
-                    }else if (formId === "formValidate"){
+                        formData = appendImportFileToFormData(formData);
+                    } else if (formId === "formValidate") {
                         let form = document.getElementById('filterForm');
                         formData = new FormData(form);
                         loadingAlert('Menyimpan data tagihan');
@@ -441,21 +476,21 @@
                     let fetchOptions = {
                         method: method,
                         headers: {
-                            'X-CSRF-TOKEN': csrfToken
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
                         },
                         body: formData
                     };
 
-
                     clearErrorMessages(formId);
                     fetch(url, fetchOptions)
-                        .then(response => {
+                        .then(async response => {
+                            const payload = await parseJsonResponse(response);
                             if (!response.ok) {
-                                return response.json().then(err => {
-                                    throw {status: response.status, error: err};
-                                });
+                                throw {status: response.status, payload};
                             }
-                            return response.json();
+                            return payload;
                         })
                         .then(data => {
                             document.getElementById(formId).reset();
@@ -464,23 +499,32 @@
                             document.querySelector(`#${formId} [data-bs-dismiss="modal"]`)?.click();
                         })
                         .catch(error => {
+                            const payload = error.payload || {};
+                            const errors = payload.error || payload.errors;
+                            const message = payload.message || error.message;
+
                             if (error.status === 422) {
-                                const errors = error.error.error || error.error.errors;
-                                errorAlert(error.error.message);
+                                errorAlert(message || 'Data tidak valid.');
                                 if (errors) {
-                                    processErrors(errors)
+                                    processErrors(errors);
                                 }
-                            } else {
-                                const errorMessages = {
-                                    401: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan! <br> jika masalah masih terjadi silahkan login kembali!',
-                                    403: 'Anda tidak memiliki izin untuk mengakses halaman ini 😖',
-                                    404: 'Halaman yang dituju tidak ditemukan 🧐',
-                                    405: 'Metode tidak valid 🧐 <br>silahkan muat ulang halaman dan coba lagi!',
-                                    419: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan! <br> jika masalah masih terjadi silahkan login kembali!',
-                                    429: 'Terlalu banyak permintaan akses <br>silahkan tunggu beberapa saat 🙏',
-                                };
-                                errorAlert(errorMessages[error.status] || "Terjadi kesalahan, silahkan coba memuat ulang halaman");
+                                return;
                             }
+
+                            const errorMessages = {
+                                401: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan! <br> jika masalah masih terjadi silahkan login kembali!',
+                                403: 'Anda tidak memiliki izin untuk mengakses halaman ini 😖',
+                                404: 'Halaman yang dituju tidak ditemukan 🧐',
+                                405: 'Metode tidak valid 🧐 <br>silahkan muat ulang halaman dan coba lagi!',
+                                419: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan! <br> jika masalah masih terjadi silahkan login kembali!',
+                                429: 'Terlalu banyak permintaan akses <br>silahkan tunggu beberapa saat 🙏',
+                            };
+
+                            errorAlert(
+                                message ||
+                                errorMessages[error.status] ||
+                                'Terjadi kesalahan, silahkan coba memuat ulang halaman'
+                            );
                         });
                 });
             });

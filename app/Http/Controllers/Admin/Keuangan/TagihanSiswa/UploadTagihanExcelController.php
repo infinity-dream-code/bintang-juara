@@ -16,6 +16,7 @@ use App\Models\ValidationMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\HeadingRowImport;
 use Maatwebsite\Excel\Validators\ValidationException;
@@ -69,22 +70,21 @@ class UploadTagihanExcelController extends Controller
         $defaultColumn = 'scctcust.nocust';
         $defaultOrder = 'asc';
 
+        $columnSortOrder = $defaultOrder;
+        $columnName = $defaultColumn;
+
         if ($request->has('order')) {
-            $columnIndex_arr = $request->get('order');
-            $columnIndex = $columnIndex_arr[0]['column'];
-            $columnSortOrder = $columnIndex_arr[0]['dir'];
-        } else {
-            $columnIndex = $defaultColumn;
-            $columnSortOrder = $defaultOrder;
+            $order = $request->get('order');
+            $columnIndex = (int) ($order[0]['column'] ?? 0);
+            $columnSortOrder = $order[0]['dir'] ?? $defaultOrder;
+            $requestedColumn = $columnName_arr[$columnIndex]['data'] ?? null;
+
+            if ($requestedColumn && $requestedColumn !== 'no') {
+                $columnName = 'scctcust.' . $requestedColumn;
+            }
         }
 
-        $columnName = $columnName_arr[$columnIndex]['data'];
-        $searchValue = $search_arr['value'];
-
-        if (!$columnName || $columnName == 'no') {
-            $columnName = $defaultColumn;
-            $columnSortOrder = $defaultOrder;
-        }
+        $searchValue = $search_arr['value'] ?? '';
 
         $filters = [];
         $filterQuery = null;
@@ -137,42 +137,87 @@ class UploadTagihanExcelController extends Controller
     {
         $request->validate(
             [
-                'fileImport' => ['required', 'mimes:xls,xlsx', 'max:1024']
+                'fileImport' => [
+                    'required',
+                    'file',
+                    'mimes:xls,xlsx',
+                    'mimetypes:application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream',
+                    'max:1024',
+                ],
             ],
             ValidationMessage::messages(),
             ValidationMessage::attributes()
         );
 
-        $file = $request->fileImport;
+        $file = $request->file('fileImport');
 
         try {
             $headingsData = (new HeadingRowImport)->toArray($file);
             $requiredColumns = ['nis', 'nama', 'unit', 'kelas', 'kelompok', 'angkatan', 'nominal'];
-            if (empty($headingsData) || !isset($headingsData[0][0])) throw new \Exception ('Tidak dapat membaca judul kolom dari file. Pastikan file memiliki header yang sesuai.');
-            $headings = $headingsData[0][0];
-            $headings = array_map('strtolower', $headings);
+            if (empty($headingsData) || !isset($headingsData[0][0])) {
+                throw new \Exception('Tidak dapat membaca judul kolom dari file. Pastikan file memiliki header yang sesuai.');
+            }
+            $headings = array_map(
+                static fn ($heading) => strtolower(trim((string) $heading)),
+                $headingsData[0][0]
+            );
             $missingColumns = [];
-            foreach ($requiredColumns as $column) if (!in_array($column, $headings)) $missingColumns[] = $column;
+            foreach ($requiredColumns as $column) {
+                if (!in_array($column, $headings, true)) {
+                    $missingColumns[] = $column;
+                }
+            }
 
             if (!empty($missingColumns)) {
                 $formattedMissingColumns = strtoupper(str_replace('_', ' ', implode(', ', $missingColumns)));
                 $formattedRequiredColumns = strtoupper(str_replace('_', ' ', implode(', ', $requiredColumns)));
-                throw new \Exception("Kolom $formattedMissingColumns tidak ditemukan.<br><hr> pastikan kolom berikut ada dan terisi pada file import yang akan diproses: $formattedRequiredColumns.",);
+                throw new \Exception("Kolom $formattedMissingColumns tidak ditemukan.<br><hr> pastikan kolom berikut ada dan terisi pada file import yang akan diproses: $formattedRequiredColumns.");
             }
 
             DB::beginTransaction();
             Excel::import(new ImportTagihanExcel(), $file);
             DB::commit();
 
-            $data = Cache::get($this->cacheKey);
+            $data = Cache::get($this->cacheKey, []);
+            if (empty($data)) {
+                throw new \Exception('File berhasil dibaca, tetapi tidak ada baris data yang dapat diproses. Pastikan file berisi NIS dan Nominal.');
+            }
+
+            Log::info('Upload tagihan excel berhasil', [
+                'user_id' => auth()->id(),
+                'file_name' => $file->getClientOriginalName(),
+                'row_count' => count($data),
+            ]);
+
             return response()->json(['message' => 'Sukses, data tagihan telah diimport, silahkan periksa kembali', 'data' => $data], 200);
         } catch (ValidationException $e) {
+            DB::rollBack();
             $errorMessages = $e->errors();
             $errorMessage = $errorMessages['error'][0] ?? 'Terjadi kesalahan saat melakukan import data.';
+
+            Log::warning('Upload tagihan excel gagal validasi excel', [
+                'user_id' => auth()->id(),
+                'file_name' => $file?->getClientOriginalName(),
+                'errors' => $errorMessages,
+            ]);
+
             return response()->json(['message' => $errorMessage, 'error' => $errorMessages], 422);
         } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::error('Upload tagihan excel gagal', [
+                'user_id' => auth()->id(),
+                'file_name' => $file?->getClientOriginalName(),
+                'message' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+
             $error = $e->getMessage();
-            return response()->json(['message' => "Gagal!<br> tidak dapat melakukan $this->mainTitle.<hr> $error", 'error' => $error], 422);
+
+            return response()->json([
+                'message' => "Gagal!<br> tidak dapat melakukan {$this->mainTitle}.<hr> {$error}",
+                'error' => $error,
+            ], 422);
         }
     }
 
@@ -253,7 +298,17 @@ class UploadTagihanExcelController extends Controller
             return response()->json(['message' => "Data tagihan disimpan!",], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
-            return response()->json(['message' => "Terjadi kesalahan saat menyimpan data, silahkan muat ulang halaman!", 'error' => $e], 422);
+
+            Log::error('Simpan tagihan excel gagal', [
+                'user_id' => auth()->id(),
+                'message' => $e->getMessage(),
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat menyimpan data.<hr>' . $e->getMessage(),
+                'error' => $e->getMessage(),
+            ], 422);
         }
     }
 }

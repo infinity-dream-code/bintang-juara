@@ -54,30 +54,6 @@
                         <div class="col">
                             <div class="row d-flex align-items-center">
                                 <div class="col-3">
-                                    <label class="required form-label text-capitalize" for="tahun_pelajaran">
-                                        Tahun Pelajaran
-                                    </label>
-                                </div>
-                                <div class="col">
-                                    <select class="form-select form-select-sm" id="tahun_pelajaran"
-                                            name="tahun_pelajaran" data-width="100%"
-                                            data-control="select2"
-                                            data-placeholder="Pilih Tahun Pelajaran">
-                                        @isset($thn_aka)
-                                            @foreach($thn_aka as $item)
-                                                <option
-                                                    value="{{$item->thn_aka}}">{{$item->thn_aka}}</option>
-                                            @endforeach
-                                        @else
-                                            <option>data kosong</option>
-                                        @endisset
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="row d-flex align-items-center">
-                                <div class="col-3">
                                     <label class="required form-label text-capitalize" for="tagihan">
                                         tagihan
                                     </label>
@@ -88,7 +64,7 @@
                                         @isset($tagihan)
                                             @foreach($tagihan as $item)
                                                 <option
-                                                    value="{{$item->urut}}" data-val="{{$item->kode}}">{{$item->tagihan}}</option>
+                                                    value="{{$item->urut}}">{{$item->tagihan}}</option>
                                             @endforeach
                                         @else
                                             <option>data kosong</option>
@@ -100,13 +76,49 @@
                         <div class="col">
                             <div class="row d-flex align-items-center">
                                 <div class="col-3">
-                                    <label class="form-label text-capitalize" for="fungsi">
+                                    <label class="required form-label text-capitalize" for="periode_tahun">
                                         Periode
                                     </label>
                                 </div>
                                 <div class="col">
-                                    <input class="form-control" id="fungsi" name="fungsi"
-                                           placeholder="">
+                                    @php
+                                        $bulanList = [
+                                            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                                            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                                            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+                                        ];
+                                    @endphp
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <select class="form-select" id="periode_tahun" name="periode_tahun"
+                                                    required data-control="select2"
+                                                    data-placeholder="Pilih tahun">
+                                                @foreach(($periode_tahun_list ?? []) as $tahun)
+                                                    <option value="{{ $tahun }}"
+                                                        @selected(($periode_tahun_default ?? date('Y')) == $tahun)>
+                                                        {{ $tahun }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <select class="form-select" id="periode_bulan" name="periode_bulan"
+                                                    required data-control="select2"
+                                                    data-placeholder="Pilih bulan">
+                                                @foreach($bulanList as $bulan => $label)
+                                                    <option value="{{ $bulan }}"
+                                                        @selected(($periode_bulan_default ?? date('n')) == $bulan)>
+                                                        {{ $label }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">
+                                        Disimpan ke BTA sebagai
+                                        <span class="fw-semibold" id="periode_preview">-</span>
+                                        (contoh: 202501)
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -333,27 +345,17 @@
             window.history.pushState(null, '', newUrl);
         }
 
-        function createPeriode() {
-            let tahun_pelajaran = $('#tahun_pelajaran');
-            let fungsi = $('#fungsi');
-
-            const partTahunPelajaran = tahun_pelajaran.val().match(/\d{4}\/\d{4}/);
-            let partedTahunPelajaram = partTahunPelajaran[0].split("/");
-
-            const startYear = partedTahunPelajaram[1];
-            const endYear = partedTahunPelajaram[0];
-
-            let selectedOption = $('#tagihan').find(':selected');
-            const tagihanVal = String(selectedOption.data('val') ?? '01').trim();
-            const month = parseInt(tagihanVal || '01', 10);
-
-            const targetYear = (month < 7) ? endYear : startYear;
-            fungsi.datepicker('setDate', new Date(targetYear, month - 1));
+        function syncPeriodePreview() {
+            const tahun = $('#periode_tahun').val();
+            const bulan = String($('#periode_bulan').val() || '').padStart(2, '0');
+            if (tahun && bulan) {
+                $('#periode_preview').text(`${tahun}${bulan}`);
+            } else {
+                $('#periode_preview').text('-');
+            }
         }
 
         document.addEventListener("DOMContentLoaded", function () {
-            const periode = $('#fungsi');
-
             FilePond.registerPlugin(
                 FilePondPluginFileValidateType,
                 FilePondPluginFileValidateSize,
@@ -487,22 +489,8 @@
                 });
             });
 
-            periode.datepicker({
-                format: "yyyymm",
-                startView: "months",
-                minViewMode: "months",
-                autoclose: true
-            });
-
-            $('#tahun_pelajaran').on('change', function (e) {
-                createPeriode()
-            })
-
-            $('#tagihan').on('change', function (e) {
-                createPeriode()
-            })
-
-            createPeriode()
+            $('#periode_tahun, #periode_bulan').on('change', syncPeriodePreview);
+            syncPeriodePreview();
         });
 
     </script>

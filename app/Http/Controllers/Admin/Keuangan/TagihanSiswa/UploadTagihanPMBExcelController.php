@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Imports\Keuangan\TagihanSiswa\ImportTagihanExcel;
 use App\Imports\Keuangan\TagihanSiswa\ImportTagihanPMBExcel;
 use App\Models\mst_tagihan;
-use App\Models\mst_thn_aka;
 use App\Models\scctbill;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
@@ -32,7 +31,10 @@ class UploadTagihanPMBExcelController extends Controller
         $data['columnsUrl'] = route('admin.keuangan.tagihan-siswa.upload-tagihan-pmb-excel.get-column');
         $data['datasUrl'] = route('admin.keuangan.tagihan-siswa.upload-tagihan-pmb-excel.get-data');
 
-        $data['thn_aka'] = mst_thn_aka::getMstThnAkaAttributes();
+        $currentYear = (int) date('Y');
+        $data['periode_tahun_list'] = range($currentYear - 2, $currentYear + 5);
+        $data['periode_tahun_default'] = $currentYear;
+        $data['periode_bulan_default'] = (int) date('m');
         $data['tagihan'] = mst_tagihan::orderBy('urut', 'asc')->get();
 
         return view('admin.keuangan.tagihan_siswa.upload_tagihan_pmb_excel.index', $data);
@@ -175,22 +177,15 @@ class UploadTagihanPMBExcelController extends Controller
     public function validateExcel(Request $request)
     {
         $request->validate([
-            'tahun_pelajaran' => ['required', 'regex:/^\d{4}\/\d{4}(?:\s*-\s*(GANJIL|GENAP))?$/'],
-            'fungsi' => ['required', 'integer'],
             'tagihan' => ['required'],
+            'periode_tahun' => ['required', 'integer', 'digits:4', 'min:2000', 'max:2099'],
+            'periode_bulan' => ['required', 'integer', 'min:1', 'max:12'],
         ], ValidationMessage::messages(), ValidationMessage::attributes());
 
         $data = Cache::get($this->cacheKey);
         if (empty($data))return response()->json(['message' => 'Silahkan import data tagihan terlebih dahulu'], 422);
 
-        $tahun_akademik = mst_thn_aka::where('thn_aka', $request->tahun_pelajaran)->value('thn_aka');
-
-        if (!$tahun_akademik || !preg_match('/\d{4}\/\d{4}/', $tahun_akademik, $matches)) {
-            return response()->json(['message' => 'Tahun akademik tidak valid'], 422);
-        }
-
-        $tahun = substr($request->fungsi, 0, 4);
-        $bulan = substr($request->fungsi, 4, 2) ?: date('m');
+        $bta = sprintf('%04d%02d', (int) $request->periode_tahun, (int) $request->periode_bulan);
 
         $tagihan = mst_tagihan::where('urut', $request->tagihan)->first();
         if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan, silahkan muat ulang halaman!'], 422);
@@ -210,14 +205,14 @@ class UploadTagihanPMBExcelController extends Controller
 
                 scctbill::create([
                     'CUSTID' => $siswa->CUSTID,
-                    'BILLAC' => $tahun.$bulan,
+                    'BILLAC' => $bta,
                     'BILLNM' => $tagihan->tagihan,
                     'BILLAM' => (int) $item['nominal'],
                     'PAIDST' => 0,
                     'FUrutan' => $urut,
                     'FTGLTagihan' => now(),
                     'FSTSBolehBayar' => 1,
-                    'BTA' => $tahun_akademik,
+                    'BTA' => $bta,
                     'BILLCD' => date('Y') . '/i' . date('m') . '-' . ($urut + 1),
                 ]);
             }

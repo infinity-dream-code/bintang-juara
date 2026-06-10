@@ -4,13 +4,9 @@ namespace App\Http\Controllers\Admin\Keuangan\TagihanSiswa;
 
 use App\Http\Controllers\Controller;
 use App\Imports\Keuangan\TagihanSiswa\ImportTagihanExcel;
-use App\Imports\MasterData\ImportDataSiswa;
-use App\Models\mst_kelas;
 use App\Models\mst_tagihan;
 use App\Models\mst_thn_aka;
-use App\Models\u_akun;
 use App\Models\scctbill;
-use App\Models\scctbill_detail;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
 use Illuminate\Http\Request;
@@ -37,7 +33,6 @@ class UploadTagihanExcelController extends Controller
         $data['datasUrl'] = route('admin.keuangan.tagihan-siswa.upload-tagihan-excel.get-data');
 
         $data['thn_aka'] = mst_thn_aka::orderBy('thn_aka', 'desc')->get();
-        $data['post'] = u_akun::orderBy('KodeAkun', 'asc')->get();
         $data['tagihan'] = mst_tagihan::orderBy('urut', 'asc')->get();
 
         return view('admin.keuangan.tagihan_siswa.upload_tagihan_excel.index', $data);
@@ -227,8 +222,6 @@ class UploadTagihanExcelController extends Controller
             'tahun_pelajaran' => ['required', 'regex:/^\d{4}\/\d{4}(?:\s*-\s*(GANJIL|GENAP))?$/'],
             'fungsi' => ['required', 'integer'],
             'tagihan' => ['required'],
-            'post' => ['required', 'array', 'min:1'],
-            'post.*' => ['required', 'string'],
         ], ValidationMessage::messages(), ValidationMessage::attributes());
 
         $data = Cache::get($this->cacheKey);
@@ -246,11 +239,6 @@ class UploadTagihanExcelController extends Controller
         $tagihan = mst_tagihan::where('urut', $request->tagihan)->first();
         if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan, silahkan muat ulang halaman!'], 422);
 
-        $postCodes = array_values(array_unique(array_filter((array) $request->post)));
-        $posts = u_akun::whereIn('KodeAkun', $postCodes)->get();
-        if ($posts->count() !== count($postCodes)) {
-            return response()->json(['message' => 'Post tidak ditemukan, silahkan muat ulang halaman!'], 422);
-        }
         try {
             DB::beginTransaction();
             foreach ($data as $item) {
@@ -265,13 +253,12 @@ class UploadTagihanExcelController extends Controller
                 $urut = $tagihanSiswaTerbaru ? $tagihanSiswaTerbaru['FUrutan'] + 1 : 1;
                 $billCD = date('Y') . '/i' . date('m') . '-' . ($urut + 1);
                 $nominal = (int) $item['nominal'];
-                $totalNominal = $nominal * $posts->count();
 
-                $bill = scctbill::create([
+                scctbill::create([
                     'CUSTID' => $siswa->CUSTID,
                     'BILLAC' => $tahun . $bulan,
                     'BILLNM' => $tagihan->tagihan,
-                    'BILLAM' => $totalNominal,
+                    'BILLAM' => $nominal,
                     'PAIDST' => 0,
                     'FUrutan' => $urut,
                     'FTGLTagihan' => now(),
@@ -279,17 +266,6 @@ class UploadTagihanExcelController extends Controller
                     'BTA' => $matches[0],
                     'BILLCD' => $billCD,
                 ]);
-
-                foreach ($posts as $post) {
-                    scctbill_detail::create([
-                        'KodePost' => $post->KodeAkun,
-                        'CUSTID' => $bill->CUSTID,
-                        'BILLAM' => $nominal,
-                        'tahun' => $tahun,
-                        'periode' => $bulan,
-                        'BILLCD' => $bill->BILLCD,
-                    ]);
-                }
             }
 
             Cache::forget($this->cacheKey);

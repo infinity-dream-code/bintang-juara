@@ -77,39 +77,17 @@
                         <div class="col">
                             <div class="row d-flex align-items-center">
                                 <div class="col-3">
-                                    <label class="form-label text-capitalize" for="tagihan">
+                                    <label class="required form-label text-capitalize" for="tagihan">
                                         tagihan
                                     </label>
                                 </div>
                                 <div class="col">
-                                    <select class="form-select" id="tagihan" name="tagihan"
+                                    <select class="form-select" id="tagihan" name="tagihan" required
                                             data-control="select2" data-placeholder="Pilih tagihan">
                                         @isset($tagihan)
                                             @foreach($tagihan as $item)
                                                 <option
                                                     value="{{$item->urut}}" data-val="{{$item->kode}}">{{$item->tagihan}}</option>
-                                            @endforeach
-                                        @else
-                                            <option>data kosong</option>
-                                        @endisset
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="row d-flex align-items-center">
-                                <div class="col-3">
-                                    <label class="form-label text-capitalize" for="post">
-                                        post
-                                    </label>
-                                </div>
-                                <div class="col">
-                                    <select class="form-select" id="post" name="post[]" multiple
-                                            data-control="select2" data-placeholder="Pilih post (bisa lebih dari satu)">
-                                        @isset($post)
-                                            @foreach($post as $item)
-                                                <option
-                                                    value="{{$item->KodeAkun}}">{{$item->KodeAkun . ' - '. $item->NamaAkun}}</option>
                                             @endforeach
                                         @else
                                             <option>data kosong</option>

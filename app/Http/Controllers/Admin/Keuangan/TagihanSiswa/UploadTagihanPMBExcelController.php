@@ -7,9 +7,7 @@ use App\Imports\Keuangan\TagihanSiswa\ImportTagihanExcel;
 use App\Imports\Keuangan\TagihanSiswa\ImportTagihanPMBExcel;
 use App\Models\mst_tagihan;
 use App\Models\mst_thn_aka;
-use App\Models\u_akun;
 use App\Models\scctbill;
-use App\Models\scctbill_detail;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
 use Illuminate\Http\Request;
@@ -35,7 +33,6 @@ class UploadTagihanPMBExcelController extends Controller
         $data['datasUrl'] = route('admin.keuangan.tagihan-siswa.upload-tagihan-pmb-excel.get-data');
 
         $data['thn_aka'] = mst_thn_aka::getMstThnAkaAttributes();
-        $data['post'] = u_akun::orderBy('KodeAkun', 'asc')->get();
         $data['tagihan'] = mst_tagihan::orderBy('urut', 'asc')->get();
 
         return view('admin.keuangan.tagihan_siswa.upload_tagihan_pmb_excel.index', $data);
@@ -181,7 +178,6 @@ class UploadTagihanPMBExcelController extends Controller
             'tahun_pelajaran' => ['required', 'regex:/^\d{4}\/\d{4}(?:\s*-\s*(GANJIL|GENAP))?$/'],
             'fungsi' => ['required', 'integer'],
             'tagihan' => ['required'],
-            'post' => ['required'],
         ], ValidationMessage::messages(), ValidationMessage::attributes());
 
         $data = Cache::get($this->cacheKey);
@@ -199,8 +195,6 @@ class UploadTagihanPMBExcelController extends Controller
         $tagihan = mst_tagihan::where('urut', $request->tagihan)->first();
         if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan, silahkan muat ulang halaman!'], 422);
 
-        $post = u_akun::where('KodeAkun', $request->post)->first();
-        if (!$post) return response()->json(['message' => 'Post tidak ditemukan, silahkan muat ulang halaman!'], 422);
         try {
             DB::beginTransaction();
             foreach ($data as $item) {
@@ -214,26 +208,17 @@ class UploadTagihanPMBExcelController extends Controller
 
                 $urut = $tagihanSiswaTerbaru ? $tagihanSiswaTerbaru['FUrutan'] + 1 : 1;
 
-                $bill = scctbill::create([
+                scctbill::create([
                     'CUSTID' => $siswa->CUSTID,
                     'BILLAC' => $tahun.$bulan,
                     'BILLNM' => $tagihan->tagihan,
-                    'BILLAM' => $item['nominal'],
+                    'BILLAM' => (int) $item['nominal'],
                     'PAIDST' => 0,
                     'FUrutan' => $urut,
                     'FTGLTagihan' => now(),
                     'FSTSBolehBayar' => 1,
                     'BTA' => $tahun_akademik,
-                    'BILLCD' => date('Y') . '/i' . date('m') . '-' . ($urut + 1)
-                ]);
-
-                $billDetail = scctbill_detail::create([
-                    'KodePost' => $post->KodeAkun,
-                    'CUSTID' => $bill->CUSTID,
-                    'BILLAM' => $bill->BILLAM,
-                    'tahun' => $tahun,
-                    'periode' => $bulan,
-                    'BILLCD' => $bill->BILLCD,
+                    'BILLCD' => date('Y') . '/i' . date('m') . '-' . ($urut + 1),
                 ]);
             }
 

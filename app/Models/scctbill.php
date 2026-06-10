@@ -36,6 +36,8 @@ class scctbill extends Model
         "BILLTOT",
         "TRANSNO",
         "BAYAR",
+        "INSTALLMENT",
+        "isINSTALLABLE",
     ];
 
     public array $metodeBayar = [

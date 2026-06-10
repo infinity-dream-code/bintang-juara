@@ -48,7 +48,7 @@ class UploadTagihanExcelController extends Controller
             ['data' => 'name', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
             ['data' => 'status', 'name' => 'Status', 'searchable' => true, 'orderable' => true, 'columnType' => 'importstatus'],
             ['data' => 'keterangan', 'name' => 'Keterangan', 'searchable' => true, 'orderable' => true],
-            ['data' => 'kelas', 'name' => 'Sekolah', 'searchable' => true, 'orderable' => true],
+            ['data' => 'unit', 'name' => 'Unit', 'searchable' => true, 'orderable' => true],
             ['data' => 'kelas', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true],
             ['data' => 'kelompok', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true],
             ['data' => 'nominal', 'name' => 'Nominal', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency'],
@@ -112,6 +112,7 @@ class UploadTagihanExcelController extends Controller
                 'nis' => $nis,
                 'name' => $siswa->NMCUST ?? null,
                 'ortu' => $item['ayah'] ?? null,
+                'unit' => $siswa->CODE02 ?? null,
                 'kelas' => $siswa->DESC02 ?? null,
                 'kelompok' => $siswa->DESC03 ?? null,
                 'nominal' => $item['nominal'] ?? null,
@@ -234,6 +235,8 @@ class UploadTagihanExcelController extends Controller
         $tagihan = mst_tagihan::where('urut', $request->tagihan)->first();
         if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan, silahkan muat ulang halaman!'], 422);
 
+        $canInstallment = (int) ($tagihan->isINSTALLMENT ?? 0) === 1;
+
         try {
             DB::beginTransaction();
             foreach ($data as $item) {
@@ -260,6 +263,8 @@ class UploadTagihanExcelController extends Controller
                     'FSTSBolehBayar' => 1,
                     'BTA' => $bta,
                     'BILLCD' => $billCD,
+                    'isINSTALLABLE' => $canInstallment ? 1 : 0,
+                    'INSTALLMENT' => $canInstallment ? 1 : 0,
                 ]);
             }
 

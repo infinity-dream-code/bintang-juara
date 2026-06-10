@@ -5,6 +5,36 @@
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/select2/select2.min.css')}}">
+    <style>
+        .upload-tagihan-toolbar .form-label {
+            margin-bottom: 0.35rem;
+            font-size: 0.8125rem;
+            font-weight: 600;
+        }
+
+        .upload-tagihan-toolbar .select2-container {
+            width: 100% !important;
+        }
+
+        .upload-tagihan-preview {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-top: 0.5rem;
+            font-size: 0.8125rem;
+            color: var(--bs-secondary-color);
+        }
+
+        #main_table_wrapper .dataTables_length,
+        #main_table_wrapper .dataTables_filter {
+            padding: 0.75rem 1.25rem 0;
+        }
+
+        #main_table_wrapper .dataTables_info,
+        #main_table_wrapper .dataTables_paginate {
+            padding: 0.75rem 1.25rem 1rem;
+        }
+    </style>
 @endsection
 @section('content')
     <h3 class="page-heading d-flex text-gray-900 fw-bold flex-column justify-content-center my-0">
@@ -35,135 +65,102 @@
         @endif
     </ul>
 
+    @php
+        $bulanList = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+    @endphp
+
     <div class="card">
         <div class="card-header header-elements">
             <div class="card-title">
-                <h5 class="mb-0 me-2">{{($dataTitle??$mainTitle)}}</h5>
+                <h5 class="mb-0">{{ $dataTitle ?? $mainTitle }}</h5>
             </div>
             <div class="card-header-elements ms-auto">
-
+                <button type="button" class="btn btn-whatsapp" data-bs-toggle="modal"
+                        data-bs-target="#modal-import" title="Import Excel">
+                    <span class="ri-file-excel-2-line me-2"></span>
+                    Import Excel
+                </button>
             </div>
         </div>
 
-        <div class="card-body">
+        <div class="card-body border-bottom upload-tagihan-toolbar pb-4">
             <form id="filterForm">
-                <fieldset class="form-fieldset">
-                    <h5>Filter</h5>
-                    <div class="row row-cols-lg-2 row-cols-1 row-gap-5">
-                        <div class="col">
-                            <div class="row d-flex align-items-center">
-                                <div class="col-3">
-                                    <label class="required form-label text-capitalize" for="tagihan">
-                                        tagihan
-                                    </label>
-                                </div>
-                                <div class="col">
-                                    <select class="form-select" id="tagihan" name="tagihan" required
-                                            data-control="select2" data-placeholder="Pilih tagihan">
-                                        @isset($tagihan)
-                                            @foreach($tagihan as $item)
-                                                <option
-                                                    value="{{$item->urut}}">{{$item->tagihan}}</option>
-                                            @endforeach
-                                        @else
-                                            <option>data kosong</option>
-                                        @endisset
-                                    </select>
-                                </div>
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4 col-md-6">
+                        <label class="required form-label" for="tagihan">Tagihan</label>
+                        <select class="form-select" id="tagihan" name="tagihan" required
+                                data-control="select2" data-placeholder="Pilih tagihan">
+                            @isset($tagihan)
+                                @foreach($tagihan as $item)
+                                    <option value="{{ $item->urut }}">{{ $item->tagihan }}</option>
+                                @endforeach
+                            @else
+                                <option value="">Data kosong</option>
+                            @endisset
+                        </select>
+                    </div>
+                    <div class="col-lg-5 col-md-6">
+                        <label class="required form-label" for="periode_tahun">Periode Tagihan</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <select class="form-select" id="periode_tahun" name="periode_tahun"
+                                        required data-control="select2" data-placeholder="Tahun">
+                                    @foreach(($periode_tahun_list ?? []) as $tahun)
+                                        <option value="{{ $tahun }}"
+                                            @selected(($periode_tahun_default ?? date('Y')) == $tahun)>
+                                            {{ $tahun }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <select class="form-select" id="periode_bulan" name="periode_bulan"
+                                        required data-control="select2" data-placeholder="Bulan">
+                                    @foreach($bulanList as $bulan => $label)
+                                        <option value="{{ $bulan }}"
+                                            @selected(($periode_bulan_default ?? date('n')) == $bulan)>
+                                            {{ $label }}
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
-                        <div class="col">
-                            <div class="row d-flex align-items-center">
-                                <div class="col-3">
-                                    <label class="required form-label text-capitalize" for="periode_tahun">
-                                        Periode
-                                    </label>
-                                </div>
-                                <div class="col">
-                                    @php
-                                        $bulanList = [
-                                            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-                                            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-                                            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-                                        ];
-                                    @endphp
-                                    <div class="row g-2">
-                                        <div class="col-sm-6">
-                                            <select class="form-select" id="periode_tahun" name="periode_tahun"
-                                                    required data-control="select2"
-                                                    data-placeholder="Pilih tahun">
-                                                @foreach(($periode_tahun_list ?? []) as $tahun)
-                                                    <option value="{{ $tahun }}"
-                                                        @selected(($periode_tahun_default ?? date('Y')) == $tahun)>
-                                                        {{ $tahun }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        <div class="col-sm-6">
-                                            <select class="form-select" id="periode_bulan" name="periode_bulan"
-                                                    required data-control="select2"
-                                                    data-placeholder="Pilih bulan">
-                                                @foreach($bulanList as $bulan => $label)
-                                                    <option value="{{ $bulan }}"
-                                                        @selected(($periode_bulan_default ?? date('n')) == $bulan)>
-                                                        {{ $label }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <small class="text-muted d-block mt-1">
-                                        Disimpan ke BTA sebagai
-                                        <span class="fw-semibold" id="periode_preview">-</span>
-                                        (contoh: 202501)
-                                    </small>
-                                </div>
-                            </div>
+                        <div class="upload-tagihan-preview">
+                            <span>BTA:</span>
+                            <span class="badge bg-label-primary" id="periode_preview">-</span>
                         </div>
                     </div>
-                    <div class="row pt-5">
-                        <div class="d-flex justify-content-center justify-content-md-end gap-4">
-                            <button type="button" class="btn btn-whatsapp" data-bs-toggle="modal"
-                                    data-bs-target="#modal-import" title="Buat Data">
-                                <span class="ri-file-excel-2-line me-2"></span>
-                                Import Data Tagihan Siswa
-                            </button>
-                        </div>
-                    </div>
-                </fieldset>
-            </form>
-        </div>
-        <div class="card-datatable table-responsive text-nowrap">
-            <table class="table table-sm table-bordered table-hover"
-                   id="main_table">
-                <thead class="table-light">
-
-                </thead>
-                <tbody>
-
-                </tbody>
-            </table>
-        </div>
-        <div class="card-footer">
-            <div class="w-100">
-                <div class="row">
-                    <div class="col-auto ms-auto d-print-none">
-                        <div class="d-flex justify-content-end gap-4">
-                            {{--                            <button class="btn btn-danger" data-bs-toggle="modal"--}}
-                            {{--                                    data-bs-target="#modal-delete">--}}
-                            {{--                                <span class="ri-delete-bin-2-line me-2"></span>--}}
-                            {{--                                Hapus Data--}}
-                            {{--                            </button>--}}
-                            <button class="btn btn-primary" data-bs-toggle="modal"
-                                    data-bs-target="#modal-validate">
-                                <span class="ri-save-line me-2"></span>
-                                Simpan Data
-                            </button>
+                    <div class="col-lg-3 d-none d-lg-block">
+                        <div class="text-muted small">
+                            1. Import file Excel<br>
+                            2. Periksa data di tabel<br>
+                            3. Simpan ke tagihan siswa
                         </div>
                     </div>
                 </div>
-            </div>
+            </form>
+        </div>
+
+        <div class="card-datatable table-responsive text-nowrap">
+            <table class="table table-sm table-bordered table-hover mb-0" id="main_table">
+                <thead class="table-light"></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <small class="text-muted mb-0">
+                Pastikan status baris <strong>Dapat Disimpan</strong> sebelum menyimpan.
+            </small>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                    data-bs-target="#modal-validate">
+                <span class="ri-save-line me-2"></span>
+                Simpan Data
+            </button>
         </div>
     </div>
 @endsection
@@ -229,8 +226,8 @@
              data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered" role="document">
                 <div class="modal-content">
-                    <div class="modal-status bg-danger"></div>
-                    <div class="modal-header ">
+                    <div class="modal-status bg-primary"></div>
+                    <div class="modal-header">
                         <div class="modal-title">
                             Simpan Data Tagihan
                         </div>
@@ -244,7 +241,6 @@
                                 Anda yakin ingin menyimpan data tagihan yang telah diimport?
                             </div>
                         </div>
-                        <input type="hidden" id="delete_id" name="delete_id" value="12">
                     </div>
                     <div class="modal-footer ">
                         <div class="w-100">
@@ -284,7 +280,7 @@
             dataUrl: '{{($datasUrl??null)}}',
             dataColumns: [],
             thead: true,
-            tfoot: true,
+            tfoot: false,
             paging: true,
             searching: true,
             fixedHeader: false,
@@ -423,9 +419,10 @@
                     let $this = $(this);
                     // select2Focus($this);
                     $this.wrap('<div class="position-relative"></div>').select2({
-                        placeholder: 'Select value',
+                        placeholder: $this.data('placeholder') || 'Pilih',
                         language: 'id',
-                        dropdownParent: $this.parent()
+                        dropdownParent: $this.parent(),
+                        width: '100%',
                     });
                 });
             }

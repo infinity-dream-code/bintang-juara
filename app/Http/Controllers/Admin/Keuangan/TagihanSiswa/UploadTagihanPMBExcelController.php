@@ -190,6 +190,8 @@ class UploadTagihanPMBExcelController extends Controller
         $tagihan = mst_tagihan::where('urut', $request->tagihan)->first();
         if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan, silahkan muat ulang halaman!'], 422);
 
+        $canInstallment = (int) ($tagihan->isINSTALLMENT ?? 0) === 1;
+
         try {
             DB::beginTransaction();
             foreach ($data as $item) {
@@ -214,6 +216,8 @@ class UploadTagihanPMBExcelController extends Controller
                     'FSTSBolehBayar' => 1,
                     'BTA' => $bta,
                     'BILLCD' => date('Y') . '/i' . date('m') . '-' . ($urut + 1),
+                    'isINSTALLABLE' => $canInstallment ? 1 : 0,
+                    'INSTALLMENT' => $canInstallment ? 1 : 0,
                 ]);
             }
 

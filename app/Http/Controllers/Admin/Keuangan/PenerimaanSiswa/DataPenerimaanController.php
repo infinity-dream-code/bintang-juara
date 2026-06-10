@@ -100,6 +100,7 @@ class DataPenerimaanController extends Controller
             ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
             ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true],
             ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true],
+            ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true],
             ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
             ['data' => 'BILLAM', 'name' => 'Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
             ['data' => 'FIDBANK', 'name' => 'Metode', 'columnType' => 'custom_code_tagihan', 'searchable' => true, 'orderable' => true],

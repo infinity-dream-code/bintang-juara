@@ -45,6 +45,7 @@ class HapusTagihanController extends Controller
             ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
             ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true],
             ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true],
+            ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true],
             ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
             ['data' => 'nominal', 'name' => 'Nominal', 'searchable' => false, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
             ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true],
@@ -157,6 +158,7 @@ class HapusTagihanController extends Controller
             'scctbill.FUrutan',
             'scctcust.CODE02',
             'scctcust.DESC02',
+            'scctcust.DESC03',
             'scctcust.CUSTID',
         ]));
 

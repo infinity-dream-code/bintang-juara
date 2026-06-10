@@ -48,7 +48,7 @@ class UploadTagihanPMBExcelController extends Controller
             ['data' => 'name', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
             ['data' => 'status', 'name' => 'Status', 'searchable' => true, 'orderable' => true, 'columnType' => 'importstatus'],
             ['data' => 'keterangan', 'name' => 'Keterangan', 'searchable' => true, 'orderable' => true],
-            ['data' => 'kelas', 'name' => 'Sekolah', 'searchable' => true, 'orderable' => true],
+            ['data' => 'unit', 'name' => 'Unit', 'searchable' => true, 'orderable' => true],
             ['data' => 'kelas', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true],
             ['data' => 'kelompok', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true],
             ['data' => 'nominal', 'name' => 'Nominal', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency'],
@@ -108,14 +108,16 @@ class UploadTagihanPMBExcelController extends Controller
 
         ]));
 
-        $records = collect($cachedData)->map(function ($item) {
-            $nis = $item['nodaftar'];
+        $records = collect($cachedData)->map(function ($item) use ($select) {
+            $nodaftar = $item['nodaftar'];
+            $siswa = scctcust::select($select)->where('scctcust.NUM2ND', $nodaftar)->first();
             return [
-                'NUM2ND' => $nis,
-                'name' => $item['nama'] ?? null,
+                'NUM2ND' => $nodaftar,
+                'name' => $siswa->NMCUST ?? ($item['nama'] ?? null),
                 'ortu' => $item['ayah'] ?? null,
-                'kelas' => $item['kelas'] ?? null,
-                'kelompok' => $item['kelompok'] ?? null,
+                'unit' => $siswa->CODE02 ?? null,
+                'kelas' => $siswa->DESC02 ?? null,
+                'kelompok' => $siswa->DESC03 ?? null,
                 'nominal' => $item['nominal'] ?? null,
             ];
         });

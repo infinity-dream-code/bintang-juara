@@ -51,12 +51,12 @@ class ManualPembayaranController extends Controller
                 'selectName' => 'tagihan[post]',
                 'selectClass' => 'scctbill',
             ],
-            ['data' => 'nocust', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'duplicate' => true],
-            ['data' => 'NUM2ND', 'name' => 'NO. DAFTAR', 'searchable' => true, 'orderable' => true, 'duplicate' => true],
-            ['data' => 'kelas_label', 'name' => 'Kelas', 'searchable' => true, 'orderable' => false, 'duplicate' => true],
-            ['data' => 'NOVA', 'name' => 'NO. VA', 'searchable' => true, 'orderable' => false, 'duplicate' => true, 'columnType' => 'nova_edit'],
-            ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true, 'duplicate' => true],
-            ['data' => 'list_nama_akun', 'name' => 'Nama Post', 'columnType' => 'array', 'keyLabel' => false, 'searchable' => true, 'orderable' => false],
+            ['data' => 'nocust', 'name' => 'NIS', 'searchable' => true, 'orderable' => true],
+            ['data' => 'NUM2ND', 'name' => 'NO. DAFTAR', 'searchable' => true, 'orderable' => true],
+            ['data' => 'kelas_label', 'name' => 'Kelas', 'searchable' => true, 'orderable' => false],
+            ['data' => 'NOVA', 'name' => 'NO. VA', 'searchable' => true, 'orderable' => false, 'columnType' => 'nova_edit'],
+            ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
+            ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
             ['data' => 'BILLAC', 'name' => 'Periode', 'searchable' => true, 'orderable' => true, 'columnType' => 'periode'],
             ['data' => 'BILLAM', 'name' => 'Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
             [
@@ -64,9 +64,8 @@ class ManualPembayaranController extends Controller
                 'name' => 'Nominal Bayar',
                 'columnType' => 'input',
                 'inputType' => 'text',
-                'inputClass' => 'form-control bg-body formattedNumber',
+                'inputClass' => 'form-control bg-body formattedNumber nominal-bayar-input',
                 'inputName' => 'tagihan[nominal_bayar][]',
-                'inputDisabled' => true,
                 'inputPlaceholder' => 'nominal bayar',
                 'excludeFromSelection' => true,
             ],
@@ -139,20 +138,8 @@ class ManualPembayaranController extends Controller
                 return $query->select('count(*) as allcount')->count();
             });
 
-            $records = $query->leftJoin('scctbill_detail', function ($join) {
-                $join->on('scctbill.BILLCD', '=', 'scctbill_detail.BILLCD')
-                    ->on('scctbill.CUSTID', '=', 'scctbill_detail.CUSTID');
-            })
-                ->leftJoin('u_akun', 'u_akun.KodeAkun', 'scctbill_detail.KodePost')
+            $records = $query
                 ->select($select)
-                ->selectRaw(
-                    "GROUP_CONCAT(
-                            DISTINCT CASE
-                                WHEN scctbill.PAIDST = 0 THEN u_akun.NamaAkun
-                                ELSE NULL
-                            END
-                        SEPARATOR ', ') as 'list_nama_akun'"
-                )
                 ->orderBy('scctbill.FUrutan', 'asc')
                 ->get()
                 ->map(function ($item) {
@@ -168,10 +155,6 @@ class ManualPembayaranController extends Controller
                     } else {
                         $item->NOVA = '-';
                     }
-                    $rawList = $item->list_nama_akun ?? '';
-                    $item->list_nama_akun = $rawList !== '' && $rawList !== null
-                        ? array_values(array_filter(array_map('trim', explode(',', (string) $rawList))))
-                        : [];
                     $item->can_cicil = mst_tagihan::canInstallment($item->BILLNM) ? 1 : 0;
                     unset($item->AA);
                     return $item;

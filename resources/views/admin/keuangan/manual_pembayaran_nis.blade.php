@@ -141,7 +141,7 @@
                         <th>Kelas</th>
                         <th>NO. VA</th>
                         <th>NAMA</th>
-                        <th>Nama Post</th>
+                        <th>Nama Tagihan</th>
                         <th>Periode</th>
                         <th>Tagihan</th>
                         <th>Nominal Bayar</th>
@@ -395,58 +395,50 @@
                 getDT(dtOptions);
             }
 
-            $(`#${dtOptions.tableId}`).on('init.dt', function (e, settings, json) {
-                setTimeout(function () {
-                    const table = $(`#${dtOptions.tableId}`).DataTable();
+            const getNominalInput = (rowNode) => $(rowNode).find('input.nominal-bayar-input');
 
-                    const updateSelectedRows = () => {
-                        const selectedIndexes = table.rows({selected: true}).indexes().toArray();
-                        const deselectedIndexes = table.rows({selected: false}).indexes().toArray();
+            const parseNominal = (value) => {
+                if (!value) return 0;
+                return parseInt(String(value).replace(/\./g, ''), 10) || 0;
+            };
 
-                        let totalTagihan = 0;
-                        if (selectedIndexes.length === 0) {
-                            $('input[name=total_tagihan]').val(totalTagihan);
-                            $('#total_bayar').attr('max', totalTagihan);
-                        } else {
-                            $.each(selectedIndexes, function (index, rowIndex, data) {
-                                const selectedData = table.row(rowIndex).data();
-                                const cell = $(table.cell(rowIndex, 9).node());
-                                const input = cell.find('input');
-                                totalTagihan += selectedData['BILLAM'];
-                                $('#total_bayar').attr('max', totalTagihan);
-                                $('input[name=total_tagihan]').val(totalTagihan.toLocaleString('id-ID'));
-                                if (input.length) {
-                                    input.attr('min', selectedData['BILLAM'])
-                                    input.val(selectedData['BILLAM'].toLocaleString('id-ID'))
-                                    input.attr('max', selectedData['BILLAM'])
-                                    input.attr('disabled', false);
-                                    input.attr('required', true);
-                                }
-                            })
-                        }
+            const syncNominalBayarInputs = () => {
+                const table = $(`#${dtOptions.tableId}`).DataTable();
+                let totalTagihan = 0;
 
-                        $.each(deselectedIndexes, function (index, rowIndex,) {
-                            const cell = $(table.cell(rowIndex, 9).node());
-                            const input = cell.find('input');
-                            if (input.length) {
-                                input.val('');
-                                input.attr('disabled', true);
-                                input.attr('required', false);
-                            }
-                        })
-                    };
-                    table.on('select', function (e, dt, type) {
-                        if (type === 'row') {
-                            updateSelectedRows();
+                table.rows().every(function () {
+                    const rowNode = this.node();
+                    const rowData = this.data();
+                    const checkbox = $(rowNode).find('input[name="tagihan[post][]"]');
+                    const input = getNominalInput(rowNode);
+                    const isSelected = $(rowNode).hasClass('selected') || checkbox.prop('checked');
+
+                    if (!input.length) {
+                        return;
+                    }
+
+                    if (isSelected) {
+                        const billAm = Number(rowData.BILLAM) || 0;
+                        input.prop('disabled', false).prop('readonly', false).attr('required', true);
+                        input.attr('min', 0);
+                        input.attr('max', billAm);
+                        if (!input.val()) {
+                            input.val(billAm.toLocaleString('id-ID'));
                         }
-                    });
-                    table.on('deselect', function (e, dt, type) {
-                        if (type === 'row') {
-                            updateSelectedRows();
-                        }
-                    });
-                }, 100);
-            })
+                        totalTagihan += parseNominal(input.val());
+                    } else {
+                        input.prop('disabled', true).val('').removeAttr('required');
+                    }
+                });
+
+                $('input[name=total_tagihan]').val(totalTagihan ? totalTagihan.toLocaleString('id-ID') : '');
+            };
+
+            $(`#${dtOptions.tableId}`)
+                .on('init.dt draw.dt', syncNominalBayarInputs)
+                .on('select.dt deselect.dt', syncNominalBayarInputs)
+                .on('change', 'input[name="tagihan[post][]"]', syncNominalBayarInputs)
+                .on('input', 'input.nominal-bayar-input', syncNominalBayarInputs);
 
             function AlertPrint(Message = null) {
                 Message = Message ?? 'Tagihan sukses dibayar, apakah anda ingin mencetak tagihan?';

@@ -71,6 +71,13 @@ class DataPenerimaanController extends Controller
                 "exportable" => true,
             ],
             [
+                "data" => "DESC03",
+                "name" => "Kelompok",
+                "searchable" => true,
+                "orderable" => true,
+                "exportable" => true,
+            ],
+            [
                 "data" => "BILLNM",
                 "name" => "Nama Tagihan",
                 "searchable" => true,
@@ -373,6 +380,7 @@ class DataPenerimaanController extends Controller
                 "scctbill.FUrutan",
                 "scctcust.CODE02",
                 "scctcust.DESC02",
+                "scctcust.DESC03",
             ]),
         );
 

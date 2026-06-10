@@ -255,13 +255,15 @@ class UploadTagihanExcelController extends Controller
                     'BILLAC' => $bta,
                     'BILLNM' => $tagihan->tagihan,
                     'BILLAM' => $nominal,
+                    'BILLPAID' => 0,
+                    'PAYMENTLEFT' => $nominal,
                     'PAIDST' => 0,
                     'FUrutan' => $urut,
                     'FTGLTagihan' => now(),
                     'FSTSBolehBayar' => 1,
                     'BTA' => $bta,
                     'BILLCD' => $billCD,
-                    'INSTALLMENT' => (int) ($tagihan->isINSTALLMENT ?? 0),
+                    'INSTALLMENT' => 0,
                     'isINSTALLABLE' => 0,
                 ]);
             }

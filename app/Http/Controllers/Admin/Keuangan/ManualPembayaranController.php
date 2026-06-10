@@ -109,6 +109,8 @@ class ManualPembayaranController extends Controller
                 'scctbill.AA',
                 'scctbill.BILLNM',
                 'scctbill.BILLAM',
+                'scctbill.BILLPAID',
+                'scctbill.PAYMENTLEFT',
                 'scctbill.BILLAC',
                 'scctbill.PAIDST',
                 'scctbill.PAIDDT',
@@ -154,6 +156,9 @@ class ManualPembayaranController extends Controller
                     } else {
                         $item->NOVA = '-';
                     }
+                    $billAm = (int) ($item->BILLAM ?? 0);
+                    $billPaid = (int) ($item->BILLPAID ?? 0);
+                    $item->sisa_bayar = max(0, $billAm - $billPaid);
                     $item->can_cicil = mst_tagihan::canInstallment($item->BILLNM) ? 1 : 0;
                     unset($item->AA);
                     return $item;
@@ -367,91 +372,65 @@ class ManualPembayaranController extends Controller
 
             foreach ($tagihans as $item) {
                 $keyForSearch = array_search($item->AA, $posts);
-                $nominal = intval($nominalBayar[$keyForSearch]);
-//                dd($nominal, $item->BILLAM, $item);
-                $oldBill = $item->BILLAM;
+                $nominal = (int) $nominalBayar[$keyForSearch];
+                $billAm = (int) $item->BILLAM;
+                $billPaid = (int) ($item->BILLPAID ?? 0);
+                $paymentLeft = max(0, $billAm - $billPaid);
 
-                if ($nominal <= 0 && $oldBill != 0) {
+                if ($nominal <= 0 && $paymentLeft > 0) {
                     DB::rollBack();
                     return response()->json(['message' => 'Nominal Pembayaran terlalu kecil'], 422);
                 }
-                if ($item->BILLAM > $nominal && !mst_tagihan::canInstallment($item->BILLNM)) {
+                if ($nominal > $paymentLeft) {
                     DB::rollBack();
-                    return response()->json([
-                        'message' => "Tagihan {$item->BILLNM} tidak dapat dicicil. Pembayaran harus lunas (Rp. " . number_format($oldBill, 0, ',', '.') . ').',
-                    ], 422);
-                }
-
-                if ($item->BILLAM < $nominal) {
-                    DB::rollBack();
-                    $nominalTagihan = 'Rp. '. number_format($item->BILLAM,0,',','.');
-                    $nominalPembayaran = 'Rp. '. number_format($nominal,0,',','.');
+                    $nominalTagihan = 'Rp. ' . number_format($paymentLeft, 0, ',', '.');
+                    $nominalPembayaran = 'Rp. ' . number_format($nominal, 0, ',', '.');
                     return response()->json(['message' => "Nominal Pembayaran untuk tagihan terlalu besar! <br>
-                            Tagihan: {$nominalTagihan} <br>
+                            Sisa tagihan: {$nominalTagihan} <br>
                             Nominal Pembayaran: {$nominalPembayaran}
                     "], 422);
                 }
-
-                if ($oldBill == $nominal) {
-                    $item->update([
-                        'PAIDST' => 1,
-                        'PAIDDT' => $formattedDate,
-                        'PAIDDT_ACTUAL' => date('Y-m-d H:i:s'),
-                        'FIDBANK' => $request->input('bank'),
-                        'PAIDAM' => $item->BILLAM,
-                        'TRANSNO' => $transno,
-                    ]);
-                    $tagihanForPrint[] = $item->AA;
-                } else {
-                    $sisa = $oldBill - $nominal;
-                    $tagihanSiswaTerbaru = scctbill::where('CUSTID', $item->CUSTID)
-                        ->select('CUSTID', 'FUrutan', 'BILLAC', 'BILLCD')
-                        ->orderBy('FUrutan', 'DESC')
-                        ->first();
-
-                    $item->update([
-                        'BILLAM' => $sisa,
-                        'isINSTALLABLE' => (int) ($item->isINSTALLABLE ?? 0) + $nominal,
-                    ]);
-
-                    $urut = $tagihanSiswaTerbaru ? $tagihanSiswaTerbaru['FUrutan'] + 1 : 1;
-                    $billCD = date('Y') . '/i' . date('m') . '-' . ($urut + 1);
-
-                    $bill = scctbill::create([
-                        'CUSTID' => $item->CUSTID,
-                        'BILLAC' => $item->BILLAC,
-                        'BILLCD' => $billCD,
-                        'BILLNM' => $item->BILLNM,
-                        'BILLAM' => $nominal,
-                        'FUrutan' => $urut,
-                        'FTGLTagihan' => now(),
-                        'FSTSBolehBayar' => 1,
-                        'BTA' => $item->BTA,
-                        'INSTALLMENT' => (int) ($item->INSTALLMENT ?? 0),
-                        'isINSTALLABLE' => 0,
-                        'PAIDST' => 1,
-                        'PAIDDT' => $formattedDate,
-                        'PAIDDT_ACTUAL' => date('Y-m-d H:i:s'),
-                        'FIDBANK' => $request->input('bank'),
-                        'TRANSNO' => $transno,
-                    ]);
-
-                    $tagihanForPrint[] = $bill->AA;
+                if ($nominal < $paymentLeft && !mst_tagihan::canInstallment($item->BILLNM)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => "Tagihan {$item->BILLNM} tidak dapat dicicil. Pembayaran harus lunas (Rp. " . number_format($paymentLeft, 0, ',', '.') . ').',
+                    ], 422);
                 }
 
-                $metode = 'FROM SALDO';
-                if ($request->bank == '1140002') {
-                    sccttran::create([
-                        'CUSTID' => $siswa->CUSTID,
-                        'NOREFF' => $item->BILLCD,
-                        'METODE' => $metode,
-                        'FIDBANK' => '1140002',
-                        'TRXDATE' => now(),
-                        'DEBET' => $nominal,
-                        'KREDIT' => 0,
-                        'TRANSNO' => Auth::user()->username
-                    ]);
-                }
+                $newBillPaid = $billPaid + $nominal;
+                $newPaymentLeft = max(0, $billAm - $newBillPaid);
+                $existingInstal = (int) sccttran::where('BILLID', $item->AA)->max('INSTAL');
+                $newInstallment = $existingInstal + 1;
+                $isFullyPaid = $newPaymentLeft <= 0;
+
+                $item->update([
+                    'BILLPAID' => $newBillPaid,
+                    'PAYMENTLEFT' => $newPaymentLeft,
+                    'PAIDDT' => $formattedDate,
+                    'PAIDDT_ACTUAL' => date('Y-m-d H:i:s'),
+                    'FIDBANK' => $request->input('bank'),
+                    'NOREFF' => 'TELLER',
+                    'PAIDST' => $isFullyPaid ? 1 : 0,
+                    'INSTALLMENT' => $newInstallment,
+                    'isINSTALLABLE' => $newBillPaid,
+                    'TRANSNO' => $transno,
+                ]);
+
+                $tagihanForPrint[] = $item->AA;
+
+                sccttran::create([
+                    'CUSTID' => $siswa->CUSTID,
+                    'METODE' => 'FROM TELLER',
+                    'TRXDATE' => now(),
+                    'NOREFF' => 'TELLER',
+                    'FIDBANK' => $request->input('bank'),
+                    'DEBET' => $nominal,
+                    'KREDIT' => 0,
+                    'BILLID' => $item->AA,
+                    'BILLTARGET' => $item->BILLNM,
+                    'INSTAL' => $newInstallment,
+                    'TRANSNO' => $transno ?? Auth::user()->username,
+                ]);
             }
             if ($transno) {
                 DB::table('ref_invoicedate')

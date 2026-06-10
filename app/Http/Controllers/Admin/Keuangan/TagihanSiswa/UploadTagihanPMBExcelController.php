@@ -210,13 +210,15 @@ class UploadTagihanPMBExcelController extends Controller
                     'BILLAC' => $bta,
                     'BILLNM' => $tagihan->tagihan,
                     'BILLAM' => (int) $item['nominal'],
+                    'BILLPAID' => 0,
+                    'PAYMENTLEFT' => (int) $item['nominal'],
                     'PAIDST' => 0,
                     'FUrutan' => $urut,
                     'FTGLTagihan' => now(),
                     'FSTSBolehBayar' => 1,
                     'BTA' => $bta,
                     'BILLCD' => date('Y') . '/i' . date('m') . '-' . ($urut + 1),
-                    'INSTALLMENT' => (int) ($tagihan->isINSTALLMENT ?? 0),
+                    'INSTALLMENT' => 0,
                     'isINSTALLABLE' => 0,
                 ]);
             }

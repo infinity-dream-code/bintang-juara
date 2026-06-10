@@ -27,5 +27,8 @@ class sccttran extends Model
         "KREDIT",
         "REFFBANK",
         "TRANSNO",
+        "BILLID",
+        "BILLTARGET",
+        "INSTAL",
     ];
 }

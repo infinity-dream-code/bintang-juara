@@ -418,12 +418,12 @@
                     }
 
                     if (isSelected) {
-                        const billAm = Number(rowData.BILLAM) || 0;
+                        const sisaBayar = Number(rowData.sisa_bayar ?? rowData.BILLAM) || 0;
                         input.prop('disabled', false).prop('readonly', false).attr('required', true);
                         input.attr('min', 0);
-                        input.attr('max', billAm);
+                        input.attr('max', sisaBayar);
                         if (!input.val()) {
-                            input.val(billAm.toLocaleString('id-ID'));
+                            input.val(sisaBayar.toLocaleString('id-ID'));
                         }
                         totalTagihan += parseNominal(input.val());
                     } else {

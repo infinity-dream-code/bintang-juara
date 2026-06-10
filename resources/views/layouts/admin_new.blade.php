@@ -38,7 +38,7 @@
     @php use Carbon\Carbon; @endphp
 
     @hasSection('datatable')
-        <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}">
+        <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}?v=20260610-row-border">
         @hasSection('datatable-responsive')
             <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
         @endif
@@ -405,7 +405,7 @@
 {{--    <script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.11/js/dataTables.bootstrap5.min.js"--}}
 {{--            integrity="sha256-3iXHrfSd4xzI1YyrooF0jG4OVwGiSAoU1+WdYwEwYZk=" crossorigin="anonymous" defer></script>--}}
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}" defer></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}?v=20260610-row-border" defer></script>
 
 {{--    @hasSection('datatable-responsive')--}}
 {{--        <script src="https://cdn.jsdelivr.net/npm/datatables.net-responsive@2.5.1/js/dataTables.responsive.min.js"--}}

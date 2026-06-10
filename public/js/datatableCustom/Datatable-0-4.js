@@ -1426,7 +1426,7 @@ async function getDT(options) {
                         }
                     }
 
-                    const isDuplicate = column.duplicate ?? true;
+                    const isDuplicate = column.duplicate ?? false;
                     const columnDef = {
                         data: column.data,
                         name: column.name,

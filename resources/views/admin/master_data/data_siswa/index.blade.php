@@ -1,7 +1,7 @@
 @extends('layouts.admin_new')
 @section('title',$dataTitle??$mainTitle??$title??'')
 @section('style')
-    <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}">
+    <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}?v=20260610-row-border">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/select2/select2.min.css')}}">
@@ -435,7 +435,7 @@
 
 
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.min.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260604-va"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260610-row-border"></script>
     <script src="{{asset('main/libs/select2/select2.min.js')}}"></script>
     <script src="{{asset('js/helper/errorInputHelper.min.js')}}"></script>
 

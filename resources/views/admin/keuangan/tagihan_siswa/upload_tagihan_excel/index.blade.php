@@ -6,23 +6,42 @@
     <link rel="stylesheet" href="{{asset('main/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/select2/select2.min.css')}}">
     <style>
+        .upload-tagihan-toolbar {
+            background: #f8f9fb;
+        }
+
         .upload-tagihan-toolbar .form-label {
-            margin-bottom: 0.35rem;
+            margin-bottom: 0.4rem;
             font-size: 0.8125rem;
             font-weight: 600;
+            color: #566a7f;
         }
 
         .upload-tagihan-toolbar .select2-container {
             width: 100% !important;
         }
 
-        .upload-tagihan-preview {
+        .upload-tagihan-toolbar .form-select,
+        .upload-tagihan-toolbar .select2-container .select2-selection {
+            min-height: 38px;
+        }
+
+        .upload-tagihan-bta {
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
-            margin-top: 0.5rem;
+            gap: 0.5rem;
+            margin-top: 0.65rem;
+            padding: 0.35rem 0.65rem;
+            border-radius: 0.375rem;
+            background: #fff;
+            border: 1px dashed #d9dee3;
             font-size: 0.8125rem;
-            color: var(--bs-secondary-color);
+            color: #697a8d;
+        }
+
+        .upload-tagihan-bta .badge {
+            font-size: 0.8125rem;
+            letter-spacing: 0.04em;
         }
 
         #main_table_wrapper .dataTables_length,
@@ -87,13 +106,13 @@
             </div>
         </div>
 
-        <div class="card-body border-bottom upload-tagihan-toolbar pb-4">
+        <div class="card-body border-bottom upload-tagihan-toolbar py-4">
             <form id="filterForm">
-                <div class="row g-3 align-items-end">
-                    <div class="col-lg-4 col-md-6">
-                        <label class="required form-label" for="tagihan">Tagihan</label>
+                <div class="row g-4">
+                    <div class="col-md-6 col-xl-5">
+                        <label class="required form-label" for="tagihan">Jenis Tagihan</label>
                         <select class="form-select" id="tagihan" name="tagihan" required
-                                data-control="select2" data-placeholder="Pilih tagihan">
+                                data-control="select2" data-placeholder="Pilih jenis tagihan">
                             @isset($tagihan)
                                 @foreach($tagihan as $item)
                                     <option value="{{ $item->urut }}">{{ $item->tagihan }}</option>
@@ -103,12 +122,12 @@
                             @endisset
                         </select>
                     </div>
-                    <div class="col-lg-5 col-md-6">
+                    <div class="col-md-6 col-xl-7">
                         <label class="required form-label" for="periode_tahun">Periode Tagihan</label>
                         <div class="row g-2">
-                            <div class="col-6">
+                            <div class="col-sm-6">
                                 <select class="form-select" id="periode_tahun" name="periode_tahun"
-                                        required data-control="select2" data-placeholder="Tahun">
+                                        required data-control="select2" data-placeholder="Pilih tahun">
                                     @foreach(($periode_tahun_list ?? []) as $tahun)
                                         <option value="{{ $tahun }}"
                                             @selected(($periode_tahun_default ?? date('Y')) == $tahun)>
@@ -117,9 +136,9 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-6">
+                            <div class="col-sm-6">
                                 <select class="form-select" id="periode_bulan" name="periode_bulan"
-                                        required data-control="select2" data-placeholder="Bulan">
+                                        required data-control="select2" data-placeholder="Pilih bulan">
                                     @foreach($bulanList as $bulan => $label)
                                         <option value="{{ $bulan }}"
                                             @selected(($periode_bulan_default ?? date('n')) == $bulan)>
@@ -129,16 +148,10 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="upload-tagihan-preview">
-                            <span>BTA:</span>
-                            <span class="badge bg-label-primary" id="periode_preview">-</span>
-                        </div>
-                    </div>
-                    <div class="col-lg-3 d-none d-lg-block">
-                        <div class="text-muted small">
-                            1. Import file Excel<br>
-                            2. Periksa data di tabel<br>
-                            3. Simpan ke tagihan siswa
+                        <div class="upload-tagihan-bta">
+                            <i class="ri-calendar-line"></i>
+                            <span>Kode BTA</span>
+                            <span class="badge bg-primary" id="periode_preview">-</span>
                         </div>
                     </div>
                 </div>
@@ -152,10 +165,7 @@
             </table>
         </div>
 
-        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <small class="text-muted mb-0">
-                Pastikan status baris <strong>Dapat Disimpan</strong> sebelum menyimpan.
-            </small>
+        <div class="card-footer d-flex justify-content-end border-top">
             <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                     data-bs-target="#modal-validate">
                 <span class="ri-save-line me-2"></span>

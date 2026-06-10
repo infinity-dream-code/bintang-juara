@@ -410,7 +410,6 @@ class ManualPembayaranController extends Controller
                     'NOREFF' => 'TELLER',
                     'PAIDST' => $isFullyPaid ? 1 : 0,
                     'INSTALLMENT' => $newInstallment,
-                    'isINSTALLABLE' => $newBillPaid,
                     'TRANSNO' => $transno,
                 ]);
 

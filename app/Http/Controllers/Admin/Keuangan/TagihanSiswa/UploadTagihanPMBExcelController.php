@@ -219,7 +219,7 @@ class UploadTagihanPMBExcelController extends Controller
                     'BTA' => $bta,
                     'BILLCD' => date('Y') . '/i' . date('m') . '-' . ($urut + 1),
                     'INSTALLMENT' => 0,
-                    'isINSTALLABLE' => 0,
+                    'isINSTALLABLE' => (int) ($tagihan->isINSTALLMENT ?? 0),
                 ]);
             }
 

@@ -264,7 +264,7 @@ class UploadTagihanExcelController extends Controller
                     'BTA' => $bta,
                     'BILLCD' => $billCD,
                     'INSTALLMENT' => 0,
-                    'isINSTALLABLE' => 0,
+                    'isINSTALLABLE' => (int) ($tagihan->isINSTALLMENT ?? 0),
                 ]);
             }
 

@@ -441,6 +441,10 @@
                 $('input[name=total_tagihan]').val(totalTagihan ? totalTagihan.toLocaleString('id-ID') : '');
             };
 
+            const isRowSelected = (rowNode, checkbox) => {
+                return checkbox.prop('checked') || $(rowNode).hasClass('selected');
+            };
+
             const syncNominalBayarInputs = () => {
                 const table = $(`#${dtOptions.tableId}`).DataTable();
 
@@ -449,13 +453,16 @@
                     const rowData = this.data();
                     const checkbox = $(rowNode).find('input[name="tagihan[post][]"]');
                     const input = getNominalInput(rowNode);
-                    const isSelected = checkbox.prop('checked');
+                    const isSelected = isRowSelected(rowNode, checkbox);
 
                     if (!input.length) {
                         return;
                     }
 
                     if (isSelected) {
+                        if (!checkbox.prop('checked')) {
+                            checkbox.prop('checked', true);
+                        }
                         const sisaBayar = Number(rowData.sisa_bayar ?? rowData.BILLAM) || 0;
                         const canCicil = Number(rowData.can_cicil ?? 0) === 1;
                         input.prop('disabled', false).prop('readonly', false).attr('required', true);
@@ -468,6 +475,7 @@
                             input.val(sisaBayar.toLocaleString('id-ID'));
                         }
                     } else {
+                        checkbox.prop('checked', false);
                         input.prop('disabled', true).val('').removeAttr('required');
                     }
                 });
@@ -475,20 +483,34 @@
                 updateTotalTagihan();
             };
 
+            const activateNominalRow = (inputEl) => {
+                const rowNode = $(inputEl).closest('tr');
+                const checkbox = rowNode.find('input[name="tagihan[post][]"]');
+                const table = $(`#${dtOptions.tableId}`).DataTable();
+
+                checkbox.prop('checked', true);
+                if (!rowNode.hasClass('selected')) {
+                    table.row(rowNode).select();
+                }
+
+                $(inputEl).prop('disabled', false).prop('readonly', false);
+                syncNominalBayarInputs();
+            };
+
             $(`#${dtOptions.tableId}`)
                 .on('init.dt draw.dt', syncNominalBayarInputs)
                 .on('mousedown click', 'td.exclude-selection, input.nominal-bayar-input', function (e) {
                     e.stopPropagation();
+                    const input = $(this).is('input.nominal-bayar-input')
+                        ? $(this)
+                        : $(this).find('input.nominal-bayar-input');
+                    if (input.length) {
+                        activateNominalRow(input[0]);
+                        setTimeout(() => input.trigger('focus'), 0);
+                    }
                 })
                 .on('focus', 'input.nominal-bayar-input', function () {
-                    const rowNode = $(this).closest('tr');
-                    const checkbox = rowNode.find('input[name="tagihan[post][]"]');
-                    const table = $(`#${dtOptions.tableId}`).DataTable();
-                    if (!checkbox.prop('checked')) {
-                        checkbox.prop('checked', true);
-                        table.row(rowNode).select();
-                        syncNominalBayarInputs();
-                    }
+                    activateNominalRow(this);
                 })
                 .on('change', 'input[name="tagihan[post][]"]', function () {
                     const table = $(`#${dtOptions.tableId}`).DataTable();
@@ -500,7 +522,20 @@
                     }
                     syncNominalBayarInputs();
                 })
-                .on('select.dt deselect.dt', syncNominalBayarInputs)
+                .on('select.dt', function (e, dt, type, indexes) {
+                    if (type !== 'row') return;
+                    indexes.forEach(function (idx) {
+                        $(dt.row(idx).node()).find('input[name="tagihan[post][]"]').prop('checked', true);
+                    });
+                    syncNominalBayarInputs();
+                })
+                .on('deselect.dt', function (e, dt, type, indexes) {
+                    if (type !== 'row') return;
+                    indexes.forEach(function (idx) {
+                        $(dt.row(idx).node()).find('input[name="tagihan[post][]"]').prop('checked', false);
+                    });
+                    syncNominalBayarInputs();
+                })
                 .on('input', 'input.nominal-bayar-input', updateTotalTagihan);
 
 

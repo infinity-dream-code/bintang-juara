@@ -310,7 +310,8 @@
                         warningAlert('Silahkan pilih siswa');
                         return;
                     }
-                    if (selectedIndexes.length < 1) {
+                    const checkedTagihan = $(`#${dtOptions.tableId} input[name="tagihan[post][]"]:checked`).length;
+                    if (selectedIndexes.length < 1 && checkedTagihan < 1) {
                         warningAlert('Silahkan pilih tagihan yang akan dibayar');
                         return;
                     }
@@ -424,16 +425,31 @@
                 return parseInt(String(value).replace(/\./g, ''), 10) || 0;
             };
 
-            const syncNominalBayarInputs = () => {
+            const updateTotalTagihan = () => {
                 const table = $(`#${dtOptions.tableId}`).DataTable();
                 let totalTagihan = 0;
+
+                table.rows().every(function () {
+                    const rowNode = this.node();
+                    const checkbox = $(rowNode).find('input[name="tagihan[post][]"]');
+                    const input = getNominalInput(rowNode);
+                    if (checkbox.prop('checked') && input.length) {
+                        totalTagihan += parseNominal(input.val());
+                    }
+                });
+
+                $('input[name=total_tagihan]').val(totalTagihan ? totalTagihan.toLocaleString('id-ID') : '');
+            };
+
+            const syncNominalBayarInputs = () => {
+                const table = $(`#${dtOptions.tableId}`).DataTable();
 
                 table.rows().every(function () {
                     const rowNode = this.node();
                     const rowData = this.data();
                     const checkbox = $(rowNode).find('input[name="tagihan[post][]"]');
                     const input = getNominalInput(rowNode);
-                    const isSelected = $(rowNode).hasClass('selected') || checkbox.prop('checked');
+                    const isSelected = checkbox.prop('checked');
 
                     if (!input.length) {
                         return;
@@ -451,20 +467,41 @@
                         if (!input.val()) {
                             input.val(sisaBayar.toLocaleString('id-ID'));
                         }
-                        totalTagihan += parseNominal(input.val());
                     } else {
                         input.prop('disabled', true).val('').removeAttr('required');
                     }
                 });
 
-                $('input[name=total_tagihan]').val(totalTagihan ? totalTagihan.toLocaleString('id-ID') : '');
+                updateTotalTagihan();
             };
 
             $(`#${dtOptions.tableId}`)
                 .on('init.dt draw.dt', syncNominalBayarInputs)
+                .on('mousedown click', 'td.exclude-selection, input.nominal-bayar-input', function (e) {
+                    e.stopPropagation();
+                })
+                .on('focus', 'input.nominal-bayar-input', function () {
+                    const rowNode = $(this).closest('tr');
+                    const checkbox = rowNode.find('input[name="tagihan[post][]"]');
+                    const table = $(`#${dtOptions.tableId}`).DataTable();
+                    if (!checkbox.prop('checked')) {
+                        checkbox.prop('checked', true);
+                        table.row(rowNode).select();
+                        syncNominalBayarInputs();
+                    }
+                })
+                .on('change', 'input[name="tagihan[post][]"]', function () {
+                    const table = $(`#${dtOptions.tableId}`).DataTable();
+                    const row = table.row($(this).closest('tr'));
+                    if (this.checked) {
+                        row.select();
+                    } else {
+                        row.deselect();
+                    }
+                    syncNominalBayarInputs();
+                })
                 .on('select.dt deselect.dt', syncNominalBayarInputs)
-                .on('change', 'input[name="tagihan[post][]"]', syncNominalBayarInputs)
-                .on('input', 'input.nominal-bayar-input', syncNominalBayarInputs);
+                .on('input', 'input.nominal-bayar-input', updateTotalTagihan);
 
 
             function AlertPrint(Message = null) {

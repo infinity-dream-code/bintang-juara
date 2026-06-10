@@ -397,7 +397,7 @@ class ManualPembayaranController extends Controller
 
                 $newBillPaid = $billPaid + $nominal;
                 $newPaymentLeft = max(0, $billAm - $newBillPaid);
-                $existingInstal = (int) sccttran::where('BILLID', $item->AA)->max('INSTAL');
+                $existingInstal = (int) sccttran::where('BILLID', $item->AA)->max('INSTALLMENT');
                 $newInstallment = $existingInstal + 1;
                 $isFullyPaid = $newPaymentLeft <= 0;
 
@@ -426,7 +426,7 @@ class ManualPembayaranController extends Controller
                     'KREDIT' => 0,
                     'BILLID' => $item->AA,
                     'BILLTARGET' => $item->BILLNM,
-                    'INSTAL' => $newInstallment,
+                    'INSTALLMENT' => $newInstallment,
                     'TRANSNO' => $transno ?? Auth::user()->username,
                 ]);
             }

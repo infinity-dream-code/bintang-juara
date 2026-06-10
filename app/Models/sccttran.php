@@ -29,6 +29,6 @@ class sccttran extends Model
         "TRANSNO",
         "BILLID",
         "BILLTARGET",
-        "INSTAL",
+        "INSTALLMENT",
     ];
 }

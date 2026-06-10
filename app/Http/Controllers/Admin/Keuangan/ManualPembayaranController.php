@@ -6,7 +6,6 @@ use App\Http\Controllers\Admin\Keuangan\Saldo\SaldoVirtualAccountController;
 use App\Http\Controllers\Controller;
 use App\Models\mst_tagihan;
 use App\Models\scctbill;
-use App\Models\scctbill_detail;
 use App\Models\scctcust;
 use App\Models\sccttran;
 use App\Models\User;
@@ -215,22 +214,9 @@ class ManualPembayaranController extends Controller
             'scctcust.DESC02',
         ]);
 
-        $tagihan = scctbill::leftJoin('scctbill_detail', function ($join) {
-            $join->on('scctbill.BILLCD', '=', 'scctbill_detail.BILLCD')
-                ->on('scctbill.CUSTID', '=', 'scctbill_detail.CUSTID');
-        })
-            ->leftJoin('u_akun', 'u_akun.KodeAkun', 'scctbill_detail.KodePost')
-            ->leftJoin('scctcust', 'scctcust.CUSTID', 'scctbill.CUSTID')
+        $tagihan = scctbill::leftJoin('scctcust', 'scctcust.CUSTID', 'scctbill.CUSTID')
             ->where('scctbill.PAIDST', 0)
             ->select($select)
-            ->addSelect(
-                DB::raw("GROUP_CONCAT(
-                            DISTINCT CASE
-                                WHEN scctbill.PAIDST = 0 THEN u_akun.NamaAkun
-                                ELSE NULL
-                            END
-                        SEPARATOR ', ') as 'nama_akun'")
-            )
             ->where('scctbill.CUSTID', $request->siswa)
             ->orderBy('scctbill.PAIDST', 'asc')
             ->orderBy('scctbill.FUrutan', 'asc')
@@ -380,7 +366,6 @@ class ManualPembayaranController extends Controller
             }
 
             foreach ($tagihans as $item) {
-                $tagihanForPrint[] = $item->AA;
                 $keyForSearch = array_search($item->AA, $posts);
                 $nominal = intval($nominalBayar[$keyForSearch]);
 //                dd($nominal, $item->BILLAM, $item);
@@ -397,15 +382,7 @@ class ManualPembayaranController extends Controller
                     ], 422);
                 }
 
-                if ($item->BILLAM > $nominal) {
-                    $detailPost = scctbill_detail::where('CUSTID', $item->CUSTID)
-                        ->where('BILLCD', $item->BILLCD)->count();
-
-                    if ($detailPost > 1) {
-                        DB::rollBack();
-                        return response()->json(['message' => "Tagihan {$item->BILLNM} memiliki beberapa POST dan tidak dapat dicicil!"], 422);
-                    }
-                }else if($item->BILLAM < $nominal){
+                if ($item->BILLAM < $nominal) {
                     DB::rollBack();
                     $nominalTagihan = 'Rp. '. number_format($item->BILLAM,0,',','.');
                     $nominalPembayaran = 'Rp. '. number_format($nominal,0,',','.');
@@ -421,8 +398,10 @@ class ManualPembayaranController extends Controller
                         'PAIDDT' => $formattedDate,
                         'PAIDDT_ACTUAL' => date('Y-m-d H:i:s'),
                         'FIDBANK' => $request->input('bank'),
-                        'PAIDAM' => $item->BILLAM
+                        'PAIDAM' => $item->BILLAM,
+                        'TRANSNO' => $transno,
                     ]);
+                    $tagihanForPrint[] = $item->AA;
                 } else {
                     $sisa = $oldBill - $nominal;
                     $tagihanSiswaTerbaru = scctbill::where('CUSTID', $item->CUSTID)
@@ -430,17 +409,9 @@ class ManualPembayaranController extends Controller
                         ->orderBy('FUrutan', 'DESC')
                         ->first();
 
-                    $scctbillDetail = scctbill_detail::where('CUSTID', $item->CUSTID)->where('BILLCD', $item->BILLCD)->first();
-                    scctbill_detail::where('CUSTID', $item->CUSTID)->where('BILLCD', $item->BILLCD)->update([
-                        'BILLAM' => $sisa
-                    ]);
-
                     $item->update([
-//                        'PAIDST' => 1,
-//                        'PAIDDT' => date('Y-m-d H:i:s'),
-//                        'PAIDDT_ACTUAL' => date('Y-m-d H:i:s'),
-//                        'FIDBANK' => $request->input('bank'),
-                        'BILLAM' => $sisa
+                        'BILLAM' => $sisa,
+                        'isINSTALLABLE' => (int) ($item->isINSTALLABLE ?? 0) + $nominal,
                     ]);
 
                     $urut = $tagihanSiswaTerbaru ? $tagihanSiswaTerbaru['FUrutan'] + 1 : 1;
@@ -452,28 +423,20 @@ class ManualPembayaranController extends Controller
                         'BILLCD' => $billCD,
                         'BILLNM' => $item->BILLNM,
                         'BILLAM' => $nominal,
-                        'PAIDAM' => $nominal,
                         'FUrutan' => $urut,
                         'FTGLTagihan' => now(),
                         'FSTSBolehBayar' => 1,
                         'BTA' => $item->BTA,
+                        'INSTALLMENT' => (int) ($item->INSTALLMENT ?? 0),
+                        'isINSTALLABLE' => 0,
                         'PAIDST' => 1,
                         'PAIDDT' => $formattedDate,
                         'PAIDDT_ACTUAL' => date('Y-m-d H:i:s'),
                         'FIDBANK' => $request->input('bank'),
-                        'TRANSNO' => $transno
+                        'TRANSNO' => $transno,
                     ]);
 
-                    $tahun = substr($item->BILLAC, 0, 4);
-                    $bulan = substr($item->BILLAC, 4, 2);
-                    $billDetail = scctbill_detail::create([
-                        'KodePost' => $scctbillDetail->KodePost,
-                        'CUSTID' => $bill->CUSTID,
-                        'BILLAM' => $bill->BILLAM,
-                        'tahun' => $tahun,
-                        'periode' => $bulan,
-                        'BILLCD' => $billCD,
-                    ]);
+                    $tagihanForPrint[] = $bill->AA;
                 }
 
                 $metode = 'FROM SALDO';

@@ -110,8 +110,8 @@
     <tr class="">
         <td style="text-align: center; vertical-align: middle;">
             @php
-                $logoPath = file_exists(public_path('logo.png')) ? public_path('logo.png') : public_path('logo.svg');
-                $logoMime = str_ends_with($logoPath, '.svg') ? 'image/svg+xml' : 'image/png';
+                $logoPath = public_path('icon.png');
+                $logoMime = 'image/png';
             @endphp
             <img src="data:{{ $logoMime }};base64,{{ base64_encode(file_get_contents($logoPath)) }}" style="max-height: 5rem; display: block; margin: auto;" alt="logo"/>
         </td>

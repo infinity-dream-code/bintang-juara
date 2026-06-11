@@ -20,12 +20,8 @@ Route::prefix("admin")
 
         Route::prefix("master-data")->name("master-data.")->group(function () {
             Route::get("get-logo", function (\Illuminate\Http\Request $request) {
-                $path = public_path("logo.png");
+                $path = public_path("icon.png");
                 $mime = "image/png";
-                if (!file_exists($path)) {
-                    $path = public_path("logo.svg");
-                    $mime = "image/svg+xml";
-                }
                 if (!file_exists($path)) {
                     return response()->json(["data" => null], 404);
                 }

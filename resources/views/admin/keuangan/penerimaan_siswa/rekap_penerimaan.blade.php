@@ -639,7 +639,7 @@
             });
 
             async function getLogoUnit(unit = false) {
-                const fallbackLogo = 'data:image/png;base64,' + "{{ base64_encode(file_get_contents(public_path('logo.png'))) }}";
+                const fallbackLogo = 'data:image/png;base64,' + "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
                 try {
                     if (!unit) {
                         throw 'error';

@@ -602,7 +602,7 @@
                 website: "{{ config('app.website') }}"
             }
         };
-        const headerLogo = "{{ base64_encode(file_get_contents(public_path('logo.png'))) }}";
+        const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
         const tandaTangan = "{{ Auth::user()->tanda_tangan ? base64_encode(file_get_contents(public_path('storage/photos/tanda_tangan/'.Auth::user()->tanda_tangan))) : '' }}";
         const userName = "{{ Auth::user()->name }}";
         const domisili = "{{ config('app.domisili') }}";

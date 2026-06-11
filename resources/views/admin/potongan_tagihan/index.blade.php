@@ -378,7 +378,7 @@
                     website: "{{ config('app.website') }}"
                 }
             };
-            const headerLogo = "{{ base64_encode(file_get_contents(public_path('logo.png'))) }}";
+            const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
 

@@ -794,7 +794,7 @@
                     website: "{{ config('app.website') }}"
                 }
             };
-            const headerLogo = "{{ base64_encode(file_get_contents(public_path('logo.png'))) }}";
+            const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
             const tandaTangan = @json($tanda_tangan);
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
@@ -819,7 +819,7 @@
             }
 
             async function getLogoUnit(unit = false) {
-                const fallbackLogo = 'data:image/png;base64,' + "{{ base64_encode(file_get_contents(public_path('logo.png'))) }}";
+                const fallbackLogo = 'data:image/png;base64,' + "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
                 try {
                     if (!unit) {
                         throw 'error';

@@ -265,7 +265,7 @@
                 website: "{{ config('app.website') ?? ''}}"
             }
         };
-        const headerLogo = "{{ base64_encode(file_get_contents(public_path('logo.png'))) }}";
+        const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
         const userName = "KASIR";
         const domisili = "{{ config('app.domisili') }}";
         const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";

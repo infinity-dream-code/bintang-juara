@@ -399,28 +399,32 @@ class RekapPenerimaanController extends Controller
                 'scctcust.NOCUST',
             ];
 
-            $select = array_unique(array_merge($whereAny, [
-                'scctbill.AA',
-                'scctbill.BILLNM',
-                'scctbill.BILLAC',
-                'scctbill.BILLAM',
-                'scctbill.BILLPAID',
-                'scctbill.PAIDST',
-                'scctbill.BILLCD',
-                'scctbill.PAIDDT',
-                'scctbill.BTA',
-                'scctbill.CUSTID',
-                'scctbill.FIDBANK',
-                'scctbill.FUrutan',
-                'scctcust.DESC01',
-                'scctcust.CODE02',
-                'scctcust.DESC02',
-                'scctcust.DESC03',
-                'scctcust.DESC04',
-                'scctcust.NUM2ND',
-                DB::raw("'' as KodePost"),
-                DB::raw('scctbill.BILLNM as NamaAkun'),
-            ]));
+            $select = array_merge(
+                array_unique(array_merge($whereAny, [
+                    'scctbill.AA',
+                    'scctbill.BILLNM',
+                    'scctbill.BILLAC',
+                    'scctbill.BILLAM',
+                    'scctbill.BILLPAID',
+                    'scctbill.PAIDST',
+                    'scctbill.BILLCD',
+                    'scctbill.PAIDDT',
+                    'scctbill.BTA',
+                    'scctbill.CUSTID',
+                    'scctbill.FIDBANK',
+                    'scctbill.FUrutan',
+                    'scctcust.DESC01',
+                    'scctcust.CODE02',
+                    'scctcust.DESC02',
+                    'scctcust.DESC03',
+                    'scctcust.DESC04',
+                    'scctcust.NUM2ND',
+                ])),
+                [
+                    DB::raw("'' as KodePost"),
+                    DB::raw('scctbill.BILLNM as NamaAkun'),
+                ]
+            );
 
             $query = scctbill::query()
                 ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')

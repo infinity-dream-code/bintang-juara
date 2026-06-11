@@ -45,20 +45,11 @@
         <div class="card-body">
             <fieldset class="form-fieldset">
                 <div class="col-12 mb-3">
-                    <label class="form-label" for="nis">Nis/No Daftar Siswa</label>
-                    <div class="input-group input-group-merge">
-                        <input type="text" placeholder="Masukkan Nis/No Daftar siswa" name="nis"
-                               id="nis"
-                               autocomplete="off"
-                               class="form-control @error('password')is-invalid @enderror" required/>
-                        <span class="input-group-text cursor-pointer bg-primary text-white cari-siswa"
-                              data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-dismiss-="click"
-                              data-bs-placement="bottom"
-                              title="Cari Siswa">
-                                <i class="ri ri-search-line me-2"></i>
-                                Cari
-                            </span>
-                    </div>
+                    <label class="form-label" for="siswa">Siswa</label>
+                    <select class="form-select" id="siswa" name="siswa"
+                            data-control="select2-ajax-siswa"
+                            data-placeholder="Masukkan NIS / No. Pendaftaran / Nama Siswa">
+                    </select>
                 </div>
             </fieldset>
         </div>
@@ -208,21 +199,54 @@
         let tableTagihanDibayar;
         let tablePostBaru;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        let select2Param = '';
 
-        function inputSiswa() {
-            const inputValue = document.getElementById('nis').value;
-            if (!inputValue) {
-                warningAlert('NIS/No Daftar siswa tidak boleh kosong');
-            } else {
-                getSiswa(inputValue);
+        function loadSiswaByCustId(custid) {
+            if (!custid) {
+                warningAlert('Siswa tidak valid');
+                return;
             }
+
+            $.ajax({
+                url: '{{ route('admin.manual-input.edit-manual.get-siswa') }}',
+                type: 'get',
+                dataType: 'json',
+                data: { custid: custid },
+            }).done(function (response) {
+                refreshDataTable(response.data ?? []);
+                tableTagihan.clear().draw();
+                tableTagihanDibayar.clear().draw();
+                tablePostBaru.clear().draw();
+
+                const siswa = response.data?.[0];
+                if (!siswa?.CUSTID) {
+                    warningAlert('Siswa tidak ditemukan');
+                    return;
+                }
+
+                setTimeout(function () {
+                    const checkbox = document.getElementById(`siswa-checkbox-${siswa.CUSTID}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }, 100);
+            }).fail(function (xhr) {
+                if (xhr.status === 422) {
+                    errorAlert('Gagal mendapat data siswa');
+                } else if (xhr.status === 419) {
+                    errorAlert('Sesi anda telah habis, Silahkan Login Kembali');
+                } else if (xhr.status === 500) {
+                    errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda');
+                } else if (xhr.status === 403) {
+                    errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini');
+                } else if (xhr.status === 404) {
+                    errorAlert('Halaman tidak ditemukan');
+                } else {
+                    errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman');
+                }
+            });
         }
-
-        document.getElementById('nis').addEventListener('keydown', function (e) {
-            if (e.key === "Enter") {
-                inputSiswa();
-            }
-        });
 
         document.getElementById('btn-buat-detail').addEventListener('click', function (e) {
             const akun = document.getElementById('pilih-akun');
@@ -248,10 +272,6 @@
                 warningAlert(`<b>${dataObj.NamaAkun}</b> sudah ada!`)
             }
         })
-
-        document.querySelector('.cari-siswa').addEventListener('click', function () {
-            inputSiswa();
-        });
 
         document.getElementById('table-siswa').addEventListener('click', function (e) {
             if (!e.target.classList.contains('checkbox-siswa')) {
@@ -299,16 +319,7 @@
             tableTagihan.clear().draw();
             tableTagihanDibayar.clear().draw();
             tableSiswa.clear().draw();
-            const nisInput = document.getElementById('nis');
-            if (nisInput) {
-                nisInput.value = '';
-                nisInput.focus();
-                nisInput.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-                window.scrollBy(0, -80)
-            }
+            $('#siswa').val(null).trigger('change');
         })
 
         document.getElementById('table-post-baru').addEventListener('input', function (e) {
@@ -495,34 +506,7 @@
         });
 
         async function getSiswa(siswa) {
-            let url = '{{route('admin.manual-input.edit-manual.get-siswa')}}';
-            let ajaxOptions = {
-                url: url,
-                type: 'get',
-                datatype: 'json',
-                data: {
-                    'cari_siswa': siswa,
-                    'siswa_only': true
-                },
-            }
-
-            $.ajax(ajaxOptions).done(function (response) {
-                refreshDataTable(response.data);
-            }).fail(function (xhr) {
-                if (xhr.status === 422) {
-                    errorAlert('Gagal mendapat data siswa')
-                } else if (xhr.status === 419) {
-                    errorAlert('Sesi anda telah habis, Silahkan Login Kembali')
-                } else if (xhr.status === 500) {
-                    errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda')
-                } else if (xhr.status === 403) {
-                    errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini')
-                } else if (xhr.status === 404) {
-                    errorAlert('Halaman tidak ditemukan')
-                } else {
-                    errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')
-                }
-            })
+            loadSiswaByCustId(siswa);
         }
 
         async function getTagihan(siswa, closeAlert = true) {
@@ -817,7 +801,7 @@
                 ],
                 language: {
                     ...languageData,
-                    emptyTable: "Tidak ada siswa yang sesuai kriteria pencarian"
+                    emptyTable: "Tidak ada tagihan yang belum dibayar"
                 },
 
                 paging: true,
@@ -873,7 +857,7 @@
                 ],
                 language: {
                     ...languageData,
-                    emptyTable: "Tidak ada siswa yang sesuai kriteria pencarian"
+                    emptyTable: "Tidak ada tagihan yang sudah dibayar"
                 },
 
                 paging: true,
@@ -917,6 +901,55 @@
                 pageLength: 10,
                 order: [[1, 'desc']],
                 scrollX: true,
+            });
+
+            $('[data-control="select2-ajax-siswa"]').select2({
+                allowClear: true,
+                placeholder: $('#siswa').data('placeholder'),
+                ajax: {
+                    url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        select2Param = params.term;
+                        return {
+                            term: params.term,
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data
+                        };
+                    },
+                    cache: true
+                },
+                language: {
+                    inputTooShort: function () {
+                        return "Masukkan NIS atau No. Pendaftaran atau Nama Siswa";
+                    },
+                    noResults: function () {
+                        let w = $.isNumeric(select2Param) ? 'NIS' : 'Nama';
+                        return "Siswa dengan " + w + ": <span class='bg-label-danger'><b>" + select2Param + "</b></span> tidak ditemukan!";
+                    },
+                    searching: function () {
+                        return "Mencari Siswa ......";
+                    }
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                },
+                minimumInputLength: 4,
+            }).on('select2:selecting', function (e) {
+                if (e.params.args.data.id === '') {
+                    e.preventDefault();
+                }
+            }).on('select2:select', function (e) {
+                loadSiswaByCustId(e.params.data.id);
+            }).on('select2:clear', function () {
+                tableSiswa.clear().draw();
+                tableTagihan.clear().draw();
+                tableTagihanDibayar.clear().draw();
+                tablePostBaru.clear().draw();
             });
 
             tableTagihan.on('select.dt deselect.dt', async function (e, dt, type, indexes) {

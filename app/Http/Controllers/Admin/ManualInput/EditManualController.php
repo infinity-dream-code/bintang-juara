@@ -47,6 +47,22 @@ class EditManualController extends Controller
 
     public function getSiswa(Request $request)
     {
+        $unitScope = Auth::check() ? Auth::user()->unit : null;
+
+        if ($request->filled('custid')) {
+            $siswa = scctcust::query()
+                ->where('CUSTID', $request->custid)
+                ->where('STCUST', 1)
+                ->when($unitScope, fn ($q) => $q->where('CODE02', $unitScope))
+                ->first();
+
+            if (!$siswa) {
+                return response()->json(['data' => []]);
+            }
+
+            return response()->json(['data' => [$this->mapSiswaRow($siswa)]]);
+        }
+
         $nis = null;
         $nama = null;
         if ($request->filled('cari_siswa')) {
@@ -59,8 +75,6 @@ class EditManualController extends Controller
             return response()->json(['data' => []]);
         }
 
-        $unitScope = Auth::check() ? Auth::user()->unit : null;
-
         $siswa = scctcust::query()
             ->where('STCUST', 1)
             ->when($unitScope, fn ($q) => $q->where('CODE02', $unitScope))
@@ -71,35 +85,27 @@ class EditManualController extends Controller
                 });
             })
             ->when($nama, fn ($q) => $q->where('nmcust', 'like', $nama))
-            ->select([
-                'CUSTID',
-                'nocust as nis',
-                'NUM2ND as nomor_pendaftaran',
-                'nmcust as nama',
-                'CODE02',
-                'CODE03',
-                'DESC02',
-                'DESC03',
-                'DESC04 as angkatan',
-            ])
             ->orderBy('nocust', 'asc')
             ->limit(500)
             ->get()
-            ->map(function ($item) {
-                return [
-                    'CUSTID' => $item->CUSTID,
-                    'nis' => $item->nis,
-                    'nomor_pendaftaran' => $item->nomor_pendaftaran,
-                    'nama' => $item->nama,
-                    'CODE02' => $item->CODE02,
-                    'CODE03' => $item->CODE03,
-                    'kelas' => trim(($item->DESC02 ?? '') . ' ' . ($item->DESC03 ?? '')),
-                    'jenjang' => $item->DESC02,
-                    'angkatan' => $item->angkatan,
-                ];
-            });
+            ->map(fn ($item) => $this->mapSiswaRow($item));
 
         return response()->json(['data' => $siswa]);
+    }
+
+    private function mapSiswaRow($item): array
+    {
+        return [
+            'CUSTID' => $item->CUSTID,
+            'nis' => $item->nocust ?? $item->nis ?? null,
+            'nomor_pendaftaran' => $item->NUM2ND ?? $item->nomor_pendaftaran ?? null,
+            'nama' => $item->nmcust ?? $item->nama ?? null,
+            'CODE02' => $item->CODE02,
+            'CODE03' => $item->CODE03,
+            'kelas' => trim(($item->DESC02 ?? '') . ' ' . ($item->DESC03 ?? '')),
+            'jenjang' => $item->DESC02,
+            'angkatan' => $item->DESC04 ?? $item->angkatan ?? null,
+        ];
     }
 
     public function getTagihan(Request $request)

@@ -33,7 +33,7 @@ class RekapPenerimaanController extends Controller
         'periode_mulai' => 'scctbill.BILLAC_start',
         'periode_akhir' => 'scctbill.BILLAC_end',
         'tahun_akademik' => 'scctbill.BTA',
-        'post' => 'scctbill_detail.KodePost',
+        'post' => 'scctbill.BILLNM',
         'nama_tagihan' => 'scctbill.BILLNM',
         'bank' => 'scctbill.FIDBANK',
         'kelas' => 'scctcust.DESC02',
@@ -122,8 +122,8 @@ class RekapPenerimaanController extends Controller
             ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'DESC04', 'name' => 'Angkatan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'KodePost', 'name' => 'Kode', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'NamaAkun', 'name' => 'Nama post', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'KodePost', 'name' => 'Kode', 'searchable' => false, 'orderable' => false, 'exportable' => true, 'visible' => false],
+            ['data' => 'NamaAkun', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'BILLAM', 'name' => 'Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'classname' => 'text-end', 'exportable' => true],
             ['data' => 'METODE_BAYAR', 'name' => 'Metode', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
@@ -281,7 +281,7 @@ class RekapPenerimaanController extends Controller
                             'tanggal-transaksi' => 'scctbill.PAIDDT',
                             'periode_mulai', 'periode_akhir' => 'scctbill.BILLAC',
                             'tahun_akademik' => 'scctbill.BTA',
-                            'post' => 'scctbill_detail.KodePost',
+                            'post' => 'scctbill.BILLNM',
                             'nama_tagihan' => 'scctbill.BILLNM',
                             'bank' => 'scctbill.FIDBANK',
                             'unit' => 'scctcust.CODE02',
@@ -403,7 +403,8 @@ class RekapPenerimaanController extends Controller
                 'scctbill.AA',
                 'scctbill.BILLNM',
                 'scctbill.BILLAC',
-                'scctbill_detail.BILLAM as BILLAM',
+                'scctbill.BILLAM',
+                'scctbill.BILLPAID',
                 'scctbill.PAIDST',
                 'scctbill.BILLCD',
                 'scctbill.PAIDDT',
@@ -417,28 +418,24 @@ class RekapPenerimaanController extends Controller
                 'scctcust.DESC03',
                 'scctcust.DESC04',
                 'scctcust.NUM2ND',
-                'scctbill_detail.KodePost',
-                'u_akun.KodeAkun',
-                'u_akun.NamaAkun',
+                DB::raw("'' as KodePost"),
+                DB::raw('scctbill.BILLNM as NamaAkun'),
             ]));
 
-            $query = scctbill_detail::join('scctbill', function ($join) {
-                    $join->on('scctbill.BILLCD', '=', 'scctbill_detail.BILLCD')
-                        ->on('scctbill.CUSTID', '=', 'scctbill_detail.CUSTID');
-                })
+            $query = scctbill::query()
                 ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
-                ->leftJoin('u_akun', 'u_akun.KodeAkun', 'scctbill_detail.KodePost')
                 ->where('scctbill.PAIDST', 1)
                 ->where('scctbill.FSTSBolehBayar', 1)
-                ->whereNotNull('scctbill_detail.KodePost')
                 ->where('scctcust.STCUST', 1)
                 ->whereNotNull('scctbill.PAIDDT')
+                ->where('scctbill.PAIDDT', '!=', '0000-00-00 00:00:00')
                 ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
                 $query->where(function ($q) use ($whereAny, $searchValue) {
                     $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
                     foreach ($whereAny as $column) {
                         $q->orWhere($column, 'like', '%' .$sanitizeSearch . '%');
                     }
+                    $q->orWhere('scctbill.BILLNM', 'like', '%' . $sanitizeSearch . '%');
                 });
             })
                 ->where(function ($query) use ($filterQuery) {
@@ -451,18 +448,15 @@ class RekapPenerimaanController extends Controller
 
             $unitCache = blank($this->sekolah) ? 'all' : md5((string) $this->sekolah);
             $totalRecords = Cache::remember(
-                "{$this->cacheKey}:total_all_data:{$unitCache}",
+                "{$this->cacheKey}:total_all_data:v2:{$unitCache}",
                 now()->addMinutes(10),
                 function () {
-                    $baseQuery = scctbill_detail::join('scctbill', function ($join) {
-                        $join->on('scctbill.BILLCD', '=', 'scctbill_detail.BILLCD')
-                            ->on('scctbill.CUSTID', '=', 'scctbill_detail.CUSTID');
-                    })
+                    $baseQuery = scctbill::query()
                         ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
                         ->where('scctbill.PAIDST', 1)
                         ->where('scctbill.FSTSBolehBayar', 1)
-                        ->whereNotNull('scctbill_detail.KodePost')
                         ->whereNotNull('scctbill.PAIDDT')
+                        ->where('scctbill.PAIDDT', '!=', '0000-00-00 00:00:00')
                         ->where('scctcust.STCUST', 1);
 
                     $this->applyUnitScope($baseQuery);
@@ -489,6 +483,10 @@ class RekapPenerimaanController extends Controller
                 $records = $records->map(function ($item, $index) use ($metodeBayarMap) {
                     $item->item_id = $item['AA'];
                     $item->CUSTID = $item['CUSTID'];
+                    $item->BILLAM = (int) ($item->BILLPAID ?? 0) > 0
+                        ? (int) $item->BILLPAID
+                        : (int) ($item->BILLAM ?? 0);
+                    $item->NamaAkun = $item->BILLNM;
                     $item->METODE_BAYAR = $metodeBayarMap[$item->FIDBANK] ?? ($item->FIDBANK ?? '-');
                     $item->NOVA = ($item->NOCUST && $item->NOCUST != '-') ? scctcust::showVA($item->NOCUST) : null;
                     if (!$item->NOCUST || $item->NOCUST == '-') $item->NOCUST = null;
@@ -497,6 +495,10 @@ class RekapPenerimaanController extends Controller
                 });
             } else {
                 $records = $records->map(function ($item) use ($metodeBayarMap) {
+                    $item->BILLAM = (int) ($item->BILLPAID ?? 0) > 0
+                        ? (int) $item->BILLPAID
+                        : (int) ($item->BILLAM ?? 0);
+                    $item->NamaAkun = $item->BILLNM;
                     $item->METODE_BAYAR = $metodeBayarMap[$item->FIDBANK] ?? ($item->FIDBANK ?? '-');
                     return $item;
                 });
@@ -533,7 +535,7 @@ class RekapPenerimaanController extends Controller
                         'tanggal-transaksi' => 'scctbill.PAIDDT',
                         'periode_mulai', 'periode_akhir' => 'scctbill.BILLAC',
                         'tahun_akademik' => 'scctbill.BTA',
-                        'post' => 'scctbill_detail.KodePost',
+                        'post' => 'scctbill.BILLNM',
                         'nama_tagihan' => 'scctbill.BILLNM',
                         'bank' => 'scctbill.FIDBANK',
                         'unit' => 'scctcust.CODE02',
@@ -622,17 +624,12 @@ class RekapPenerimaanController extends Controller
         }
 
         try {
-            $records = scctbill_detail::query()
-                ->from('scctbill_detail as a')
-                ->join('scctbill', function ($join) {
-                    $join->on('scctbill.BILLCD', '=', 'a.BILLCD')
-                        ->on('scctbill.CUSTID', '=', 'a.CUSTID');
-                })
+            $records = scctbill::query()
                 ->join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
-                ->leftJoin((new u_akun())->getTable() . ' as u_akun', 'u_akun.KodeAkun', '=', 'a.KodePost')
                 ->where('scctbill.PAIDST', 1)
                 ->where('scctbill.FSTSBolehBayar', 1)
                 ->whereNotNull('scctbill.PAIDDT')
+                ->where('scctbill.PAIDDT', '!=', '0000-00-00 00:00:00')
                 ->where('scctcust.STCUST', 1)
                 ->where(function ($query) use ($filter_scctbill) {
                     foreach ($filter_scctbill as $filter) {
@@ -695,24 +692,21 @@ class RekapPenerimaanController extends Controller
                 })
                 ->select([
                     'scctbill.BTA',
-                    'a.KodePost',
                     'scctbill.BILLNM',
-                    DB::raw('COALESCE(u_akun.NamaAkun, scctbill.BILLNM) as NamaAkun'),
+                    DB::raw('scctbill.BILLNM as NamaAkun'),
                     'scctcust.CODE02',
                     'scctcust.DESC03',
                     DB::raw('NULL as GetWisma'),
-                    DB::raw('SUM(a.BILLAM) as BILLAM'),
+                    DB::raw('SUM(COALESCE(NULLIF(scctbill.BILLPAID, 0), scctbill.BILLAM)) as BILLAM'),
                 ])
                 ->groupBy([
                     'scctbill.BTA',
-                    'a.KodePost',
-                    'u_akun.NamaAkun',
                     'scctbill.BILLNM',
                     'scctcust.CODE02',
                     'scctcust.DESC03',
                 ])
                 ->orderBy('scctbill.BTA')
-                ->orderBy('a.KodePost')
+                ->orderBy('scctbill.BILLNM')
                 ->get();
 
             if ($records->isEmpty()) throw new \Exception('Gagal mengambil data tagihan');

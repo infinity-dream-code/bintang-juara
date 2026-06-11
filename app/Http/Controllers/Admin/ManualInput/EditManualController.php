@@ -7,8 +7,10 @@ use App\Models\mst_kelas;
 use App\Models\mst_tagihan;
 use App\Models\mst_thn_aka;
 use App\Models\scctbill;
+use App\Models\scctcust;
 use App\Models\ValidationMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -41,6 +43,63 @@ class EditManualController extends Controller
             ->get();
 
         return view('admin.manual_input.edit_manual', $data);
+    }
+
+    public function getSiswa(Request $request)
+    {
+        $nis = null;
+        $nama = null;
+        if ($request->filled('cari_siswa')) {
+            is_numeric($request->cari_siswa)
+                ? $nis = '%' . $request->cari_siswa . '%'
+                : $nama = '%' . $request->cari_siswa . '%';
+        }
+
+        if (!$nis && !$nama) {
+            return response()->json(['data' => []]);
+        }
+
+        $unitScope = Auth::check() ? Auth::user()->unit : null;
+
+        $siswa = scctcust::query()
+            ->where('STCUST', 1)
+            ->when($unitScope, fn ($q) => $q->where('CODE02', $unitScope))
+            ->when($nis, function ($q) use ($nis) {
+                $q->where(function ($q2) use ($nis) {
+                    $q2->where('nocust', 'like', $nis)
+                        ->orWhere('NUM2ND', 'like', $nis);
+                });
+            })
+            ->when($nama, fn ($q) => $q->where('nmcust', 'like', $nama))
+            ->select([
+                'CUSTID',
+                'nocust as nis',
+                'NUM2ND as nomor_pendaftaran',
+                'nmcust as nama',
+                'CODE02',
+                'CODE03',
+                'DESC02',
+                'DESC03',
+                'DESC04 as angkatan',
+            ])
+            ->orderBy('nocust', 'asc')
+            ->limit(500)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'CUSTID' => $item->CUSTID,
+                    'nis' => $item->nis,
+                    'nomor_pendaftaran' => $item->nomor_pendaftaran,
+                    'nama' => $item->nama,
+                    'CODE02' => $item->CODE02,
+                    'CODE03' => $item->CODE03,
+                    'kelas' => trim(($item->DESC02 ?? '') . ' ' . ($item->DESC03 ?? '')),
+                    'jenjang' => $item->DESC02,
+                    'angkatan' => $item->angkatan,
+                ];
+            });
+
+        return response()->json(['data' => $siswa]);
     }
 
     public function getTagihan(Request $request)

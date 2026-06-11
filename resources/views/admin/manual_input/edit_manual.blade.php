@@ -495,7 +495,7 @@
         });
 
         async function getSiswa(siswa) {
-            let url = '{{route('admin.keuangan.tagihan-siswa.buat-tagihan.get-siswa')}}';
+            let url = '{{route('admin.manual-input.edit-manual.get-siswa')}}';
             let ajaxOptions = {
                 url: url,
                 type: 'get',

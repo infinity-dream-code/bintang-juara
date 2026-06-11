@@ -203,6 +203,7 @@ Route::prefix("admin")
         Route::prefix("manual-input")->name("manual-input.")->group(function () {
             Route::controller(\App\Http\Controllers\Admin\ManualInput\EditManualController::class)
                 ->prefix("edit-manual")->name("edit-manual.")->group(function () {
+                    Route::get("get-siswa", "getSiswa")->name("get-siswa");
                     Route::get("get-tagihan", "getTagihan")->name("get-tagihan");
                     Route::get("get-detail-taighan", "getDetailTagihan")->name("get-detail-tagihan");
                     Route::put("edit-tagihan", "editTagihan")->name("edit-tagihan");

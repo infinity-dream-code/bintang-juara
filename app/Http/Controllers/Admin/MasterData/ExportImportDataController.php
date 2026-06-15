@@ -33,6 +33,10 @@ class ExportImportDataController extends Controller
         $data['dataTitle'] = $this->dataTitle;
         $data['columnsUrl'] = route('admin.master-data.export-import-data.get-column');
         $data['datasUrl'] = route('admin.master-data.export-import-data.get-data');
+        $data['sekolah'] = mst_sekolah::query()
+            ->select(['CODE01', 'DESC01'])
+            ->orderBy('DESC01')
+            ->get();
 
         return view('admin.master_data.export_import_data.index', $data);
     }
@@ -196,16 +200,29 @@ class ExportImportDataController extends Controller
 
     public function validateData(Request $request)
     {
+        $rules = [
+            'metode' => ['required', 'in:1,2,3,4'],
+        ];
+        if (in_array($request->metode, ['1', '2'], true)) {
+            $rules['sekolah'] = ['required', 'string'];
+        }
+
         $request->validate(
-            [
-                'metode' => ['required', 'in:1,2,3,4']
-            ],
+            $rules,
             ValidationMessage::messages(),
             ValidationMessage::attributes()
         );
 
         $data = Cache::get($this->cacheKey);
         if (is_null($data) || (is_array($data) && empty($data))) return response()->json(['message' => 'Tidak ada data yang dapat diproses, silahkan upload file terlebih dahulu'], 422);
+
+        $sekolah = null;
+        if (in_array($request->metode, ['1', '2'], true)) {
+            $sekolah = mst_sekolah::where('CODE01', $request->sekolah)->first();
+            if (!$sekolah) {
+                return response()->json(['message' => 'Sekolah tidak ditemukan, silahkan pilih sekolah yang valid'], 422);
+            }
+        }
 
         try {
             DB::beginTransaction();
@@ -232,9 +249,8 @@ class ExportImportDataController extends Controller
 
                     $thn_aka = mst_thn_aka::where('thn_aka', $item['angkatan'])->first();
                     $kelas = mst_kelas::findForImport($item['unit'], $item['kelas'], $item['kelompok']);
-                    $unit = $this->resolveSekolahForImport($item['unit'], $kelas);
 
-                    if (!$thn_aka || !$kelas || !$unit) {
+                    if (!$thn_aka || !$kelas) {
                         Log::warning('export_import_data.validateData.missing_reference', [
                             'nis' => $item['nis'] ?? null,
                             'nodaftar' => $item['nodaftar'] ?? null,
@@ -244,13 +260,12 @@ class ExportImportDataController extends Controller
                             'kelompok' => $item['kelompok'] ?? null,
                             'thn_aka_found' => (bool) $thn_aka,
                             'kelas_found' => (bool) $kelas,
-                            'sekolah_found' => (bool) $unit,
+                            'sekolah' => $sekolah?->CODE01,
                         ]);
 
-                        return response()->json(['message' => 'Silahkan periksa kembali kelas/sekolah/thn_aka siswa',
+                        return response()->json(['message' => 'Silahkan periksa kembali kelas/thn_aka siswa',
                             'thn_aka' => $thn_aka,
-                            'unit' => $unit,
-                            'kelas' => $kelas
+                            'kelas' => $kelas,
 
                         ], 422);
                     }
@@ -272,11 +287,11 @@ class ExportImportDataController extends Controller
                             }
                         }
 
-                        scctcust::create($this->buildScctcustPayload($item, $unit, $kelas, $thn_aka));
+                        scctcust::create($this->buildScctcustPayload($item, $sekolah, $kelas, $thn_aka));
                     } else {
                         $existingCust->update($this->buildScctcustPayload(
                             $item,
-                            $unit,
+                            $sekolah,
                             $kelas,
                             $thn_aka,
                             $request->metode == '2',
@@ -297,6 +312,7 @@ class ExportImportDataController extends Controller
 
                     if ($existingCust && $kelas) {
                         $existingCust->update([
+                            'CODE02' => $kelas->unit,
                             'DESC02' => $kelas->jenjang,
                             'CODE03' => $kelas->id,
                             'DESC03' => $kelas->kelas,
@@ -430,8 +446,8 @@ class ExportImportDataController extends Controller
             'NUM2ND' => $item['nodaftar'] ?? '-',
             'STCUST' => 1,
             'CODE01' => $unit->CODE01,
-            'DESC01' => config('app.nama_instansi'),
-            'CODE02' => $unit->DESC01,
+            'DESC01' => $unit->DESC01,
+            'CODE02' => $kelas->unit,
             'DESC02' => $kelas->jenjang,
             'CODE03' => $kelas->id,
             'DESC03' => $kelas->kelas,

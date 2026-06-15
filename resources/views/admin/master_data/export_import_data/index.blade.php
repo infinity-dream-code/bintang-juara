@@ -163,6 +163,21 @@
                         <fieldset class="form-fieldset">
                             <div class="row mb-3">
                                 <div class="col">
+                                    <label class="form-label" for="sekolah">Sekolah <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="sekolah" name="sekolah"
+                                            data-control="select2"
+                                            data-placeholder="Pilih Sekolah">
+                                        <option value="" disabled selected>Pilih Sekolah</option>
+                                        @isset($sekolah)
+                                            @foreach($sekolah as $item)
+                                                <option value="{{ $item->CODE01 }}">{{ $item->DESC01 }}</option>
+                                            @endforeach
+                                        @endisset
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col">
                                     <label class="form-label" for="metode">Metode Penyimpanan <span class="text-danger">*</span></label>
                                     <select class="form-select" id="metode" name="metode" required>
                                         <option value="1">SIMPAN data siswa dengan NIS</option>
@@ -191,7 +206,7 @@
             </div>
         </div>
     </form>
-'
+
     <link rel="stylesheet" href="{{asset('libs/filepond/dist/filepond.min.css')}}">
     <link rel="stylesheet" href="{{asset('libs/filepond/dist/custom.css')}}">
     <script
@@ -362,6 +377,13 @@
                     });
                 });
             }
+
+            document.getElementById('metode')?.addEventListener('change', function () {
+                const sekolahField = document.getElementById('sekolah');
+                if (!sekolahField) return;
+                const needsSekolah = ['1', '2'].includes(this.value);
+                sekolahField.required = needsSekolah;
+            });
 
             document.querySelectorAll(".mainForm").forEach(form => {
                 form.addEventListener("submit", function (e) {

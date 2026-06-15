@@ -55,7 +55,7 @@
                 <fieldset class="form-fieldset">
                     <div class="row">
                         <div class="col-lg-4">
-                            <div class="mb-3 row">
+                            <div class="mb-3 row d-none">
                                 <label for="filter[tahun_akademik]" class="col-sm-4 col-form-label form-label">Tahun
                                     Akademik</label>
                                 <div class="col">
@@ -189,8 +189,8 @@
                                         @isset($kelas)
                                             @foreach($kelas as $item)
                                                 <option
-                                                    value="{{$item->jenjang}}">{{$item->unit}}
-                                                    - {{$item->kelas}} {{$item->jenjang}}</option>
+                                                    value="{{$item->unit}}~~{{$item->jenjang}}~~{{$item->kelas}}">{{$item->unit}}
+                                                    - {{$item->jenjang}} {{$item->kelas}}</option>
                                             @endforeach
                                         @else
                                             <option>data kosong</option>
@@ -407,9 +407,17 @@
                     Object.entries(rowData).forEach(([key, value]) => {
                         let input = document.querySelector(`#form-delete [name="${key.toLowerCase()}"]`);
                         if (input) {
-                            input.value = value;
+                            input.value = value ?? '';
                         }
                     });
+                    const custInput = document.getElementById('user_delete_id');
+                    const idInput = document.getElementById('delete_id');
+                    if (custInput) {
+                        custInput.value = rowData.CUSTID ?? rowData.custid ?? '';
+                    }
+                    if (idInput) {
+                        idInput.value = rowData.item_id ?? rowData.AA ?? '';
+                    }
                     modalDelete.show();
                 }
             }
@@ -443,7 +451,8 @@
                                 'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': csrfToken,
                             }, body: JSON.stringify({
-                                user_id: user_id
+                                user_id: user_id,
+                                custid: user_id,
                             })
                         });
                     break;

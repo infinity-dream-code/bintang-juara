@@ -11,7 +11,6 @@ use App\Models\u_akun;
 use App\Models\scctbill;
 use App\Models\scctbill_detail;
 use App\Models\scctcust;
-use App\Models\sccttran;
 use App\Models\User;
 use App\Support\CacheHandler;
 use App\Support\FilterHandler;
@@ -37,7 +36,7 @@ class DataPenerimaanController extends Controller
         'kelas' => 'scctcust.DESC02',
         'nama' => 'scctcust.NMCUST',
         'nis' => 'scctcust.NOCUST',
-        'sekolah' => 'scctcust.CODE02',
+        'sekolah' => 'scctcust.CODE01',
         'angkatan' => 'scctcust.DESC04',
         'periode_mulai' => 'scctbill.BILLAC_start',
         'periode_akhir' => 'scctbill.BILLAC_end',
@@ -154,7 +153,7 @@ class DataPenerimaanController extends Controller
         $filter = FilterHandler::resolveFilters($request->input('filter'), $this->allowedFilters);
         if ($this->sekolah !== null) {
             $filter = array_merge($filter, [
-                'scctcust.CODE02' => $this->sekolah,
+                'scctcust.CODE01' => $this->sekolah,
             ]);
         }
 
@@ -252,13 +251,6 @@ class DataPenerimaanController extends Controller
                 if ($filterQuery) {
                     $filterQuery($query);
                 }
-            })
-            ->when(!blank(data_get($request->input('filter', []), 'sekolah')) && strtolower((string)data_get($request->input('filter', []), 'sekolah')) !== 'all', function ($query) use ($request) {
-                $sekolah = trim((string)data_get($request->input('filter', []), 'sekolah'));
-                $query->where(function ($sub) use ($sekolah) {
-                    $sub->where('scctcust.CODE02', '=', $sekolah)
-                        ->orWhere('scctcust.CODE02', 'like', "%{$sekolah}%");
-                });
             });
 
         $cacheKey = CacheHandler::cacheKey($this->cacheKey, 'data_penerimaan_count', $filter, $searchValue ?? '');
@@ -304,52 +296,58 @@ class DataPenerimaanController extends Controller
         );
     }
 
-    public
-    function destroy($id, Request $request)
+    public function destroy($id, Request $request)
     {
-        //UPDATE SCCTBILL SET PAIDST = 0 , PAIDDT = null
-        //	WHERE  AA = p_AA
-        //	AND  CUSTID = v_CUSTID;
-        //
-        //	INSERT INTO SCCTTRAN (CUSTID, NOREFF, FIDBANK, TRXDATE, KDCHANNEL, KREDIT, METODE,TRANSNO)
-        //	VALUES
-        //	(v_CUSTID, p_BILLCD , 1140002 , NOW(), 11, v_BILLAM ,'JURNAL SALDO', p_users)
-        //	;
+        $custId = $request->input('user_id') ?? $request->input('custid');
 
         $tagihan = scctbill::where('AA', $id)
-            ->where('CUSTID', '=', $request->input('user_id'))
             ->where('PAIDST', '=', 1)
+            ->when($custId, fn ($q) => $q->where('CUSTID', $custId))
             ->first();
-        if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
 
-        try {
-            DB::beginTransaction();
-            $tagihan->update([
-                'PAIDST' => 0,
-                'PAIDDT' => null
-            ]);
-
-            if ((string)$tagihan->FIDBANK === '1140002') {
-                sccttran::create([
-                    'CUSTID' => $tagihan->CUSTID,
-                    'NOREFF' => $tagihan->BILLCD,
-                    'METODE' => 'JURNAL SALDO',
-                    'FIDBANK' => '1140002',
-                    'KDCHANNEL' => 11,
-                    'TRXDATE' => now(),
-                    'DEBET' => 0,
-                    'KREDIT' => $tagihan->BILLAM,
-                    'TRANSNO' => Auth::user()->username,
-                ]);
-            }
-
-            DB::commit();
-            return response()->json(['message' => 'Pembayaran tagihan dibatalkan!'], 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['message' => 'Pembatalah pembayaran tagihan gagal dilakukan!'], 422);
+        if (!$tagihan) {
+            return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
         }
 
+        $custId = (string) $tagihan->CUSTID;
+        $aa = (string) $tagihan->AA;
+        $username = (string) (Auth::user()->username ?? Auth::id() ?? 'system');
+        $fidBank = (string) ($tagihan->FIDBANK ?? '');
+
+        try {
+            DB::connection('DATA_MYSQL')->beginTransaction();
+
+            if ($this->isCashPaymentMethod($fidBank)) {
+                $tagihan->update([
+                    'PAIDST' => 0,
+                    'PAIDDT' => null,
+                    'PAIDDT_ACTUAL' => null,
+                ]);
+            } else {
+                DB::connection('DATA_MYSQL')->select(
+                    'CALL CancelPaymentSaldo(?, ?, ?)',
+                    [$custId, $aa, $username]
+                );
+            }
+
+            Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
+            DB::connection('DATA_MYSQL')->commit();
+
+            return response()->json(['message' => 'Pembayaran tagihan dibatalkan!'], 200);
+        } catch (\Throwable $e) {
+            DB::connection('DATA_MYSQL')->rollBack();
+
+            return response()->json([
+                'message' => 'Pembatalan pembayaran tagihan gagal dilakukan!',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 422);
+        }
+    }
+
+    /** Pembayaran tunai / loket — cukup reset status lunas di scctbill. */
+    private function isCashPaymentMethod(?string $fidBank): bool
+    {
+        return in_array((string) $fidBank, ['1140000', '1200001', '1200002'], true);
     }
 
     public function cetak(Request $request)
@@ -378,7 +376,7 @@ class DataPenerimaanController extends Controller
                                 'kelas' => 'scctcust.DESC02',
                                 'nama' => 'scctcust.NMCUST',
                                 'nis' => 'scctcust.NOCUST',
-                                'sekolah' => 'scctcust.CODE02',
+                                'sekolah' => 'scctcust.CODE01',
                                 'angkatan' => 'scctcust.DESC04',
                                 'periode_mulai', 'periode_akhir' => 'scctbill.BILLAC',
                                 default => null
@@ -399,6 +397,13 @@ class DataPenerimaanController extends Controller
                                 $filters[] = [$colName, $operator, $val];
                             } elseif (in_array($key, ['nama', 'nis'])) {
                                 ($colName) && $filters[] = [$colName, 'like', '%' . $val . '%'];
+                            } elseif ($key === 'kelas') {
+                                $parts = explode('~~', (string) $val);
+                                if (count($parts) === 3) {
+                                    $filters[] = ['scctcust.CODE02', '=', $parts[0]];
+                                    $filters[] = ['scctcust.DESC02', '=', $parts[1]];
+                                    $filters[] = ['scctcust.DESC03', '=', $parts[2]];
+                                }
                             } else {
                                 ($colName) && $filters[] = [$colName, '=', $val];
                             }
@@ -539,19 +544,18 @@ class DataPenerimaanController extends Controller
                     }
                 })
                 ->when($this->sekolah, function ($q) {
-                    $q->where('d.CODE02', $this->sekolah);
+                    $q->where('d.CODE01', $this->sekolah);
                 })
                 ->when(!blank($filter['sekolah'] ?? null) && strtolower((string)$filter['sekolah']) !== 'all', function ($q) use ($filter) {
-                    $sekolah = trim((string)$filter['sekolah']);
-                    $q->where('d.CODE02', $sekolah);
+                    $q->where('d.CODE01', trim((string)$filter['sekolah']));
                 })
                 ->when(!blank($filter['kelas'] ?? null) && strtolower((string)$filter['kelas']) !== 'all', function ($q) use ($filter) {
-                    $kelas = trim((string)$filter['kelas']);
-                    $q->where(function ($sub) use ($kelas) {
-                        $sub->where('d.CODE03', $kelas)
-                            ->orWhere('d.DESC02', 'like', "%{$kelas}%")
-                            ->orWhere('d.DESC03', 'like', "%{$kelas}%");
-                    });
+                    $parts = explode('~~', trim((string)$filter['kelas']));
+                    if (count($parts) === 3) {
+                        $q->where('d.CODE02', $parts[0])
+                            ->where('d.DESC02', $parts[1])
+                            ->where('d.DESC03', $parts[2]);
+                    }
                 })
                 ->when(!blank($filter['periode_mulai'] ?? null) && preg_match('/^\d{6}$/', (string)$filter['periode_mulai']), function ($q) use ($filter) {
                     $q->where('b.BILLAC', '>=', (string)$filter['periode_mulai']);

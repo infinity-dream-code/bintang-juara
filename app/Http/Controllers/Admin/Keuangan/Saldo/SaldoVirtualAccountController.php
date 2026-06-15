@@ -26,9 +26,15 @@ class SaldoVirtualAccountController extends Controller
     private string $showTitle = 'Detail Saldo  Virtual Account';
     private string $cacheKey = 'saldo_virtual_account';
 
+    /** Top-up saldo VA dari transfer (H2H / VA). */
+    private const METODE_TRANSFER = 'TRANSFER';
+
+    /** Pembayaran tagihan memakai saldo VA. */
+    private const FIDBANK_SALDO = '1140002';
+
     private array $allowedFilters = [
         'kelas' => 'scctcust.DESC02',
-        'sekolah' => 'scctcust.CODE02',
+        'sekolah' => 'scctcust.CODE01',
         'siswa' => 'scctcust.nmcust',
         'angkatan' => 'scctcust.DESC04',
     ];
@@ -47,50 +53,35 @@ class SaldoVirtualAccountController extends Controller
                     ->orWhereRaw('UPPER(TRIM(DESC01)) = UPPER(?)', [$unit]);
             })
             ->pluck('CODE01')
-            ->map(fn($code) => trim((string) $code))
-            ->filter(fn($code) => $code !== '')
+            ->map(fn ($code) => trim((string) $code))
+            ->filter(fn ($code) => $code !== '')
             ->unique()
             ->values()
             ->all();
     }
 
-    private function resolveUnitCodesForSekolahFilter(string $sekolahCode): array
+    /** Hanya transaksi top-up transfer VA (tampilan detail / daftar transfer). */
+    private function applyTransferMetodeScope($query)
     {
-        $trimmed = trim($sekolahCode);
-        if ($trimmed === '') {
-            return [];
-        }
-
-        return mst_sekolah::query()
-            ->where(function ($q) use ($trimmed) {
-                $q->whereRaw('TRIM(CAST(CODE01 AS CHAR)) = ?', [$trimmed])
-                    ->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$trimmed]);
-            })
-            ->get()
-            ->flatMap(fn($row) => [trim((string) $row->CODE01), trim((string) $row->CODE02)])
-            ->filter(fn($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
+        return $query->whereRaw('UPPER(TRIM(METODE)) = ?', [self::METODE_TRANSFER]);
     }
 
-    private function scopedUnitCodes(): array
+    /**
+     * Transaksi yang mempengaruhi saldo VA:
+     * - TRANSFER = top-up
+     * - FROM TELLER + FIDBANK saldo = pembayaran tagihan
+     * - JURNAL SALDO = reversal batal bayar
+     */
+    private function applySaldoWalletScope($query)
     {
-        if (blank($this->sekolah)) {
-            return [];
-        }
-
-        $schoolCodes = $this->resolveScopedSchoolCodes();
-        if (empty($schoolCodes)) {
-            return $this->resolveUnitCodesForSekolahFilter((string) $this->sekolah);
-        }
-
-        return collect($schoolCodes)
-            ->flatMap(fn($code) => $this->resolveUnitCodesForSekolahFilter($code))
-            ->filter(fn($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
+        return $query->where(function ($q) {
+            $q->whereRaw('UPPER(TRIM(METODE)) = ?', [self::METODE_TRANSFER])
+                ->orWhere(function ($q2) {
+                    $q2->whereRaw('UPPER(TRIM(METODE)) = ?', ['FROM TELLER'])
+                        ->where('FIDBANK', self::FIDBANK_SALDO);
+                })
+                ->orWhereRaw('UPPER(TRIM(METODE)) = ?', ['JURNAL SALDO']);
+        });
     }
 
     private function applyFilterQuery($query, array $filters): void
@@ -98,17 +89,6 @@ class SaldoVirtualAccountController extends Controller
         foreach ($filters as $filter) {
             if (($filter[0] ?? null) === 'whereRaw') {
                 $query->whereRaw($filter[1], $filter[2] ?? []);
-                continue;
-            }
-            if (($filter[0] ?? null) === '_sekolah') {
-                $codes = $filter[2] ?? [];
-                if (!empty($codes)) {
-                    $query->where(function ($q) use ($codes) {
-                        foreach ($codes as $code) {
-                            $q->orWhereRaw('TRIM(CAST(scctcust.CODE02 AS CHAR)) = ?', [$code]);
-                        }
-                    });
-                }
                 continue;
             }
             if (count($filter) === 3) {
@@ -196,8 +176,12 @@ class SaldoVirtualAccountController extends Controller
                 }
                 $data['siswa']->NOVA = $NOVA;
 
-                $data['totalKredit'] = sccttran::where('CUSTID', $id)->sum('KREDIT');
-                $data['totalDebet'] = sccttran::where('CUSTID', $id)->sum('DEBET');
+                $data['totalKredit'] = $this->applySaldoWalletScope(sccttran::query())
+                    ->where('CUSTID', $id)
+                    ->sum('KREDIT');
+                $data['totalDebet'] = $this->applySaldoWalletScope(sccttran::query())
+                    ->where('CUSTID', $id)
+                    ->sum('DEBET');
 //                $data['siswa']-> = $NOVA;
             } else {
                 throw new Exception('Siswa tidak ditemukan');
@@ -282,7 +266,7 @@ class SaldoVirtualAccountController extends Controller
                 if (strtolower($val) != 'all' && $val !== null && $val !== '') {
                     $colName = match ($key) {
                         'kelas' => 'scctcust.DESC02',
-                        'sekolah' => 'scctcust.CODE02',
+                        'sekolah' => 'scctcust.CODE01',
                         'siswa' => 'scctcust.nmcust',
                         'angkatan' => 'scctcust.DESC04',
                         'saldo_positif' => '_saldo_positif',
@@ -295,10 +279,7 @@ class SaldoVirtualAccountController extends Controller
                     } else if ($key == 'kelas') {
                         $filters[] = ['scctcust.CODE03', '=', $val];
                     } else if ($key === 'sekolah') {
-                        $unitCodes = $this->resolveUnitCodesForSekolahFilter((string) $val);
-                        if (!empty($unitCodes)) {
-                            $filters[] = ['_sekolah', 'in', $unitCodes];
-                        }
+                        $filters[] = ['scctcust.CODE01', '=', trim((string) $val)];
                     } else if ($key == 'saldo_positif') {
                         if ((string) $val === '1') {
                             $filters[] = ['whereRaw', '(COALESCE(trx.kredit, 0) - COALESCE(trx.debet, 0)) > 0', []];
@@ -309,18 +290,18 @@ class SaldoVirtualAccountController extends Controller
                 }
             }
 
-            $scopedCodes = $this->scopedUnitCodes();
+            $scopedCodes = $this->resolveScopedSchoolCodes();
             if (!empty($scopedCodes)) {
-                $filters[] = ['_sekolah', 'in', $scopedCodes];
+                $filters[] = ['scctcust.CODE01', 'in', $scopedCodes];
             }
 
             if (!empty($filters)) {
                 $filterQuery = fn($query) => $this->applyFilterQuery($query, $filters);
             }
         } else {
-            $scopedCodes = $this->scopedUnitCodes();
+            $scopedCodes = $this->resolveScopedSchoolCodes();
             if (!empty($scopedCodes)) {
-                $filters[] = ['_sekolah', 'in', $scopedCodes];
+                $filters[] = ['scctcust.CODE01', 'in', $scopedCodes];
                 $filterQuery = fn($query) => $this->applyFilterQuery($query, $filters);
             }
         }
@@ -339,7 +320,7 @@ class SaldoVirtualAccountController extends Controller
             'scctcust.DESC04',
         ]));
 
-        $saldoAgg = sccttran::query()
+        $saldoAgg = $this->applySaldoWalletScope(sccttran::query())
             ->select([
                 'CUSTID',
                 DB::raw('COALESCE(SUM(KREDIT), 0) AS kredit'),
@@ -367,14 +348,10 @@ class SaldoVirtualAccountController extends Controller
             });
         }
 
-        $scopedCodesForCount = $this->scopedUnitCodes();
+        $scopedCodesForCount = $this->resolveScopedSchoolCodes();
         $totalRecords = Cache::remember('scctcust_total_count_' . md5(json_encode($scopedCodesForCount)), 600, function () use ($scopedCodesForCount) {
             return scctcust::when(!empty($scopedCodesForCount), function ($query) use ($scopedCodesForCount) {
-                $query->where(function ($q) use ($scopedCodesForCount) {
-                    foreach ($scopedCodesForCount as $code) {
-                        $q->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$code]);
-                    }
-                });
+                $query->whereIn('CODE01', $scopedCodesForCount);
             })->count('CUSTID');
         });
 
@@ -478,6 +455,7 @@ class SaldoVirtualAccountController extends Controller
         }
 
         ($custid) && $filters[] = ['sccttran.CUSTID', '=', $custid];
+        $filters[] = ['whereRaw', 'UPPER(TRIM(sccttran.METODE)) = ?', [self::METODE_TRANSFER]];
         if (!empty($filters)) {
             $filterQuery = function ($query) use ($filters) {
                 foreach ($filters as $filter) {
@@ -535,15 +513,19 @@ class SaldoVirtualAccountController extends Controller
             })->toArray();
 
         if ($custid) {
-            $totalKredit = Cache::remember("total_kredit_custid_" . $custid, 600,
+            $totalKredit = Cache::remember("total_kredit_transfer_custid_" . $custid, 600,
                 function () use ($custid) {
-                    return sccttran::where('CUSTID', $custid)->sum('KREDIT');
+                    return $this->applyTransferMetodeScope(sccttran::query())
+                        ->where('CUSTID', $custid)
+                        ->sum('KREDIT');
                 }
             );
 
-            $totalDebet = Cache::remember("total_debet_custid_" . $custid, 600,
+            $totalDebet = Cache::remember("total_debet_transfer_custid_" . $custid, 600,
                 function () use ($custid) {
-                    return sccttran::where('CUSTID', $custid)->sum('DEBET');
+                    return $this->applyTransferMetodeScope(sccttran::query())
+                        ->where('CUSTID', $custid)
+                        ->sum('DEBET');
                 }
             );
         }
@@ -568,16 +550,15 @@ class SaldoVirtualAccountController extends Controller
     public function getSaldo(Request $request)
     {
         if ($request->siswa) {
-//            return scctcust::where('CUSTID', $request->siswa)->firstOrFail();
-            $saldo = sccttran::selectRaw(
-                'COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) as saldo'
-            )->where('CUSTID', $request->siswa)
+            $saldo = $this->applySaldoWalletScope(sccttran::query())
+                ->selectRaw('COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) as saldo')
+                ->where('CUSTID', $request->siswa)
                 ->groupBy('CUSTID')
                 ->first();
 
             return $saldo->saldo ?? 0;
-        } else {
-            return 0;
         }
+
+        return 0;
     }
 }

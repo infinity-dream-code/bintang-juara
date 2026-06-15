@@ -40,8 +40,11 @@ class mst_kelas extends Model
     }
 
     /**
-     * Cocokkan baris import Excel (unit, kelas/jenjang, kelompok) ke Master Kelas.
-     * Excel: kelas = jenjang (7/VII), kelompok = kelas DB (A/B).
+     * Cocokkan baris import Excel ke Master Kelas (by nama/teks, bukan id).
+     * Excel UNIT   = mst_kelas.unit
+     * Excel KELAS  = mst_kelas.jenjang (7 / VII)
+     * Excel KELOMPOK = mst_kelas.kelas (A / B / A1)
+     * Sekolah (mst_sekolah) dipilih terpisah saat Simpan Data.
      */
     public static function findForImport(?string $unit, mixed $jenjang, ?string $kelompok): ?self
     {
@@ -58,7 +61,7 @@ class mst_kelas extends Model
         return self::query()
             ->where(function ($query) use ($unit) {
                 $query->whereRaw('UPPER(TRIM(unit)) = ?', [strtoupper($unit)])
-                    ->orWhere('unit', 'like', '%' . $unit . '%');
+                    ->orWhereRaw('UPPER(TRIM(unit)) LIKE ?', ['%' . strtoupper($unit) . '%']);
             })
             ->where(function ($query) use ($jenjangCandidates) {
                 $query->whereIn('jenjang', $jenjangCandidates);

@@ -48,6 +48,14 @@ class mst_kelas extends Model
      */
     public static function findForImport(?string $unit, mixed $jenjang, ?string $kelompok): ?self
     {
+        return self::matchFromCollection(self::query()->get(), $unit, $jenjang, $kelompok);
+    }
+
+    /**
+     * @param \Illuminate\Support\Collection<int, self>|iterable<int, self> $collection
+     */
+    public static function matchFromCollection(iterable $collection, ?string $unit, mixed $jenjang, ?string $kelompok): ?self
+    {
         $unit = trim((string) $unit);
         $kelompok = trim((string) $kelompok);
         $jenjangText = trim((string) $jenjang);
@@ -56,24 +64,30 @@ class mst_kelas extends Model
             return null;
         }
 
-        $jenjangCandidates = self::jenjangCandidates($jenjangText);
+        $jenjangCandidates = array_map('strtoupper', self::jenjangCandidates($jenjangText));
+        $unitUpper = strtoupper($unit);
+        $kelompokUpper = strtoupper($kelompok);
 
-        return self::query()
-            ->where(function ($query) use ($unit) {
-                $query->whereRaw('UPPER(TRIM(unit)) = ?', [strtoupper($unit)])
-                    ->orWhereRaw('UPPER(TRIM(unit)) LIKE ?', ['%' . strtoupper($unit) . '%']);
-            })
-            ->where(function ($query) use ($jenjangCandidates) {
-                $query->whereIn('jenjang', $jenjangCandidates);
-                foreach ($jenjangCandidates as $candidate) {
-                    $query->orWhereRaw('UPPER(TRIM(jenjang)) = ?', [strtoupper($candidate)]);
-                }
-            })
-            ->where(function ($query) use ($kelompok) {
-                $query->where('kelas', $kelompok)
-                    ->orWhereRaw('UPPER(TRIM(kelas)) = ?', [strtoupper($kelompok)]);
-            })
-            ->first();
+        foreach ($collection as $item) {
+            $itemUnit = strtoupper(trim((string) ($item->unit ?? '')));
+            if ($itemUnit !== $unitUpper && !str_contains($itemUnit, $unitUpper)) {
+                continue;
+            }
+
+            $itemJenjang = strtoupper(trim((string) ($item->jenjang ?? '')));
+            if (!in_array($itemJenjang, $jenjangCandidates, true)) {
+                continue;
+            }
+
+            $itemKelas = strtoupper(trim((string) ($item->kelas ?? '')));
+            if ($itemKelas !== $kelompokUpper) {
+                continue;
+            }
+
+            return $item;
+        }
+
+        return null;
     }
 
     /** @return list<string> */

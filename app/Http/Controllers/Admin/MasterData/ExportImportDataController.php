@@ -182,12 +182,17 @@ class ExportImportDataController extends Controller
                 );
             }
 
-            DB::beginTransaction();
+            Cache::forget($this->cacheKey);
             Excel::import(new ImportDataSiswa(), $file);
-            DB::commit();
 
-            $data = Cache::get($this->cacheKey);
-            return response()->json(['message' => 'Sukses, data tagihan telah diimport, silahkan periksa kembali', 'data' => $data], 200);
+            $data = Cache::get($this->cacheKey) ?? [];
+            $invalidCount = collect($data)->where('status', 0)->count();
+            $message = 'Sukses, data siswa telah diimport, silahkan periksa kembali';
+            if ($invalidCount > 0) {
+                $message .= " ({$invalidCount} baris perlu diperbaiki, lihat kolom Keterangan)";
+            }
+
+            return response()->json(['message' => $message, 'data' => $data], 200);
         } catch (ValidationException $e) {
             $errorMessages = $e->errors();
             $errorMessage = $errorMessages['error'][0] ?? 'Terjadi kesalahan saat melakukan import data.';

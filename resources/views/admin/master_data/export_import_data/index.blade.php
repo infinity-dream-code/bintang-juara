@@ -388,7 +388,6 @@
             document.querySelectorAll(".mainForm").forEach(form => {
                 form.addEventListener("submit", function (e) {
                     e.preventDefault();
-                    loadingAlert();
                     let url = "";
                     let method = "";
                     const formId = this.id;
@@ -427,12 +426,21 @@
                             return response.json();
                         })
                         .then(data => {
+                            if (typeof Swal !== 'undefined') {
+                                Swal.close();
+                            }
                             document.getElementById(formId).reset();
+                            if (formId === 'formImport' && resetFilePond) {
+                                resetFilePond('file');
+                            }
                             successAlert(data.message);
                             dataReload("main_table");
                             document.querySelector(`#${formId} [data-bs-dismiss="modal"]`)?.click();
                         })
                         .catch(error => {
+                            if (typeof Swal !== 'undefined') {
+                                Swal.close();
+                            }
                             if (error.status === 422) {
                                 const errors = error.error.error || error.error.errors;
                                 errorAlert(error.error.message);

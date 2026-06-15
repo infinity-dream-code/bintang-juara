@@ -84,7 +84,7 @@ class DataSiswaController extends Controller
             ["data" => "nmcust", "name" => "NAMA", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "CODE02", "name" => "Unit", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "DESC02", "name" => "Kelas", "searchable" => true, "orderable" => true, "exportable" => true],
-            ["data" => "DESC03", "name" => "Jenjang", "searchable" => true, "orderable" => true, "exportable" => true],
+            ["data" => "DESC03", "name" => "Kelompok", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "DESC04", "name" => "Angkatan", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "CODE04", "name" => "Gender", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "DESC05", "name" => "Alamat", "searchable" => true, "orderable" => true, "exportable" => true],

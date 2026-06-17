@@ -544,7 +544,7 @@
 
         async function renderTransLog(rowData) {
             loadingAlert('Mengambil log transaksi...');
-            let url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.get-trans-log', ':id')}}';
+            let url = '{{url('admin/keuangan/tagihan-siswa/data-tagihan/get-trans-log/:id')}}';
             url = url.replace(':id', rowData.AA);
 
             try {

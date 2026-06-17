@@ -83,21 +83,6 @@
             color: #a1acb8;
             font-size: 0.9rem;
         }
-
-        .trx-log-summary {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            margin-top: 0.75rem;
-            font-size: 0.82rem;
-        }
-
-        .trx-log-summary span {
-            background: #fff;
-            border: 1px solid #d9dee3;
-            border-radius: 0.375rem;
-            padding: 0.35rem 0.65rem;
-        }
     </style>
 @endsection
 @section('content')
@@ -709,15 +694,11 @@
 
         function buildTransLogHtml(rowData) {
             const logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
-            let totalDebet = 0;
-            let totalKredit = 0;
 
             const rows = logs.length
                 ? logs.map((log, idx) => {
                     const debet = Number(log.debet ?? 0);
                     const kredit = Number(log.kredit ?? 0);
-                    totalDebet += debet;
-                    totalKredit += kredit;
                     return `
                     <tr>
                         <td class="text-center text-muted">${idx + 1}</td>
@@ -772,12 +753,6 @@
                             <tbody>${tableBody}</tbody>
                         </table>
                     </div>
-                    ${logs.length ? `
-                    <div class="trx-log-summary">
-                        <span><strong>Total Debet:</strong> <span class="trx-log-amount--debet">${formatRupiah(totalDebet)}</span></span>
-                        <span><strong>Total Kredit:</strong> <span class="trx-log-amount--kredit">${formatRupiah(totalKredit)}</span></span>
-                        <span><strong>Jumlah Transaksi:</strong> ${logs.length}</span>
-                    </div>` : ''}
                 </div>
             `;
         }

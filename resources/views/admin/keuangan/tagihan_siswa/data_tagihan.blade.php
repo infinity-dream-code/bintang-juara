@@ -509,19 +509,28 @@
         }
 
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
-            if (e.target.closest('.btn-detail-trx')) {
-                const button = e.target.closest('.btn-detail-trx');
-                const rowEl = e.target.closest('tr');
-                if (rowEl) {
-                    const dtRow = DT[`${dtOptions.tableId}`].row(rowEl);
-                    const rowData = dtRow.data();
-                    if (!rowData?.AA) {
-                        warningAlert('Data tagihan tidak valid.');
-                        return;
-                    }
-                    toggleTransLogRow(dtRow, rowData, button);
+            const rowEl = e.target.closest('tr');
+            if (!rowEl) return;
+
+            const dtRow = DT[`${dtOptions.tableId}`].row(rowEl);
+            const rowData = dtRow.data();
+            if (!rowData) return;
+
+            const detailButton = e.target.closest('.btn-detail-trx');
+            const clickedFirstCell = e.target.closest('td') === rowEl.querySelector('td:first-child');
+
+            if (detailButton || clickedFirstCell) {
+                if (!rowData?.item_id && !rowData?.AA) {
+                    warningAlert('Data tagihan tidak valid.');
+                    return;
                 }
-            } else if (e.target.closest('.btn-hapus')) {
+                const button = detailButton || rowEl.querySelector('.btn-detail-trx');
+                if (!button) return;
+                toggleTransLogRow(dtRow, rowData, button);
+                return;
+            }
+
+            if (e.target.closest('.btn-hapus')) {
                 const rowEl = e.target.closest('tr');
 
                 if (rowEl) {

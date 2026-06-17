@@ -767,7 +767,7 @@ class DataTagihanController extends Controller
             $primaryLogs = sccttran::query()
                 ->where('BILLID', $aa)
                 ->orderBy('TRXDATE', 'desc')
-                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO']);
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NOREFF', 'TRANSNO']);
 
             $logsCollection = $primaryLogs;
             if ($logsCollection->isEmpty()) {
@@ -785,7 +785,7 @@ class DataTagihanController extends Controller
                         $q->where('CUSTID', $custId);
                     })
                     ->orderBy('TRXDATE', 'desc')
-                    ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO']);
+                    ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NOREFF', 'TRANSNO']);
             }
 
             return $logsCollection
@@ -798,7 +798,7 @@ class DataTagihanController extends Controller
                         'debet' => (int) ($trx->DEBET ?? 0),
                         'kredit' => (int) ($trx->KREDIT ?? 0),
                         'fidbank' => $trx->FIDBANK,
-                        'norcef' => $trx->NORCEF,
+                        'noreff' => $trx->NOREFF,
                         'transno' => $trx->TRANSNO,
                     ];
                 })
@@ -834,7 +834,7 @@ class DataTagihanController extends Controller
             $logs = sccttran::query()
                 ->where('BILLID', $id)
                 ->orderBy('TRXDATE', 'desc')
-                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO'])
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NOREFF', 'TRANSNO'])
                 ->map(function ($trx) {
                     return [
                         'trxdate' => $trx->TRXDATE
@@ -844,7 +844,7 @@ class DataTagihanController extends Controller
                         'debet' => (int) ($trx->DEBET ?? 0),
                         'kredit' => (int) ($trx->KREDIT ?? 0),
                         'fidbank' => $trx->FIDBANK,
-                        'norcef' => $trx->NORCEF,
+                        'noreff' => $trx->NOREFF,
                         'transno' => $trx->TRANSNO,
                     ];
                 })

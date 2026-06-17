@@ -73,7 +73,7 @@ class DataTagihanController extends Controller
                 'exportable' => false,
                 'duplicate' => false,
             ],
-            ['data' => 'AA', 'name' => 'no', 'columnType' => 'row', 'exportable' => true],
+            ['data' => null, 'name' => 'no', 'columnType' => 'row', 'exportable' => true],
             ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NUM2ND', 'name' => 'NO DAFT', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NOVA', 'name' => 'NO VA', 'exportable' => true],

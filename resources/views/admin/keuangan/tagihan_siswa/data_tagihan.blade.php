@@ -358,6 +358,12 @@
         const select2 = $(`[data-control='select2']`);
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
+        function formatRupiah(amount) {
+            const value = Number(amount);
+            if (!Number.isFinite(value)) return 'Rp 0';
+            return 'Rp. ' + value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+
         let dtOptions = {
             tableId: 'main_table',
             formId: 'filter-form',
@@ -509,30 +515,8 @@
         }
 
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
-            const rowEl = e.target.closest('tr');
-            if (!rowEl) return;
-
-            const dtRow = DT[`${dtOptions.tableId}`].row(rowEl);
-            const rowData = dtRow.data();
-            if (!rowData) return;
-
-            const detailButton = e.target.closest('.btn-detail-trx');
-            const clickedFirstCell = e.target.closest('td') === rowEl.querySelector('td:first-child');
-
-            if (detailButton || clickedFirstCell) {
-                if (!rowData?.item_id && !rowData?.AA) {
-                    warningAlert('Data tagihan tidak valid.');
-                    return;
-                }
-                const button = detailButton || rowEl.querySelector('.btn-detail-trx');
-                if (!button) return;
-                toggleTransLogRow(dtRow, rowData, button);
-                return;
-            }
-
             if (e.target.closest('.btn-hapus')) {
                 const rowEl = e.target.closest('tr');
-
                 if (rowEl) {
                     fillFormValue('form-delete', rowEl);
                     modalDelete.show();
@@ -540,46 +524,57 @@
             }
         });
 
-        // Fallback delegated handler: memastikan tombol "+" selalu bisa diklik setelah redraw DataTable.
         $(document).on('click', '#main_table tbody .btn-detail-trx', async function (e) {
             e.preventDefault();
             e.stopPropagation();
-            try {
-                const rowEl = $(this).closest('tr');
-                const dtRow = DT[`${dtOptions.tableId}`].row(rowEl);
-                const rowData = dtRow.data();
-                console.log('[DATA TAGIHAN] click detail trx', rowData);
-                if (!rowData) {
-                    warningAlert('Data baris tidak ditemukan.');
-                    return;
-                }
-                await toggleTransLogRow(dtRow, rowData, this);
-            } catch (err) {
-                console.error('[DATA TAGIHAN] gagal klik detail trx', err);
-                errorAlert('Klik detail log gagal diproses. Silakan refresh halaman.');
+
+            const $rowEl = $(this).closest('tr');
+            const dtRow = DT[`${dtOptions.tableId}`].row($rowEl);
+            const rowData = dtRow.data();
+            if (!rowData) {
+                warningAlert('Data baris tidak ditemukan.');
+                return;
             }
+
+            await toggleTransLogRow($rowEl, rowData, this);
         });
 
-        async function toggleTransLogRow(dtRow, rowData, buttonEl) {
-            try {
-                if (dtRow.child.isShown()) {
-                    dtRow.child.hide();
-                    buttonEl.textContent = '+';
-                    return;
-                }
+        function closeAllTransLogRows() {
+            $('#main_table tbody tr.trx-log-detail-row').remove();
+            $('#main_table tbody .btn-detail-trx').each(function () {
+                $(this).text('+');
+            });
+        }
 
-                let logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
-                if (!logs.length) {
-                    logs = await fetchTransLog(rowData);
-                    rowData.TRX_LOGS = logs;
-                }
-
-                dtRow.child(buildTransLogHtml(rowData), 'p-0').show();
-                buttonEl.textContent = '-';
-            } catch (e) {
-                console.error('[DATA TAGIHAN] toggle child error', e, rowData);
-                errorAlert('Gagal menampilkan log transaksi.');
+        async function toggleTransLogRow($rowEl, rowData, buttonEl) {
+            const billId = rowData.item_id ?? rowData.AA;
+            if (!billId) {
+                warningAlert('Data tagihan tidak valid.');
+                return;
             }
+
+            const detailId = `trx-log-${billId}`;
+            const $existing = $(`#${detailId}`);
+            if ($existing.length) {
+                $existing.remove();
+                buttonEl.textContent = '+';
+                return;
+            }
+
+            closeAllTransLogRows();
+
+            let logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+            if (!logs.length) {
+                logs = await fetchTransLog(rowData);
+                rowData.TRX_LOGS = logs;
+            }
+
+            const colCount = $rowEl.children('td').length || 1;
+            const detailHtml = buildTransLogHtml(rowData);
+            $rowEl.after(
+                `<tr class="trx-log-detail-row" id="${detailId}"><td colspan="${colCount}" class="p-0">${detailHtml}</td></tr>`
+            );
+            buttonEl.textContent = '-';
         }
 
         async function fetchTransLog(rowData) {
@@ -746,6 +741,9 @@
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
                 setTimeout(ensureUrutanToolbarButtons, 300);
+                $(`#${dtOptions.tableId}`).on('draw.dt', function () {
+                    closeAllTransLogRows();
+                });
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {

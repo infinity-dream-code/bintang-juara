@@ -375,7 +375,23 @@
             lengthMenu: [10, 25, 50, 75, 100],
             select: true,
             rowId: 'AA',
-            buttons: ["excel", "pdf", "print"],
+            buttons: [
+                {
+                    text: '<span class="ri-arrow-up-line me-2"></span>Naikkan',
+                    className: 'btn btn-secondary',
+                    action: function () {
+                        submitUbahUrutanDirect('naik');
+                    }
+                },
+                {
+                    text: '<span class="ri-arrow-down-line me-2"></span>Turunkan',
+                    className: 'btn btn-secondary',
+                    action: function () {
+                        submitUbahUrutanDirect('turun');
+                    }
+                },
+                "excel", "pdf", "print"
+            ],
             pdfOrientation: 'landscape',
             pdfPageSize: 'A3',
             pdfMargins: [10, 14, 10, 14],
@@ -483,31 +499,6 @@
                 });
         }
 
-        function ensureUrutanToolbarButtons() {
-            const wrapper = document.querySelector(`#${dtOptions.tableId}_wrapper`);
-            if (!wrapper) return;
-            const dtButtons = wrapper.querySelector('.dt-buttons');
-            if (!dtButtons) return;
-            if (wrapper.querySelector('#btn-naik-toolbar') || wrapper.querySelector('#btn-turun-toolbar')) return;
-
-            const naikBtn = document.createElement('button');
-            naikBtn.type = 'button';
-            naikBtn.id = 'btn-naik-toolbar';
-            naikBtn.className = 'btn btn-secondary me-2';
-            naikBtn.innerHTML = '<span class="ri-arrow-up-line me-2"></span>Naikkan';
-            naikBtn.addEventListener('click', () => submitUbahUrutanDirect('naik'));
-
-            const turunBtn = document.createElement('button');
-            turunBtn.type = 'button';
-            turunBtn.id = 'btn-turun-toolbar';
-            turunBtn.className = 'btn btn-secondary me-2';
-            turunBtn.innerHTML = '<span class="ri-arrow-down-line me-2"></span>Turunkan';
-            turunBtn.addEventListener('click', () => submitUbahUrutanDirect('turun'));
-
-            dtButtons.parentNode.insertBefore(turunBtn, dtButtons);
-            dtButtons.parentNode.insertBefore(naikBtn, turunBtn);
-        }
-
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
             if (e.target.closest('.btn-detail-trx')) {
                 const button = e.target.closest('.btn-detail-trx');
@@ -555,7 +546,8 @@
                     billnm: rowData.BILLNM ?? '',
                     bill_transno: rowData.BILL_TRANSNO ?? ''
                 });
-                const url = `{{url('admin/keuangan/tagihan-siswa/data-tagihan/get-trans-log')}}/${rowData.AA}?${params.toString()}`;
+                const aa = rowData.item_id ?? rowData.AA;
+                const url = `{{url('admin/keuangan/tagihan-siswa/data-tagihan/get-trans-log')}}/${aa}?${params.toString()}`;
                 const response = await fetch(url, {
                     headers: {
                         'Accept': 'application/json',
@@ -709,7 +701,6 @@
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
-                setTimeout(ensureUrutanToolbarButtons, 300);
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {
@@ -730,11 +721,6 @@
                     });
                 }
             }
-            document.addEventListener('click', function (e) {
-                if (e.target.closest('.paginate_button, .buttons-excel, .buttons-pdf, .buttons-print')) {
-                    setTimeout(ensureUrutanToolbarButtons, 100);
-                }
-            });
 
             $(document).on('click', '.btn-print-rekap', function (e) {
                 loadingAlert(`Membuat Rekap ... <br> Proses ini membutuhkan waktu beberapa saat<br><hr>

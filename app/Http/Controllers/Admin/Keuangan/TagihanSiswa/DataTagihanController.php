@@ -9,6 +9,7 @@ use App\Models\mst_tagihan;
 use App\Models\mst_thn_aka;
 use App\Models\scctbill;
 use App\Models\scctcust;
+use App\Models\sccttran;
 use App\Models\User;
 use App\Models\ValidationMessage;
 use App\Support\CacheHandler;
@@ -57,6 +58,21 @@ class DataTagihanController extends Controller
     public function getColumn()
     {
         return [
+            [
+                'data' => 'detail_trx',
+                'name' => '+',
+                'orderable' => false,
+                'dataVal' => false,
+                'columnType' => 'button',
+                'className' => 'text-center',
+                'button' => 'action',
+                'buttonText' => '+',
+                'buttonClass' => 'btn btn-sm btn-outline-primary btn-detail-trx',
+                'buttonLink' => '#',
+                'noCaption' => true,
+                'exportable' => false,
+                'duplicate' => false,
+            ],
             ['data' => 'AA', 'name' => 'no', 'columnType' => 'row', 'exportable' => true],
             ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NUM2ND', 'name' => 'NO DAFT', 'searchable' => true, 'orderable' => true, 'exportable' => true],
@@ -66,7 +82,10 @@ class DataTagihanController extends Controller
             ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'BILLAM', 'name' => 'Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
+            ['data' => 'BILLAM_TOTAL', 'name' => 'Jumlah Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
+            ['data' => 'BILLAM', 'name' => 'Sisa Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
+            ['data' => 'BILLPAID', 'name' => 'Jumlah Terbayar', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
+            ['data' => 'PAIDDT', 'name' => 'Tanggal Bayar', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             [
                 'data' => 'FUrutan',
@@ -369,7 +388,10 @@ class DataTagihanController extends Controller
                                 'scctcust.DESC02',
                             ])
                             ->where('scctbill.BILLNM', $item->tagihan)
-                            ->where('scctbill.PAIDST', 0)
+                            ->where(function ($q) {
+                                $q->whereNull('scctbill.PAIDST')
+                                    ->orWhere('scctbill.PAIDST', '<>', 1);
+                            })
                             ->where(function ($query) use ($filterQuery) {
                                 if ($filterQuery) {
                                     $filterQuery($query);
@@ -443,7 +465,7 @@ class DataTagihanController extends Controller
         $columnName = 'scctbill.FUrutan';
         $columnSortOrder = 'asc';
         $userOrdered = false;
-        $nonSortableData = ['AA', 'naik', 'turun', 'delete', 'print', 'NOVA'];
+        $nonSortableData = ['AA', 'naik', 'turun', 'delete', 'print', 'NOVA', 'detail_trx'];
 
         if (!empty($order_arr)) {
             $columnIndex = $columnIndex_arr[0]['column'] ?? null;
@@ -464,7 +486,9 @@ class DataTagihanController extends Controller
 
         $sortableColumns = [
             'BILLNM' => 'scctbill.BILLNM',
-            'BILLAM' => 'scctbill.BILLAM',
+            'BILLAM_TOTAL' => 'scctbill.BILLAM',
+            'BILLAM' => 'scctbill.PAYMENTLEFT',
+            'BILLPAID' => 'scctbill.BILLPAID',
             'BILLAC' => 'scctbill.BILLAC',
             'BTA' => 'scctbill.BTA',
             'FUrutan' => 'scctbill.FUrutan',
@@ -603,6 +627,8 @@ class DataTagihanController extends Controller
             'scctbill.BILLNM',
             'scctbill.BILLAC',
             'scctbill.BILLAM',
+            'scctbill.BILLPAID',
+            'scctbill.PAYMENTLEFT',
             'scctbill.PAIDST',
             'scctbill.PAIDDT',
             'scctbill.BTA',
@@ -616,7 +642,10 @@ class DataTagihanController extends Controller
         $query = scctbill::leftJoin('scctcust', 'scctcust.CUSTID', 'scctbill.CUSTID')
             ->select($select)
             ->selectRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) AS FUrutan')
-            ->where('scctbill.PAIDST', 0)
+            ->where(function ($q) {
+                $q->whereNull('scctbill.PAIDST')
+                    ->orWhere('scctbill.PAIDST', '<>', 1);
+            })
             ->where('scctcust.STCUST', 1)
             ->where('scctbill.FSTSBolehBayar', 1)
             ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
@@ -647,7 +676,7 @@ class DataTagihanController extends Controller
             Cache::remember(
                 $cacheKey,
                 now()->addMinutes(10),
-                fn() => (clone $query)->sum('BILLAM')
+                fn() => (clone $query)->sum('PAYMENTLEFT')
             );
 
         $rowperpage = $rowperpage == "poll" ? $totalRecords : $rowperpage;
@@ -659,6 +688,10 @@ class DataTagihanController extends Controller
                 $recordsQuery->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ' . $dir);
             } elseif ($columnName === 'scctbill.BILLAM') {
                 $recordsQuery->orderByRaw('CAST(COALESCE(scctbill.BILLAM, 0) AS DECIMAL(18,2)) ' . $dir);
+            } elseif ($columnName === 'scctbill.PAYMENTLEFT') {
+                $recordsQuery->orderByRaw('CAST(COALESCE(scctbill.PAYMENTLEFT, 0) AS DECIMAL(18,2)) ' . $dir);
+            } elseif ($columnName === 'scctbill.BILLPAID') {
+                $recordsQuery->orderByRaw('CAST(COALESCE(scctbill.BILLPAID, 0) AS DECIMAL(18,2)) ' . $dir);
             } else {
                 $recordsQuery->orderBy($columnName, $columnSortOrder);
             }
@@ -713,15 +746,20 @@ class DataTagihanController extends Controller
                     'DESC02' => $get('DESC02'),
                     'DESC03' => $get('DESC03'),
                     'BILLNM' => $get('BILLNM'),
-                    'BILLAM' => $get('BILLAM'),
+                    'BILLAM_TOTAL' => $get('BILLAM'),
+                    'BILLAM' => $get('PAYMENTLEFT'),
+                    'BILLPAID' => $get('BILLPAID'),
                     'BILLAC' => $get('BILLAC'),
                     'BTA' => $get('BTA'),
                     'PAIDST' => $get('PAIDST'),
-                    'PAIDDT' => $get('PAIDDT'),
+                    'PAIDDT' => $get('PAIDDT')
+                        ? Carbon::parse($get('PAIDDT'))->format('d-m-Y H:i:s')
+                        : null,
                     'FIDBANK' => $get('FIDBANK'),
                     'FUrutan' => ($furutan === null || $furutan === '')
                         ? '0'
                         : (string) (int) $furutan,
+                    'detail_trx' => true,
                     'print' => true,
                     'naik' => true,
                     'turun' => true,
@@ -736,10 +774,67 @@ class DataTagihanController extends Controller
             "recordsFiltered" => $totalRecordswithFilter ?? 0,
             "data" => $records ?? [],
             'totals' => [
-                'tagihan' => ['location' => 9, 'value' => $totalTagihan, 'columnType' => 'currency'],
+                'tagihan' => ['location' => 11, 'value' => $totalTagihan, 'columnType' => 'currency'],
             ]
         );
         return response()->json($response);
+    }
+
+    public function getTransLog($id)
+    {
+        $tagihan = scctbill::query()
+            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
+            ->where('scctbill.AA', $id)
+            ->select([
+                'scctbill.AA',
+                'scctbill.CUSTID',
+                'scctbill.BILLNM',
+                'scctcust.NOCUST',
+                'scctcust.NMCUST',
+            ])
+            ->first();
+
+        if (!$tagihan) {
+            return response()->json(['message' => 'Tagihan tidak ditemukan'], 404);
+        }
+
+        $logs = sccttran::query()
+            ->where('CUSTID', $tagihan->CUSTID)
+            ->where('BILLID', $tagihan->AA)
+            ->orderBy('TRXDATE', 'desc')
+            ->get([
+                'TRXDATE',
+                'METODE',
+                'DEBET',
+                'KREDIT',
+                'FIDBANK',
+                'NORCEF',
+                'TRANSNO',
+            ])
+            ->map(function ($item) {
+                return [
+                    'trxdate' => $item->TRXDATE
+                        ? Carbon::parse($item->TRXDATE)->format('d-m-Y H:i:s')
+                        : null,
+                    'metode' => $item->METODE,
+                    'debet' => (int) ($item->DEBET ?? 0),
+                    'kredit' => (int) ($item->KREDIT ?? 0),
+                    'fidbank' => $item->FIDBANK,
+                    'norcef' => $item->NORCEF,
+                    'transno' => $item->TRANSNO,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'tagihan' => [
+                'aa' => $tagihan->AA,
+                'nis' => $tagihan->NOCUST,
+                'nama' => $tagihan->NMCUST,
+                'billnm' => $tagihan->BILLNM,
+            ],
+            'logs' => $logs,
+        ]);
     }
 
     public function total(): int
@@ -747,9 +842,12 @@ class DataTagihanController extends Controller
         return Cache::remember(
             "{$this->cacheKey}:total_all_data",
             now()->addMinutes(10),
-            fn() => scctbill::where('scctbill.PAIDST', 0)
-                ->where('scctbill.FSTSBolehBayar', 1)
-                ->count()
+            fn() => scctbill::where(function ($q) {
+                $q->whereNull('scctbill.PAIDST')
+                    ->orWhere('scctbill.PAIDST', '<>', 1);
+            })
+            ->where('scctbill.FSTSBolehBayar', 1)
+            ->count()
         );
     }
 }

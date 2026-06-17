@@ -367,7 +367,7 @@
             thead: true,
             tfoot: true,
             scrollX: true,
-            order: [[11, 'asc']],
+            order: [[15, 'asc']],
             paging: true,
             searching: true,
             fixedHeader: false,
@@ -375,7 +375,23 @@
             lengthMenu: [10, 25, 50, 75, 100],
             select: true,
             rowId: 'AA',
-            buttons: ["excel", "pdf", "print"],
+            buttons: [
+                {
+                    text: '<span class="ri-arrow-up-line me-2"></span>Naikkan',
+                    className: 'btn btn-secondary',
+                    action: function () {
+                        submitUbahUrutanDirect('naik');
+                    }
+                },
+                {
+                    text: '<span class="ri-arrow-down-line me-2"></span>Turunkan',
+                    className: 'btn btn-secondary',
+                    action: function () {
+                        submitUbahUrutanDirect('turun');
+                    }
+                },
+                "excel", "pdf", "print"
+            ],
             pdfOrientation: 'landscape',
             pdfPageSize: 'A3',
             pdfMargins: [10, 14, 10, 14],
@@ -422,8 +438,79 @@
             return true;
         }
 
+        function getSelectedTagihanRow() {
+            const selectedRows = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
+            if (selectedRows.length === 0) {
+                warningAlert('Pilih 1 data tagihan dulu.');
+                return null;
+            }
+            if (selectedRows.length > 1) {
+                warningAlert('Pilih 1 data saja untuk ubah urutan.');
+                return null;
+            }
+            return selectedRows[0];
+        }
+
+        function submitUbahUrutanDirect(direction) {
+            const selected = getSelectedTagihanRow();
+            if (!selected) {
+                return;
+            }
+
+            const urut = parseInt(selected?.FUrutan ?? selected?.furutan ?? '0', 10);
+            if (!Number.isFinite(urut) || urut <= 0) {
+                warningAlert('Tagihan dengan urutan 0 tidak dapat dinaikkan atau diturunkan.');
+                return;
+            }
+
+            const itemId = selected.item_id ?? selected.AA;
+            if (!itemId) {
+                warningAlert('Data tagihan tidak valid.');
+                return;
+            }
+
+            loadingAlert(direction === 'naik' ? 'Menaikkan urutan tagihan...' : 'Menurunkan urutan tagihan...');
+            let url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.ubah-urutan',':id')}}';
+            url = url.replace(':id', itemId);
+            const form = new FormData();
+            form.append('urutan_tagihan', direction);
+            form.append('custid', selected.CUSTID ?? '');
+
+            fetch(new Request(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: form
+            }))
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw {status: response.status, message: data.message || response.statusText, errors: data.errors};
+                    }
+                    return data;
+                })
+                .then(data => {
+                    dataReload(dtOptions.tableId);
+                    successAlert(data.message || 'Urutan tagihan berhasil diubah.');
+                })
+                .catch(error => {
+                    errorAlert(error.message || 'Gagal mengubah urutan tagihan.');
+                });
+        }
+
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
-            if (e.target.closest('.btn-hapus')) {
+            if (e.target.closest('.btn-detail-trx')) {
+                const rowEl = e.target.closest('tr');
+                if (rowEl) {
+                    const rowData = DT[`${dtOptions.tableId}`].row(rowEl).data();
+                    if (!rowData?.AA) {
+                        warningAlert('Data tagihan tidak valid.');
+                        return;
+                    }
+                    renderTransLog(rowData);
+                }
+            } else if (e.target.closest('.btn-hapus')) {
                 const rowEl = e.target.closest('tr');
 
                 if (rowEl) {
@@ -454,6 +541,71 @@
                 }
             }
         });
+
+        async function renderTransLog(rowData) {
+            loadingAlert('Mengambil log transaksi...');
+            let url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.get-trans-log', ':id')}}';
+            url = url.replace(':id', rowData.AA);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    }
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || 'Gagal mengambil log transaksi.');
+                }
+
+                const logs = Array.isArray(result.logs) ? result.logs : [];
+                const rows = logs.length
+                    ? logs.map((log, idx) => `
+                        <tr>
+                            <td class="text-center">${idx + 1}</td>
+                            <td>${log.trxdate ?? '-'}</td>
+                            <td>${log.metode ?? '-'}</td>
+                            <td class="text-end">${formatRupiah(log.debet ?? 0)}</td>
+                            <td class="text-end">${formatRupiah(log.kredit ?? 0)}</td>
+                            <td>${log.fidbank ?? '-'}</td>
+                        </tr>
+                    `).join('')
+                    : `<tr><td colspan="6" class="text-center">Tidak ada log transaksi</td></tr>`;
+
+                const header = result.tagihan || {};
+                await Swal.fire({
+                    title: `Log Transaksi - ${header.billnm ?? (rowData.BILLNM ?? '-')}`,
+                    width: '70rem',
+                    html: `
+                        <div class="mb-2 text-start">
+                            <strong>NIS:</strong> ${header.nis ?? (rowData.NOCUST ?? '-')}
+                            &nbsp; | &nbsp;
+                            <strong>Nama:</strong> ${header.nama ?? (rowData.NMCUST ?? '-')}
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 48px;" class="text-center">No</th>
+                                        <th>Tanggal</th>
+                                        <th>Metode</th>
+                                        <th class="text-end">Debet</th>
+                                        <th class="text-end">Kredit</th>
+                                        <th>FIDBANK</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    `,
+                    confirmButtonText: 'Tutup'
+                });
+            } catch (error) {
+                errorAlert(error.message || 'Gagal mengambil log transaksi.');
+            }
+        }
 
         document.getElementById('form-delete').addEventListener('submit', function (e) {
             e.preventDefault();

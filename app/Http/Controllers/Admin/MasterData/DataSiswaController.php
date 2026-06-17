@@ -247,7 +247,7 @@ class DataSiswaController extends Controller
                 $row = $item->toArray();
                 $nis = trim((string) ($item->nocust ?? ''));
                 $row["item_id"] = $item->CUSTID;
-                $row["select_reset"] = '<input type="checkbox" class="form-check-input reset-android-row" value="' . e((string) $item->CUSTID) . '"' . (($nis === '' || $nis === '-') ? ' disabled' : '') . '>';
+                $row["select_reset"] = '<input type="checkbox" class="form-check-input reset-android-row" value="' . e((string) $item->CUSTID) . '">';
                 $row["nis"] = $item->nocust;
                 $row["va_spp"] = ($nis !== '' && $nis !== '-')
                     ? scctcust::showVASpp($nis)

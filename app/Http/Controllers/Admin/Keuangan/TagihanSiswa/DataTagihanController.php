@@ -67,9 +67,9 @@ class DataTagihanController extends Controller
                 'className' => 'text-center',
                 'button' => 'action',
                 'buttonText' => '+',
-                'buttonClass' => 'btn btn-sm btn-outline-primary btn-detail-trx',
+                'buttonClass' => 'btn btn-sm btn-primary btn-detail-trx',
                 'buttonLink' => '#',
-                'noCaption' => true,
+                'noCaption' => false,
                 'exportable' => false,
                 'duplicate' => false,
             ],
@@ -93,36 +93,6 @@ class DataTagihanController extends Controller
                 'searchable' => true,
                 'orderable' => true,
                 'exportable' => true,
-                'duplicate' => false,
-            ],
-            [
-                'data' => 'naik',
-                'name' => 'Naik',
-                'orderable' => false,
-                'dataVal' => false,
-                'columnType' => 'button',
-                'className' => 'text-center',
-                'button' => 'action',
-                'buttonText' => 'Naikkan',
-                'buttonClass' => 'btn btn-sm btn-secondary btn-naik-urut',
-                'buttonLink' => '#modal-delete',
-                'buttonIcon' => 'ri-arrow-up-line me-2',
-                'exportable' => false,
-                'duplicate' => false,
-            ],
-            [
-                'data' => 'turun',
-                'name' => 'Turun',
-                'orderable' => false,
-                'dataVal' => false,
-                'columnType' => 'button',
-                'className' => 'text-center',
-                'button' => 'action',
-                'buttonText' => 'Turunkan',
-                'buttonClass' => 'btn btn-sm btn-secondary btn-turun-urut',
-                'buttonLink' => '#modal-delete',
-                'buttonIcon' => 'ri-arrow-down-line me-2',
-                'exportable' => false,
                 'duplicate' => false,
             ],
             [
@@ -760,9 +730,27 @@ class DataTagihanController extends Controller
                         ? '0'
                         : (string) (int) $furutan,
                     'detail_trx' => true,
+                    'TRX_LOGS' => sccttran::query()
+                        ->where('CUSTID', $get('CUSTID'))
+                        ->where('BILLID', $get('AA'))
+                        ->orderBy('TRXDATE', 'desc')
+                        ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO'])
+                        ->map(function ($trx) {
+                            return [
+                                'trxdate' => $trx->TRXDATE
+                                    ? Carbon::parse($trx->TRXDATE)->format('d-m-Y H:i:s')
+                                    : null,
+                                'metode' => $trx->METODE,
+                                'debet' => (int) ($trx->DEBET ?? 0),
+                                'kredit' => (int) ($trx->KREDIT ?? 0),
+                                'fidbank' => $trx->FIDBANK,
+                                'norcef' => $trx->NORCEF,
+                                'transno' => $trx->TRANSNO,
+                            ];
+                        })
+                        ->values()
+                        ->all(),
                     'print' => true,
-                    'naik' => true,
-                    'turun' => true,
                     'delete' => true,
                 ];
             })
@@ -778,63 +766,6 @@ class DataTagihanController extends Controller
             ]
         );
         return response()->json($response);
-    }
-
-    public function getTransLog($id)
-    {
-        $tagihan = scctbill::query()
-            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
-            ->where('scctbill.AA', $id)
-            ->select([
-                'scctbill.AA',
-                'scctbill.CUSTID',
-                'scctbill.BILLNM',
-                'scctcust.NOCUST',
-                'scctcust.NMCUST',
-            ])
-            ->first();
-
-        if (!$tagihan) {
-            return response()->json(['message' => 'Tagihan tidak ditemukan'], 404);
-        }
-
-        $logs = sccttran::query()
-            ->where('CUSTID', $tagihan->CUSTID)
-            ->where('BILLID', $tagihan->AA)
-            ->orderBy('TRXDATE', 'desc')
-            ->get([
-                'TRXDATE',
-                'METODE',
-                'DEBET',
-                'KREDIT',
-                'FIDBANK',
-                'NORCEF',
-                'TRANSNO',
-            ])
-            ->map(function ($item) {
-                return [
-                    'trxdate' => $item->TRXDATE
-                        ? Carbon::parse($item->TRXDATE)->format('d-m-Y H:i:s')
-                        : null,
-                    'metode' => $item->METODE,
-                    'debet' => (int) ($item->DEBET ?? 0),
-                    'kredit' => (int) ($item->KREDIT ?? 0),
-                    'fidbank' => $item->FIDBANK,
-                    'norcef' => $item->NORCEF,
-                    'transno' => $item->TRANSNO,
-                ];
-            })
-            ->values();
-
-        return response()->json([
-            'tagihan' => [
-                'aa' => $tagihan->AA,
-                'nis' => $tagihan->NOCUST,
-                'nama' => $tagihan->NMCUST,
-                'billnm' => $tagihan->BILLNM,
-            ],
-            'logs' => $logs,
-        ]);
     }
 
     public function total(): int

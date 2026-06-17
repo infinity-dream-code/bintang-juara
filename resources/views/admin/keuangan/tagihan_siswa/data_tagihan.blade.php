@@ -517,50 +517,12 @@
                     fillFormValue('form-delete', rowEl);
                     modalDelete.show();
                 }
-            } else if (e.target.closest('.btn-naik-urut')) {
-                const rowEl = e.target.closest('tr');
-                if (rowEl && canChangeUrutan(rowEl)) {
-                    document.getElementById("logo-urutan").className = "ri-arrow-up-line ri-5x me-2";
-                    document.getElementById("caption-urutan").textContent = "Naikkan Urutan Tagihan?";
-                    document.getElementById("sub-caption-urutan").textContent = "Anda yakin akan menaikkan urutan tagihan?";
-                    document.getElementById("submit-urutan-tagihan").value = "Naikkan";
-                    document.getElementById("urutan_tagihan").value = "naik";
-                    fillFormValue('form-ubah-urutan', rowEl);
-                    modalUrut.show();
-                }
-            } else if (e.target.closest('.btn-turun-urut')) {
-                const rowEl = e.target.closest('tr');
-                if (rowEl && canChangeUrutan(rowEl)) {
-                    document.getElementById("logo-urutan").className = "ri-arrow-down-line ri-5x me-2";
-                    document.getElementById("caption-urutan").textContent = "Turunkan Urutan Tagihan?";
-                    document.getElementById("sub-caption-urutan").textContent = "Anda yakin akan menurunkan urutan tagihan?";
-                    document.getElementById("submit-urutan-tagihan").value = "Turunkan";
-                    document.getElementById("urutan_tagihan").value = "turun";
-                    fillFormValue('form-ubah-urutan', rowEl);
-                    modalUrut.show();
-                }
             }
         });
 
         async function renderTransLog(rowData) {
-            loadingAlert('Mengambil log transaksi...');
-            let url = '{{url('admin/keuangan/tagihan-siswa/data-tagihan/get-trans-log/:id')}}';
-            url = url.replace(':id', rowData.AA);
-
             try {
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json'
-                    }
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.message || 'Gagal mengambil log transaksi.');
-                }
-
-                const logs = Array.isArray(result.logs) ? result.logs : [];
+                const logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
                 const rows = logs.length
                     ? logs.map((log, idx) => `
                         <tr>
@@ -574,15 +536,14 @@
                     `).join('')
                     : `<tr><td colspan="6" class="text-center">Tidak ada log transaksi</td></tr>`;
 
-                const header = result.tagihan || {};
                 await Swal.fire({
-                    title: `Log Transaksi - ${header.billnm ?? (rowData.BILLNM ?? '-')}`,
+                    title: `Log Transaksi - ${rowData.BILLNM ?? '-'}`,
                     width: '70rem',
                     html: `
                         <div class="mb-2 text-start">
-                            <strong>NIS:</strong> ${header.nis ?? (rowData.NOCUST ?? '-')}
+                            <strong>NIS:</strong> ${rowData.NOCUST ?? '-'}
                             &nbsp; | &nbsp;
-                            <strong>Nama:</strong> ${header.nama ?? (rowData.NMCUST ?? '-')}
+                            <strong>Nama:</strong> ${rowData.NMCUST ?? '-'}
                         </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-bordered table-striped mb-0">

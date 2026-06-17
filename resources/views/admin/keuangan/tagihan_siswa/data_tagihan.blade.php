@@ -540,21 +540,46 @@
             }
         });
 
+        // Fallback delegated handler: memastikan tombol "+" selalu bisa diklik setelah redraw DataTable.
+        $(document).on('click', '#main_table tbody .btn-detail-trx', async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                const rowEl = $(this).closest('tr');
+                const dtRow = DT[`${dtOptions.tableId}`].row(rowEl);
+                const rowData = dtRow.data();
+                console.log('[DATA TAGIHAN] click detail trx', rowData);
+                if (!rowData) {
+                    warningAlert('Data baris tidak ditemukan.');
+                    return;
+                }
+                await toggleTransLogRow(dtRow, rowData, this);
+            } catch (err) {
+                console.error('[DATA TAGIHAN] gagal klik detail trx', err);
+                errorAlert('Klik detail log gagal diproses. Silakan refresh halaman.');
+            }
+        });
+
         async function toggleTransLogRow(dtRow, rowData, buttonEl) {
-            if (dtRow.child.isShown()) {
-                dtRow.child.hide();
-                buttonEl.textContent = '+';
-                return;
-            }
+            try {
+                if (dtRow.child.isShown()) {
+                    dtRow.child.hide();
+                    buttonEl.textContent = '+';
+                    return;
+                }
 
-            let logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
-            if (!logs.length) {
-                logs = await fetchTransLog(rowData);
-                rowData.TRX_LOGS = logs;
-            }
+                let logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+                if (!logs.length) {
+                    logs = await fetchTransLog(rowData);
+                    rowData.TRX_LOGS = logs;
+                }
 
-            dtRow.child(buildTransLogHtml(rowData), 'p-0').show();
-            buttonEl.textContent = '-';
+                dtRow.child(buildTransLogHtml(rowData), 'p-0').show();
+                buttonEl.textContent = '-';
+            } catch (e) {
+                console.error('[DATA TAGIHAN] toggle child error', e, rowData);
+                errorAlert('Gagal menampilkan log transaksi.');
+            }
         }
 
         async function fetchTransLog(rowData) {

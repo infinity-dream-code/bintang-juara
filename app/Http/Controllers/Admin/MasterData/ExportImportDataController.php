@@ -326,22 +326,24 @@ class ExportImportDataController extends Controller
                 }
             } else if ($request->metode == '4') {
                 $data = array_filter(Cache::get('import_data_siswa'), function ($item) {
-                    return !empty($item['nodaftar'] ?? null);
+                    return !empty($item['nodaftar'] ?? null) && !empty($item['nis'] ?? null);
                 });
 
                 foreach ($data as $item) {
                     $item = $this->normalizeImportItem($item);
                     if (strlen((string) ($item['nodaftar'] ?? '')) > 10) continue;
-                    $existingNis = scctcust::where('NOCUST', $item['nodaftar'])->first();
+                    if (strlen((string) ($item['nis'] ?? '')) > 10) continue;
+
+                    $existingNis = scctcust::where('NOCUST', $item['nis'])->first();
                     if ($existingNis) {
-                        return response()->json(['message' => 'Gagal, NIS :' . $item['nodaftar'] . ' sudah ada!'], 422);
+                        return response()->json(['message' => 'Gagal, NIS :' . $item['nis'] . ' sudah ada!'], 422);
                     }
+
                     $existingCust = scctcust::where('NUM2ND', $item['nodaftar'])->first();
-                    if ($existingCust) {
-                        $nodaf = $item['nodaftar'];
+                    if ($existingCust && in_array(trim((string) $existingCust->NOCUST), ['', '-'], true)) {
+                        $nis = $item['nis'];
                         $existingCust->update([
-                            'NOCUST' => $nodaf,
-//                            'NUM2ND' => null,
+                            'NOCUST' => $nis,
                         ]);
                     }
                 }

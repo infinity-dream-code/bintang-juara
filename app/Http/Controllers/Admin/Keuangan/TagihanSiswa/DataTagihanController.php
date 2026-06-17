@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -730,26 +731,7 @@ class DataTagihanController extends Controller
                         ? '0'
                         : (string) (int) $furutan,
                     'detail_trx' => true,
-                    'TRX_LOGS' => sccttran::query()
-                        ->where('CUSTID', $get('CUSTID'))
-                        ->where('BILLID', $get('AA'))
-                        ->orderBy('TRXDATE', 'desc')
-                        ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO'])
-                        ->map(function ($trx) {
-                            return [
-                                'trxdate' => $trx->TRXDATE
-                                    ? Carbon::parse($trx->TRXDATE)->format('d-m-Y H:i:s')
-                                    : null,
-                                'metode' => $trx->METODE,
-                                'debet' => (int) ($trx->DEBET ?? 0),
-                                'kredit' => (int) ($trx->KREDIT ?? 0),
-                                'fidbank' => $trx->FIDBANK,
-                                'norcef' => $trx->NORCEF,
-                                'transno' => $trx->TRANSNO,
-                            ];
-                        })
-                        ->values()
-                        ->all(),
+                    'TRX_LOGS' => $this->getTransactionLogsForBill($get('CUSTID'), $get('AA')),
                     'print' => true,
                     'delete' => true,
                 ];
@@ -766,6 +748,53 @@ class DataTagihanController extends Controller
             ]
         );
         return response()->json($response);
+    }
+
+    private function getTransactionLogsForBill($custId, $aa): array
+    {
+        if (blank($custId) || blank($aa)) {
+            return [];
+        }
+
+        try {
+            static $hasBillId = null;
+            static $hasNorcef = null;
+            if ($hasBillId === null) {
+                $hasBillId = Schema::hasColumn('sccttran', 'BILLID');
+                $hasNorcef = Schema::hasColumn('sccttran', 'NORCEF');
+            }
+
+            $query = sccttran::query()->where('CUSTID', $custId);
+
+            if ($hasBillId) {
+                $query->where('BILLID', $aa);
+            } elseif ($hasNorcef) {
+                $query->where('NORCEF', $aa);
+            } else {
+                return [];
+            }
+
+            return $query
+                ->orderBy('TRXDATE', 'desc')
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO'])
+                ->map(function ($trx) {
+                    return [
+                        'trxdate' => $trx->TRXDATE
+                            ? Carbon::parse($trx->TRXDATE)->format('d-m-Y H:i:s')
+                            : null,
+                        'metode' => $trx->METODE,
+                        'debet' => (int) ($trx->DEBET ?? 0),
+                        'kredit' => (int) ($trx->KREDIT ?? 0),
+                        'fidbank' => $trx->FIDBANK,
+                        'norcef' => $trx->NORCEF,
+                        'transno' => $trx->TRANSNO,
+                    ];
+                })
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     public function total(): int

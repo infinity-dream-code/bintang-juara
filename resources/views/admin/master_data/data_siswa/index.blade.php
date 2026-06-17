@@ -839,7 +839,7 @@
                 }
 
                 loadingAlert('Memproses reset login android...');
-                const request = new Request('{{route('admin.master-data.data-siswa.reset-login-android-bulk')}}', {
+                const request = new Request('{{url('admin/master-data/data-siswa/reset-login-android-bulk')}}', {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': csrfToken,

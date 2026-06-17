@@ -76,6 +76,7 @@ class DataSiswaController extends Controller
     public function getColumn()
     {
         return [
+            ["data" => "select_reset", "name" => "", "searchable" => false, "orderable" => false, "className" => "text-center", "exportable" => false],
             ["data" => null, "name" => "no", "className" => "text-center", "columnType" => "row", "exportable" => true],
             ["data" => "nocust", "name" => "NIS", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "va_spp", "name" => "VA SPP", "searchable" => false, "orderable" => false, "exportable" => true],
@@ -246,6 +247,7 @@ class DataSiswaController extends Controller
                 $row = $item->toArray();
                 $nis = trim((string) ($item->nocust ?? ''));
                 $row["item_id"] = $item->CUSTID;
+                $row["select_reset"] = '<input type="checkbox" class="form-check-input reset-android-row" value="' . e((string) $item->CUSTID) . '"' . (($nis === '' || $nis === '-') ? ' disabled' : '') . '>';
                 $row["nis"] = $item->nocust;
                 $row["va_spp"] = ($nis !== '' && $nis !== '-')
                     ? scctcust::showVASpp($nis)
@@ -372,6 +374,71 @@ class DataSiswaController extends Controller
                 422,
             );
         }
+    }
+
+    public function resetLoginAndroidBulk(Request $request)
+    {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                "custids" => ["required", "array", "min:1"],
+                "custids.*" => ["required", "string", "max:50"],
+            ],
+            ValidationMessage::messages(),
+            ValidationMessage::attributes(),
+        );
+
+        if ($validator->fails()) {
+            return response()->json(
+                ["message" => $validator->errors()->first(), "errors" => $validator->errors()],
+                422,
+            );
+        }
+
+        $custids = collect($request->input("custids", []))
+            ->map(fn ($id) => trim((string) $id))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($custids->isEmpty()) {
+            return response()->json(["message" => "Tidak ada siswa yang dipilih!"], 422);
+        }
+
+        $siswaList = scctcust::query()
+            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+            ->whereIn("CUSTID", $custids->all())
+            ->get(["CUSTID", "nocust"]);
+
+        if ($siswaList->isEmpty()) {
+            return response()->json(["message" => "Data siswa tidak ditemukan!"], 422);
+        }
+
+        $processed = 0;
+        try {
+            DB::beginTransaction();
+            foreach ($siswaList as $siswa) {
+                $nis = trim((string) ($siswa->nocust ?? ""));
+                if ($nis === "" || $nis === "-") {
+                    continue;
+                }
+                DB::select("CALL AndroidLogonFixer(?)", [$nis]);
+                $processed++;
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(
+                ["message" => "Gagal reset login android massal!", "error" => $e->getMessage()],
+                422,
+            );
+        }
+
+        if ($processed === 0) {
+            return response()->json(["message" => "Tidak ada siswa valid untuk reset (NIS kosong)."], 422);
+        }
+
+        return response()->json(["message" => "Reset Android berhasil untuk {$processed} siswa."], 200);
     }
 
     public function setStatusSiswa($id, Request $request)

@@ -137,6 +137,10 @@
                     </div>
                     <div class="row">
                         <div class="d-flex justify-content-center justify-content-md-end gap-4">
+                            <button type="button" class="btn btn-whatsapp" id="btn-reset-android-selected">
+                                <span class="ri-android-line me-2"></span>
+                                Reset Login Android
+                            </button>
                             <button type="reset" class="btn btn-secondary">
                                 <span class="ri-reset-left-line me-2"></span>
                                 Reset
@@ -442,6 +446,7 @@
     <script type="text/javascript">
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         const select2 = $(`[data-control='select2']`);
+        const selectedResetAndroidIds = new Set();
 
         let dtOptions = {
             tableId: 'main_table',
@@ -731,9 +736,29 @@
             }
         }
 
+        function syncResetAndroidCheckboxes() {
+            const firstHeader = document.querySelector(`#${dtOptions.tableId} thead th:first-child`);
+            if (firstHeader && !firstHeader.querySelector('#select-all-reset-android')) {
+                firstHeader.innerHTML = '<input type="checkbox" id="select-all-reset-android" class="form-check-input">';
+            }
+            document.querySelectorAll('.reset-android-row').forEach((checkbox) => {
+                checkbox.checked = selectedResetAndroidIds.has(checkbox.value);
+            });
+            const allRows = Array.from(document.querySelectorAll('.reset-android-row:not(:disabled)'));
+            const checkedRows = allRows.filter((el) => el.checked);
+            const selectAll = document.getElementById('select-all-reset-android');
+            if (selectAll) {
+                selectAll.checked = allRows.length > 0 && checkedRows.length === allRows.length;
+                selectAll.indeterminate = checkedRows.length > 0 && checkedRows.length < allRows.length;
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
+                $(`#${dtOptions.tableId}`).on('draw.dt', function () {
+                    syncResetAndroidCheckboxes();
+                });
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {
@@ -766,6 +791,70 @@
                     });
                 });
             }
+
+            document.getElementById(dtOptions.tableId).addEventListener('change', function (e) {
+                const rowCheckbox = e.target.closest('.reset-android-row');
+                if (rowCheckbox) {
+                    if (rowCheckbox.checked) {
+                        selectedResetAndroidIds.add(rowCheckbox.value);
+                    } else {
+                        selectedResetAndroidIds.delete(rowCheckbox.value);
+                    }
+                    syncResetAndroidCheckboxes();
+                    return;
+                }
+
+                if (e.target.id === 'select-all-reset-android') {
+                    const enabledRows = document.querySelectorAll('.reset-android-row:not(:disabled)');
+                    enabledRows.forEach((checkbox) => {
+                        checkbox.checked = e.target.checked;
+                        if (e.target.checked) {
+                            selectedResetAndroidIds.add(checkbox.value);
+                        } else {
+                            selectedResetAndroidIds.delete(checkbox.value);
+                        }
+                    });
+                    syncResetAndroidCheckboxes();
+                }
+            });
+
+            document.getElementById('btn-reset-android-selected').addEventListener('click', async function () {
+                const ids = Array.from(selectedResetAndroidIds);
+                if (ids.length === 0) {
+                    warningAlert('Pilih siswa dulu untuk reset android.');
+                    return;
+                }
+
+                const confirm = await Swal.fire({
+                    title: 'Reset Android',
+                    text: `Reset login android untuk ${ids.length} siswa terpilih?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, Reset',
+                    cancelButtonText: 'Batal'
+                });
+
+                if (!confirm.isConfirmed) {
+                    return;
+                }
+
+                loadingAlert('Memproses reset login android...');
+                const request = new Request('{{route('admin.master-data.data-siswa.reset-login-android-bulk')}}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({custids: ids}),
+                });
+
+                const processForm = await submitForm(request);
+                if (processForm) {
+                    successAlert(processForm.message ?? 'Reset Android berhasil.');
+                    selectedResetAndroidIds.clear();
+                    dataReload(dtOptions.tableId);
+                }
+            });
         });
 
     </script>

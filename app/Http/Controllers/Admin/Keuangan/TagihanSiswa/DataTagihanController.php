@@ -20,7 +20,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -602,6 +601,7 @@ class DataTagihanController extends Controller
             'scctbill.PAYMENTLEFT',
             'scctbill.PAIDST',
             'scctbill.PAIDDT',
+            'scctbill.TRANSNO as BILL_TRANSNO',
             'scctbill.BTA',
             'scctbill.FIDBANK',
             'scctcust.CODE02',
@@ -731,7 +731,8 @@ class DataTagihanController extends Controller
                         ? '0'
                         : (string) (int) $furutan,
                     'detail_trx' => true,
-                    'TRX_LOGS' => $this->getTransactionLogsForBill($get('CUSTID'), $get('AA')),
+                    'TRX_LOGS' => $this->getTransactionLogsForBill($get('CUSTID'), $get('AA'), $get('BILL_TRANSNO')),
+                    'BILL_TRANSNO' => $get('BILL_TRANSNO'),
                     'print' => true,
                     'delete' => true,
                 ];
@@ -750,29 +751,21 @@ class DataTagihanController extends Controller
         return response()->json($response);
     }
 
-    private function getTransactionLogsForBill($custId, $aa): array
+    private function getTransactionLogsForBill($custId, $aa, $billTransNo = null): array
     {
         if (blank($custId) || blank($aa)) {
             return [];
         }
 
         try {
-            static $hasBillId = null;
-            static $hasNorcef = null;
-            if ($hasBillId === null) {
-                $hasBillId = Schema::hasColumn('sccttran', 'BILLID');
-                $hasNorcef = Schema::hasColumn('sccttran', 'NORCEF');
-            }
-
-            $query = sccttran::query()->where('CUSTID', $custId);
-
-            if ($hasBillId) {
-                $query->where('BILLID', $aa);
-            } elseif ($hasNorcef) {
-                $query->where('NORCEF', $aa);
-            } else {
-                return [];
-            }
+            $query = sccttran::query()
+                ->where('CUSTID', $custId)
+                ->where(function ($q) use ($aa, $billTransNo) {
+                    $q->where('BILLID', $aa);
+                    if (!blank($billTransNo) && (string) $billTransNo !== '-') {
+                        $q->orWhere('TRANSNO', $billTransNo);
+                    }
+                });
 
             return $query
                 ->orderBy('TRXDATE', 'desc')

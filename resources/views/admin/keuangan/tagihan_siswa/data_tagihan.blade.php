@@ -375,23 +375,7 @@
             lengthMenu: [10, 25, 50, 75, 100],
             select: true,
             rowId: 'AA',
-            buttons: [
-                {
-                    text: '<span class="ri-arrow-up-line me-2"></span>Naikkan',
-                    className: 'btn btn-secondary',
-                    action: function () {
-                        submitUbahUrutanDirect('naik');
-                    }
-                },
-                {
-                    text: '<span class="ri-arrow-down-line me-2"></span>Turunkan',
-                    className: 'btn btn-secondary',
-                    action: function () {
-                        submitUbahUrutanDirect('turun');
-                    }
-                },
-                "excel", "pdf", "print"
-            ],
+            buttons: ["excel", "pdf", "print"],
             pdfOrientation: 'landscape',
             pdfPageSize: 'A3',
             pdfMargins: [10, 14, 10, 14],
@@ -499,16 +483,43 @@
                 });
         }
 
+        function ensureUrutanToolbarButtons() {
+            const wrapper = document.querySelector(`#${dtOptions.tableId}_wrapper`);
+            if (!wrapper) return;
+            const dtButtons = wrapper.querySelector('.dt-buttons');
+            if (!dtButtons) return;
+            if (wrapper.querySelector('#btn-naik-toolbar') || wrapper.querySelector('#btn-turun-toolbar')) return;
+
+            const naikBtn = document.createElement('button');
+            naikBtn.type = 'button';
+            naikBtn.id = 'btn-naik-toolbar';
+            naikBtn.className = 'btn btn-secondary me-2';
+            naikBtn.innerHTML = '<span class="ri-arrow-up-line me-2"></span>Naikkan';
+            naikBtn.addEventListener('click', () => submitUbahUrutanDirect('naik'));
+
+            const turunBtn = document.createElement('button');
+            turunBtn.type = 'button';
+            turunBtn.id = 'btn-turun-toolbar';
+            turunBtn.className = 'btn btn-secondary me-2';
+            turunBtn.innerHTML = '<span class="ri-arrow-down-line me-2"></span>Turunkan';
+            turunBtn.addEventListener('click', () => submitUbahUrutanDirect('turun'));
+
+            dtButtons.parentNode.insertBefore(turunBtn, dtButtons);
+            dtButtons.parentNode.insertBefore(naikBtn, turunBtn);
+        }
+
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
             if (e.target.closest('.btn-detail-trx')) {
+                const button = e.target.closest('.btn-detail-trx');
                 const rowEl = e.target.closest('tr');
                 if (rowEl) {
-                    const rowData = DT[`${dtOptions.tableId}`].row(rowEl).data();
+                    const dtRow = DT[`${dtOptions.tableId}`].row(rowEl);
+                    const rowData = dtRow.data();
                     if (!rowData?.AA) {
                         warningAlert('Data tagihan tidak valid.');
                         return;
                     }
-                    renderTransLog(rowData);
+                    toggleTransLogRow(dtRow, rowData, button);
                 }
             } else if (e.target.closest('.btn-hapus')) {
                 const rowEl = e.target.closest('tr');
@@ -520,52 +531,60 @@
             }
         });
 
-        async function renderTransLog(rowData) {
-            try {
-                const logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
-                const rows = logs.length
-                    ? logs.map((log, idx) => `
-                        <tr>
-                            <td class="text-center">${idx + 1}</td>
-                            <td>${log.trxdate ?? '-'}</td>
-                            <td>${log.metode ?? '-'}</td>
-                            <td class="text-end">${formatRupiah(log.debet ?? 0)}</td>
-                            <td class="text-end">${formatRupiah(log.kredit ?? 0)}</td>
-                            <td>${log.fidbank ?? '-'}</td>
-                        </tr>
-                    `).join('')
-                    : `<tr><td colspan="6" class="text-center">Tidak ada log transaksi</td></tr>`;
-
-                await Swal.fire({
-                    title: `Log Transaksi - ${rowData.BILLNM ?? '-'}`,
-                    width: '70rem',
-                    html: `
-                        <div class="mb-2 text-start">
-                            <strong>NIS:</strong> ${rowData.NOCUST ?? '-'}
-                            &nbsp; | &nbsp;
-                            <strong>Nama:</strong> ${rowData.NMCUST ?? '-'}
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered table-striped mb-0">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 48px;" class="text-center">No</th>
-                                        <th>Tanggal</th>
-                                        <th>Metode</th>
-                                        <th class="text-end">Debet</th>
-                                        <th class="text-end">Kredit</th>
-                                        <th>FIDBANK</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${rows}</tbody>
-                            </table>
-                        </div>
-                    `,
-                    confirmButtonText: 'Tutup'
-                });
-            } catch (error) {
-                errorAlert(error.message || 'Gagal mengambil log transaksi.');
+        function toggleTransLogRow(dtRow, rowData, buttonEl) {
+            if (dtRow.child.isShown()) {
+                dtRow.child.hide();
+                buttonEl.textContent = '+';
+                return;
             }
+
+            dtRow.child(buildTransLogHtml(rowData), 'p-0').show();
+            buttonEl.textContent = '-';
+        }
+
+        function buildTransLogHtml(rowData) {
+            const logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+            const rows = logs.length
+                ? logs.map((log, idx) => `
+                    <tr>
+                        <td class="text-center">${idx + 1}</td>
+                        <td>${log.trxdate ?? '-'}</td>
+                        <td>${log.metode ?? '-'}</td>
+                        <td class="text-end">${formatRupiah(log.debet ?? 0)}</td>
+                        <td class="text-end">${formatRupiah(log.kredit ?? 0)}</td>
+                        <td>${log.fidbank ?? '-'}</td>
+                        <td>${log.transno ?? '-'}</td>
+                    </tr>
+                `).join('')
+                : `<tr><td colspan="7" class="text-center">Tidak ada log transaksi</td></tr>`;
+
+            return `
+                <div class="p-2 bg-light border-top border-bottom">
+                    <div class="mb-2">
+                        <strong>Log:</strong> ${rowData.BILLNM ?? '-'}
+                        &nbsp; | &nbsp;
+                        <strong>NIS:</strong> ${rowData.NOCUST ?? '-'}
+                        &nbsp; | &nbsp;
+                        <strong>Nama:</strong> ${rowData.NMCUST ?? '-'}
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 48px;" class="text-center">No</th>
+                                    <th>Tanggal</th>
+                                    <th>Metode</th>
+                                    <th class="text-end">Debet</th>
+                                    <th class="text-end">Kredit</th>
+                                    <th>FIDBANK</th>
+                                    <th>TRANSNO</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
         }
 
         document.getElementById('form-delete').addEventListener('submit', function (e) {
@@ -660,6 +679,7 @@
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
+                setTimeout(ensureUrutanToolbarButtons, 300);
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {
@@ -680,6 +700,11 @@
                     });
                 }
             }
+            document.addEventListener('click', function (e) {
+                if (e.target.closest('.paginate_button, .buttons-excel, .buttons-pdf, .buttons-print')) {
+                    setTimeout(ensureUrutanToolbarButtons, 100);
+                }
+            });
 
             $(document).on('click', '.btn-print-rekap', function (e) {
                 loadingAlert(`Membuat Rekap ... <br> Proses ini membutuhkan waktu beberapa saat<br><hr>

@@ -237,10 +237,16 @@ class UploadTagihanExcelController extends Controller
 
         try {
             DB::beginTransaction();
+            $skippedInactive = [];
+            $insertedCount = 0;
             foreach ($data as $item) {
                 if ($item['status'] != 1) continue;
                 $siswa = scctcust::where('NOCUST', $item['nis'])->first();
                 if (!$siswa) return response()->json(['message' => "siswa dengan nis: {$item['nis']} tidak ditemukan!"], 422);
+                if ((int) ($siswa->STCUST ?? 0) === 0) {
+                    $skippedInactive[] = trim(($item['nis'] ?? '-') . ' - ' . ($siswa->NMCUST ?? 'Tanpa Nama'));
+                    continue;
+                }
 
                 $tagihanSiswaTerbaru = scctbill::where('CUSTID', $siswa->CUSTID)
                     ->orderBy('FUrutan', 'DESC')
@@ -266,12 +272,18 @@ class UploadTagihanExcelController extends Controller
                     'INSTALLMENT' => 0,
                     'isINSTALLABLE' => (int) ($tagihan->isINSTALLMENT ?? 0),
                 ]);
+                $insertedCount++;
             }
 
             Cache::forget($this->cacheKey);
 
             DB::commit();
-            return response()->json(['message' => "Data tagihan disimpan!",], 200);
+            $message = "Data tagihan disimpan! Berhasil dibuat untuk {$insertedCount} siswa.";
+            if (!empty($skippedInactive)) {
+                $message .= '<hr>Tagihan tidak dibuat untuk siswa nonaktif (STCUST=0): ' . count($skippedInactive) . ' siswa.<br>' .
+                    implode('<br>', $skippedInactive);
+            }
+            return response()->json(['message' => $message], 200);
         } catch (\Throwable $e) {
             DB::rollBack();
 

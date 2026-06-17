@@ -827,7 +827,30 @@ class DataTagihanController extends Controller
             }
         }
 
+        // Paksa relasi utama berdasarkan AA/BILLID; custid hanya pembantu jika ada.
         $logs = $this->getTransactionLogsForBill($custId, $id, $billTransNo, $billName);
+
+        if (empty($logs)) {
+            $logs = sccttran::query()
+                ->where('BILLID', $id)
+                ->orderBy('TRXDATE', 'desc')
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO'])
+                ->map(function ($trx) {
+                    return [
+                        'trxdate' => $trx->TRXDATE
+                            ? Carbon::parse($trx->TRXDATE)->format('d-m-Y H:i:s')
+                            : null,
+                        'metode' => $trx->METODE,
+                        'debet' => (int) ($trx->DEBET ?? 0),
+                        'kredit' => (int) ($trx->KREDIT ?? 0),
+                        'fidbank' => $trx->FIDBANK,
+                        'norcef' => $trx->NORCEF,
+                        'transno' => $trx->TRANSNO,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
 
         return response()->json(['logs' => $logs], 200);
     }

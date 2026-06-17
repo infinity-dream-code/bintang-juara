@@ -375,23 +375,7 @@
             lengthMenu: [10, 25, 50, 75, 100],
             select: true,
             rowId: 'AA',
-            buttons: [
-                {
-                    text: '<span class="ri-arrow-up-line me-2"></span>Naikkan',
-                    className: 'btn btn-secondary',
-                    action: function () {
-                        submitUbahUrutanDirect('naik');
-                    }
-                },
-                {
-                    text: '<span class="ri-arrow-down-line me-2"></span>Turunkan',
-                    className: 'btn btn-secondary',
-                    action: function () {
-                        submitUbahUrutanDirect('turun');
-                    }
-                },
-                "excel", "pdf", "print"
-            ],
+            buttons: ["excel", "pdf", "print"],
             pdfOrientation: 'landscape',
             pdfPageSize: 'A3',
             pdfMargins: [10, 14, 10, 14],
@@ -499,6 +483,31 @@
                 });
         }
 
+        function ensureUrutanToolbarButtons() {
+            const wrapper = document.querySelector(`#${dtOptions.tableId}_wrapper`);
+            if (!wrapper) return;
+            const dtButtons = wrapper.querySelector('.dt-buttons');
+            if (!dtButtons) return;
+            if (wrapper.querySelector('#btn-naik-toolbar') || wrapper.querySelector('#btn-turun-toolbar')) return;
+
+            const naikBtn = document.createElement('button');
+            naikBtn.type = 'button';
+            naikBtn.id = 'btn-naik-toolbar';
+            naikBtn.className = 'btn btn-secondary me-2';
+            naikBtn.innerHTML = '<span class="ri-arrow-up-line me-2"></span>Naikkan';
+            naikBtn.addEventListener('click', () => submitUbahUrutanDirect('naik'));
+
+            const turunBtn = document.createElement('button');
+            turunBtn.type = 'button';
+            turunBtn.id = 'btn-turun-toolbar';
+            turunBtn.className = 'btn btn-secondary me-2';
+            turunBtn.innerHTML = '<span class="ri-arrow-down-line me-2"></span>Turunkan';
+            turunBtn.addEventListener('click', () => submitUbahUrutanDirect('turun'));
+
+            dtButtons.parentNode.insertBefore(turunBtn, dtButtons);
+            dtButtons.parentNode.insertBefore(naikBtn, turunBtn);
+        }
+
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
             if (e.target.closest('.btn-detail-trx')) {
                 const button = e.target.closest('.btn-detail-trx');
@@ -556,10 +565,11 @@
                 });
                 const result = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    return [];
+                    throw new Error(result.message || `Gagal ambil log (${response.status})`);
                 }
                 return Array.isArray(result.logs) ? result.logs : [];
             } catch (e) {
+                errorAlert(e.message || 'Gagal ambil log transaksi');
                 return [];
             }
         }
@@ -701,6 +711,7 @@
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
+                setTimeout(ensureUrutanToolbarButtons, 300);
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {
@@ -721,6 +732,11 @@
                     });
                 }
             }
+            document.addEventListener('click', function (e) {
+                if (e.target.closest('.paginate_button, .buttons-excel, .buttons-pdf, .buttons-print')) {
+                    setTimeout(ensureUrutanToolbarButtons, 120);
+                }
+            });
 
             $(document).on('click', '.btn-print-rekap', function (e) {
                 loadingAlert(`Membuat Rekap ... <br> Proses ini membutuhkan waktu beberapa saat<br><hr>

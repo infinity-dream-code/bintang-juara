@@ -808,6 +808,29 @@ class DataTagihanController extends Controller
         }
     }
 
+    public function getTransLog($id, Request $request)
+    {
+        $custId = $request->input('custid');
+        $billTransNo = $request->input('bill_transno');
+        $billName = $request->input('billnm');
+
+        if (blank($custId)) {
+            $bill = scctbill::query()
+                ->where('AA', $id)
+                ->select(['CUSTID', 'TRANSNO', 'BILLNM'])
+                ->first();
+            if ($bill) {
+                $custId = $bill->CUSTID;
+                $billTransNo = $billTransNo ?: $bill->TRANSNO;
+                $billName = $billName ?: $bill->BILLNM;
+            }
+        }
+
+        $logs = $this->getTransactionLogsForBill($custId, $id, $billTransNo, $billName);
+
+        return response()->json(['logs' => $logs], 200);
+    }
+
     public function total(): int
     {
         return Cache::remember(

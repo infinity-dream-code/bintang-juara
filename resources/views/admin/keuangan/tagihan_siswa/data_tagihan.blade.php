@@ -531,15 +531,45 @@
             }
         });
 
-        function toggleTransLogRow(dtRow, rowData, buttonEl) {
+        async function toggleTransLogRow(dtRow, rowData, buttonEl) {
             if (dtRow.child.isShown()) {
                 dtRow.child.hide();
                 buttonEl.textContent = '+';
                 return;
             }
 
+            let logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+            if (!logs.length) {
+                logs = await fetchTransLog(rowData);
+                rowData.TRX_LOGS = logs;
+            }
+
             dtRow.child(buildTransLogHtml(rowData), 'p-0').show();
             buttonEl.textContent = '-';
+        }
+
+        async function fetchTransLog(rowData) {
+            try {
+                const params = new URLSearchParams({
+                    custid: rowData.CUSTID ?? '',
+                    billnm: rowData.BILLNM ?? '',
+                    bill_transno: rowData.BILL_TRANSNO ?? ''
+                });
+                const url = `{{url('admin/keuangan/tagihan-siswa/data-tagihan/get-trans-log')}}/${rowData.AA}?${params.toString()}`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    }
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    return [];
+                }
+                return Array.isArray(result.logs) ? result.logs : [];
+            } catch (e) {
+                return [];
+            }
         }
 
         function buildTransLogHtml(rowData) {

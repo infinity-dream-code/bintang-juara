@@ -731,7 +731,12 @@ class DataTagihanController extends Controller
                         ? '0'
                         : (string) (int) $furutan,
                     'detail_trx' => true,
-                    'TRX_LOGS' => $this->getTransactionLogsForBill($get('CUSTID'), $get('AA'), $get('BILL_TRANSNO')),
+                    'TRX_LOGS' => $this->getTransactionLogsForBill(
+                        $get('CUSTID'),
+                        $get('AA'),
+                        $get('BILL_TRANSNO'),
+                        $get('BILLNM')
+                    ),
                     'BILL_TRANSNO' => $get('BILL_TRANSNO'),
                     'print' => true,
                     'delete' => true,
@@ -751,25 +756,38 @@ class DataTagihanController extends Controller
         return response()->json($response);
     }
 
-    private function getTransactionLogsForBill($custId, $aa, $billTransNo = null): array
+    private function getTransactionLogsForBill($custId, $aa, $billTransNo = null, $billName = null): array
     {
         if (blank($custId) || blank($aa)) {
             return [];
         }
 
         try {
-            $query = sccttran::query()
+            // Relasi utama: sccttran.BILLID = scctbill.AA (sesuai struktur DB).
+            $primaryLogs = sccttran::query()
                 ->where('CUSTID', $custId)
-                ->where(function ($q) use ($aa, $billTransNo) {
-                    $q->where('BILLID', $aa);
-                    if (!blank($billTransNo) && (string) $billTransNo !== '-') {
-                        $q->orWhere('TRANSNO', $billTransNo);
-                    }
-                });
-
-            return $query
+                ->where('BILLID', $aa)
                 ->orderBy('TRXDATE', 'desc')
-                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO'])
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO']);
+
+            $logsCollection = $primaryLogs;
+            if ($logsCollection->isEmpty()) {
+                // Fallback untuk data lama yang tidak konsisten pengisian BILLID.
+                $logsCollection = sccttran::query()
+                    ->where('CUSTID', $custId)
+                    ->where(function ($q) use ($billTransNo, $billName) {
+                        if (!blank($billTransNo) && (string) $billTransNo !== '-') {
+                            $q->orWhere('TRANSNO', $billTransNo);
+                        }
+                        if (!blank($billName)) {
+                            $q->orWhereRaw('UPPER(TRIM(BILLTARGET)) = UPPER(TRIM(?))', [$billName]);
+                        }
+                    })
+                    ->orderBy('TRXDATE', 'desc')
+                    ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO']);
+            }
+
+            return $logsCollection
                 ->map(function ($trx) {
                     return [
                         'trxdate' => $trx->TRXDATE

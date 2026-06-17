@@ -5,6 +5,100 @@
     <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}?v=20260610-row-border">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/bootstrap-daterangepicker/bootstrap-daterangepicker.css')}}">
+    <style>
+        .trx-log-detail-row > td {
+            padding: 0 !important;
+            background: #f5f7fb;
+            border-left: 3px solid #696cff;
+        }
+
+        .trx-log-panel {
+            padding: 0.75rem 1rem 1rem;
+        }
+
+        .trx-log-panel__header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .trx-log-panel__title {
+            font-weight: 600;
+            color: #566a7f;
+            margin-right: auto;
+        }
+
+        .trx-log-panel__title i {
+            color: #696cff;
+            margin-right: 0.25rem;
+        }
+
+        .trx-log-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.2rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            background: #fff;
+            border: 1px solid #d9dee3;
+            color: #566a7f;
+        }
+
+        .trx-log-table thead th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+            background: #eef0ff !important;
+            color: #566a7f;
+        }
+
+        .trx-log-table tbody td {
+            font-size: 0.82rem;
+            vertical-align: middle;
+        }
+
+        .trx-log-metode {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .trx-log-amount--debet {
+            color: #ff3e1d;
+            font-weight: 600;
+        }
+
+        .trx-log-amount--kredit {
+            color: #71dd37;
+            font-weight: 600;
+        }
+
+        .trx-log-empty {
+            padding: 1.25rem;
+            text-align: center;
+            color: #a1acb8;
+            font-size: 0.9rem;
+        }
+
+        .trx-log-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            font-size: 0.82rem;
+        }
+
+        .trx-log-summary span {
+            background: #fff;
+            border: 1px solid #d9dee3;
+            border-radius: 0.375rem;
+            padding: 0.35rem 0.65rem;
+        }
+    </style>
 @endsection
 @section('content')
     <h3 class="page-heading d-flex text-gray-900 fw-bold flex-column justify-content-center my-0">
@@ -603,47 +697,87 @@
             }
         }
 
+        function metodeBadge(metode) {
+            const label = (metode ?? '-').toString().trim() || '-';
+            const upper = label.toUpperCase();
+            let cls = 'bg-label-secondary';
+            if (upper.includes('CASH') || upper.includes('TELLER')) cls = 'bg-label-primary';
+            else if (upper.includes('REVERSAL') || upper.includes('JURNAL')) cls = 'bg-label-warning';
+            else if (upper.includes('TRANSFER') || upper.includes('VA')) cls = 'bg-label-info';
+            return `<span class="badge trx-log-metode ${cls}">${label}</span>`;
+        }
+
         function buildTransLogHtml(rowData) {
             const logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+            let totalDebet = 0;
+            let totalKredit = 0;
+
             const rows = logs.length
-                ? logs.map((log, idx) => `
+                ? logs.map((log, idx) => {
+                    const debet = Number(log.debet ?? 0);
+                    const kredit = Number(log.kredit ?? 0);
+                    totalDebet += debet;
+                    totalKredit += kredit;
+                    return `
                     <tr>
-                        <td class="text-center">${idx + 1}</td>
-                        <td>${log.trxdate ?? '-'}</td>
-                        <td>${log.metode ?? '-'}</td>
-                        <td class="text-end">${formatRupiah(log.debet ?? 0)}</td>
-                        <td class="text-end">${formatRupiah(log.kredit ?? 0)}</td>
+                        <td class="text-center text-muted">${idx + 1}</td>
+                        <td class="text-nowrap">${log.trxdate ?? '-'}</td>
+                        <td>${metodeBadge(log.metode)}</td>
+                        <td class="text-end trx-log-amount--debet">${debet > 0 ? formatRupiah(debet) : '-'}</td>
+                        <td class="text-end trx-log-amount--kredit">${kredit > 0 ? formatRupiah(kredit) : '-'}</td>
                         <td>${log.fidbank ?? '-'}</td>
-                        <td>${log.transno ?? '-'}</td>
+                        <td class="text-nowrap">${log.transno ?? '-'}</td>
+                        <td class="text-nowrap small text-muted">${log.noreff ?? '-'}</td>
                     </tr>
-                `).join('')
-                : `<tr><td colspan="7" class="text-center">Tidak ada log transaksi</td></tr>`;
+                `;
+                }).join('')
+                : '';
+
+            const tableBody = rows || `
+                <tr>
+                    <td colspan="8">
+                        <div class="trx-log-empty">
+                            <i class="ri-file-list-3-line ri-lg d-block mb-1"></i>
+                            Tidak ada log transaksi
+                        </div>
+                    </td>
+                </tr>
+            `;
 
             return `
-                <div class="p-2 bg-light border-top border-bottom">
-                    <div class="mb-2">
-                        <strong>Log:</strong> ${rowData.BILLNM ?? '-'}
-                        &nbsp; | &nbsp;
-                        <strong>NIS:</strong> ${rowData.NOCUST ?? '-'}
-                        &nbsp; | &nbsp;
-                        <strong>Nama:</strong> ${rowData.NMCUST ?? '-'}
+                <div class="trx-log-panel">
+                    <div class="trx-log-panel__header">
+                        <div class="trx-log-panel__title">
+                            <i class="ri-history-line"></i> Riwayat Transaksi
+                        </div>
+                        <span class="trx-log-chip"><strong>Tagihan:</strong> ${rowData.BILLNM ?? '-'}</span>
+                        <span class="trx-log-chip"><strong>NIS:</strong> ${rowData.NOCUST ?? '-'}</span>
+                        <span class="trx-log-chip"><strong>Nama:</strong> ${rowData.NMCUST ?? '-'}</span>
+                        <span class="trx-log-chip"><strong>AA:</strong> ${rowData.item_id ?? rowData.AA ?? '-'}</span>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-sm table-bordered table-striped mb-0">
+                        <table class="table table-sm table-bordered table-hover trx-log-table mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 48px;" class="text-center">No</th>
+                                    <th class="text-center" style="width: 48px;">No</th>
                                     <th>Tanggal</th>
                                     <th>Metode</th>
                                     <th class="text-end">Debet</th>
                                     <th class="text-end">Kredit</th>
-                                    <th>FIDBANK</th>
-                                    <th>TRANSNO</th>
+                                    <th>FID Bank</th>
+                                    <th>Trans No</th>
+                                    <th>No Ref</th>
                                 </tr>
                             </thead>
-                            <tbody>${rows}</tbody>
+                            <tbody>${tableBody}</tbody>
                         </table>
                     </div>
+                    ${logs.length ? `
+                    <div class="trx-log-summary">
+                        <span><strong>Total Debet:</strong> <span class="trx-log-amount--debet">${formatRupiah(totalDebet)}</span></span>
+                        <span><strong>Total Kredit:</strong> <span class="trx-log-amount--kredit">${formatRupiah(totalKredit)}</span></span>
+                        <span><strong>Jumlah Transaksi:</strong> ${logs.length}</span>
+                    </div>` : ''}
                 </div>
             `;
         }

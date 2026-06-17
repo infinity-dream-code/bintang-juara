@@ -758,14 +758,13 @@ class DataTagihanController extends Controller
 
     private function getTransactionLogsForBill($custId, $aa, $billTransNo = null, $billName = null): array
     {
-        if (blank($custId) || blank($aa)) {
+        if (blank($aa)) {
             return [];
         }
 
         try {
             // Relasi utama: sccttran.BILLID = scctbill.AA (sesuai struktur DB).
             $primaryLogs = sccttran::query()
-                ->where('CUSTID', $custId)
                 ->where('BILLID', $aa)
                 ->orderBy('TRXDATE', 'desc')
                 ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO']);
@@ -774,7 +773,6 @@ class DataTagihanController extends Controller
             if ($logsCollection->isEmpty()) {
                 // Fallback untuk data lama yang tidak konsisten pengisian BILLID.
                 $logsCollection = sccttran::query()
-                    ->where('CUSTID', $custId)
                     ->where(function ($q) use ($billTransNo, $billName) {
                         if (!blank($billTransNo) && (string) $billTransNo !== '-') {
                             $q->orWhere('TRANSNO', $billTransNo);
@@ -782,6 +780,9 @@ class DataTagihanController extends Controller
                         if (!blank($billName)) {
                             $q->orWhereRaw('UPPER(TRIM(BILLTARGET)) = UPPER(TRIM(?))', [$billName]);
                         }
+                    })
+                    ->when(!blank($custId), function ($q) use ($custId) {
+                        $q->where('CUSTID', $custId);
                     })
                     ->orderBy('TRXDATE', 'desc')
                     ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NORCEF', 'TRANSNO']);

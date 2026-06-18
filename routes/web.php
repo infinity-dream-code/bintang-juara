@@ -181,6 +181,7 @@ Route::prefix("admin")
                         Route::get("get-data", "getData")->name("get-data");
                         Route::get("get-column", "getColumn")->name("get-column");
                         Route::get("get-saldo", "getSaldo")->name("get-saldo");
+                        Route::get("export-transaksi", "exportTransaksi")->name("export-transaksi");
                         Route::get("{id}/export", "exportDetail")->name("export");
                         Route::prefix("data-transaksi")->name("data-transaksi.")->group(function () {
                             Route::get("", "transaksiIndex")->name("index");

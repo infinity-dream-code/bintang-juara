@@ -139,6 +139,7 @@ class SaldoVirtualAccountController extends Controller
         $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.get-column');
         $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.get-data');
         $data['dataTransaksiUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.index');
+        $data['exportTransaksiUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.export-transaksi');
 
         return view('admin.keuangan.saldo.saldo_virtual_account.index', $data);
     }
@@ -153,8 +154,6 @@ class SaldoVirtualAccountController extends Controller
             $data['indexUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.index');
             $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.transaksi.get-column');
             $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.transaksi.get-data', ['CUSTID' => $id]);
-
-            $data['exportUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.export', ['id' => $id]);
 
             $data['siswa'] = scctcust::find($id);
 
@@ -183,6 +182,21 @@ class SaldoVirtualAccountController extends Controller
         }
     }
 
+    public function exportTransaksi(Request $request): BinaryFileResponse
+    {
+        $siswaInput = trim((string) $request->query('siswa', ''));
+        if ($siswaInput === '') {
+            abort(422, 'Masukkan NIS/Nama siswa di filter terlebih dahulu.');
+        }
+
+        $siswa = $this->resolveCustFromSiswaInput($siswaInput);
+        if (!$siswa) {
+            abort(404, 'Siswa tidak ditemukan.');
+        }
+
+        return $this->exportDetail($siswa->CUSTID);
+    }
+
     public function exportDetail($id): BinaryFileResponse
     {
         $siswa = scctcust::query()->where('CUSTID', $id)->first();
@@ -191,9 +205,64 @@ class SaldoVirtualAccountController extends Controller
         }
 
         $transactions = $this->getCustTransactions($id);
+        $exportPayload = $this->buildExportPayload($siswa, $transactions);
+
+        return Excel::download(
+            new SaldoVirtualAccountDetailExport(
+                $exportPayload['rows'],
+                $exportPayload['sectionTitleRow'],
+                $exportPayload['columnHeaderRow'],
+                $exportPayload['tableDataEndRow'],
+                $exportPayload['totalRow'],
+            ),
+            $exportPayload['filename']
+        );
+    }
+
+    private function resolveCustFromSiswaInput(string $input): ?scctcust
+    {
+        $query = scctcust::query();
+        $scopedCodes = $this->resolveScopedSchoolCodes();
+        if (!empty($scopedCodes)) {
+            $query->whereIn('CODE01', $scopedCodes);
+        }
+
+        if (ctype_digit($input)) {
+            $byNis = (clone $query)->where('NOCUST', $input)->first();
+            if ($byNis) {
+                return $byNis;
+            }
+
+            return (clone $query)->where('CUSTID', $input)->first();
+        }
+
+        $matches = (clone $query)
+            ->where('NMCUST', 'like', '%' . $input . '%')
+            ->limit(2)
+            ->get();
+
+        if ($matches->count() === 1) {
+            return $matches->first();
+        }
+
+        if ($matches->count() > 1) {
+            abort(422, 'Data siswa tidak unik. Gunakan NIS untuk export transaksi.');
+        }
+
+        return null;
+    }
+
+    private function buildExportPayload(scctcust $siswa, $transactions): array
+    {
         $totalKredit = (int) $transactions->sum('KREDIT');
         $totalDebet = (int) $transactions->sum('DEBET');
         $saldo = $totalKredit - $totalDebet;
+
+        if ($siswa->NOCUST && $siswa->NOCUST != '-') {
+            $nova = scctcust::showVA($siswa->NOCUST);
+        } else {
+            $nova = scctcust::showVA($siswa->NUM2ND);
+        }
 
         $rows = [
             ['Detail Saldo Virtual Account'],
@@ -203,6 +272,7 @@ class SaldoVirtualAccountController extends Controller
             ['Unit', $siswa->CODE02 ?? '-'],
             ['Kelas', $siswa->DESC02 ?? '-'],
             ['Kelompok', $siswa->DESC03 ?? '-'],
+            ['No Virtual Account', $nova ?? '-'],
             ['Total Saldo', $saldo],
             [],
             ['Riwayat Transaksi'],
@@ -221,13 +291,26 @@ class SaldoVirtualAccountController extends Controller
             ];
         }
 
+        $transactionCount = $transactions->count();
+        $sectionTitleRow = 11;
+        $columnHeaderRow = 12;
+        $tableDataEndRow = $columnHeaderRow + $transactionCount;
+        $totalRow = $tableDataEndRow + 2;
+
         $rows[] = [];
         $rows[] = ['', '', 'Total', $totalDebet, $totalKredit, '', ''];
 
-        $nis = preg_replace('/\D/', '', (string) ($siswa->NOCUST ?? $siswa->nocust ?? $id));
-        $filename = 'saldo-va-' . ($nis !== '' ? $nis : $id) . '-' . date('Ymd-His') . '.xlsx';
+        $nis = preg_replace('/\D/', '', (string) ($siswa->NOCUST ?? $siswa->nocust ?? $siswa->CUSTID));
+        $filename = 'transaksi-saldo-va-' . ($nis !== '' ? $nis : $siswa->CUSTID) . '-' . date('Ymd-His') . '.xlsx';
 
-        return Excel::download(new SaldoVirtualAccountDetailExport($rows), $filename);
+        return [
+            'rows' => $rows,
+            'sectionTitleRow' => $sectionTitleRow,
+            'columnHeaderRow' => $columnHeaderRow,
+            'tableDataEndRow' => $tableDataEndRow,
+            'totalRow' => $totalRow,
+            'filename' => $filename,
+        ];
     }
 
     private function getCustTransactions(string|int $custId)

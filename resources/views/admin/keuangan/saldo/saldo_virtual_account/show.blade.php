@@ -102,14 +102,13 @@
                 </div>
             </div>
         </div>
-        <div id="saldo-va-export-toolbar" class="d-none">
-            <button type="button"
-                    class="btn btn-success btn-sm me-2"
-                    id="btn-export-transaksi"
-                    data-export-url="{{ $exportTransaksiUrl ?? '' }}">
+        <div class="d-flex justify-content-center justify-content-md-end px-5 px-md-3 pb-3">
+            <a href="{{ $exportTransaksiUrl ?? '' }}"
+               class="btn btn-success btn-sm"
+               id="btn-export-transaksi">
                 <span class="ri-file-excel-2-line me-1"></span>
                 Export Transaksi
-            </button>
+            </a>
         </div>
         <div class="card-datatable table-responsive text-nowrap">
             <table class="table table-sm table-bordered table-hover"
@@ -143,18 +142,11 @@
             fixedHeader: false,
             pageLength: 10,
             lengthMenu: [10, 25, 50, 75, 100],
-            buttons: ['excel', 'pdf', 'print'],
-            pdfOrientation: 'landscape',
-            pdfPageSize: 'A4',
-            pdfMargins: [16, 20, 16, 20],
-            pdfFontSize: 8,
-            pdfHeaderFontSize: 9,
         };
 
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
-                mountExportTransaksiButton();
 
                 setTimeout(function () {
                     let total = 0;
@@ -179,41 +171,6 @@
                 },300)
             }
         });
-
-        function mountExportTransaksiButton(attempt = 0) {
-            const actionBar = document.querySelector(`#${dtOptions.tableId}_wrapper .dt-action-buttons`);
-            const dtButtons = actionBar?.querySelector('.dt-buttons');
-            const exportBtn = document.getElementById('btn-export-transaksi');
-            const toolbar = document.getElementById('saldo-va-export-toolbar');
-
-            if (!actionBar || !dtButtons || !exportBtn) {
-                if (attempt < 40) {
-                    setTimeout(() => mountExportTransaksiButton(attempt + 1), 250);
-                }
-                return;
-            }
-
-            if (exportBtn.dataset.mounted !== '1') {
-                exportBtn.addEventListener('click', function () {
-                    const exportUrl = exportBtn.dataset.exportUrl;
-                    if (!exportUrl) {
-                        errorAlert('URL export tidak ditemukan. Muat ulang halaman.');
-                        return;
-                    }
-
-                    window.location.assign(exportUrl);
-                });
-                exportBtn.dataset.mounted = '1';
-            }
-
-            if (exportBtn.closest('.dt-action-buttons') !== actionBar) {
-                actionBar.insertBefore(exportBtn, dtButtons);
-            }
-
-            if (toolbar && !toolbar.children.length) {
-                toolbar.remove();
-            }
-        }
     </script>
 
     {!! ($modalLink??'') !!}

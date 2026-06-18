@@ -139,7 +139,6 @@ class SaldoVirtualAccountController extends Controller
         $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.get-column');
         $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.get-data');
         $data['dataTransaksiUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.index');
-        $data['exportTransaksiUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.export-transaksi');
 
         return view('admin.keuangan.saldo.saldo_virtual_account.index', $data);
     }

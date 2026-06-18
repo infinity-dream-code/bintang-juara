@@ -32,6 +32,12 @@ class HapusTagihanController extends Controller
         $data['datasUrl'] = $this->datasUrl;
         $data['post'] = mst_tagihan::select(['tagihan'])->get();
         $data['thn_aka'] = mst_thn_aka::select(['thn_aka'])->where('thn_aka', '!=', null)->get();
+        $data['periode'] = scctbill::query()
+            ->whereNotNull('BILLAC')
+            ->where('BILLAC', '!=', '')
+            ->distinct()
+            ->orderBy('BILLAC', 'desc')
+            ->pluck('BILLAC');
         $data['kelas'] = mst_kelas::get();
 
         return view('admin.keuangan.hapus_tagihan', $data);
@@ -48,7 +54,7 @@ class HapusTagihanController extends Controller
             ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true],
             ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
             ['data' => 'nominal', 'name' => 'Nominal', 'searchable' => false, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
-            ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true],
+            ['data' => 'BILLAC', 'name' => 'Periode', 'searchable' => true, 'orderable' => true],
         ];
     }
 
@@ -89,9 +95,8 @@ class HapusTagihanController extends Controller
                 if (strtolower($val) != 'all' && $val !== null && $val !== '') {
                     $colName = match ($key) {
                         'tanggal-pembuatan' => 'scctbill.FTGLTagihan',
-                        'tahun_akademik' => 'scctbill.BTA',
+                        'periode' => 'scctbill.BILLAC',
                         'post' => 'scctbill.BILLNM',
-                        'kelas' => 'scctcust.DESC02',
                         'siswa' => 'scctcust.nmcust',
                         default => null
                     };
@@ -110,6 +115,15 @@ class HapusTagihanController extends Controller
                         $val = is_numeric($val) ? $val : '%' . $val . '%';
                         $colName = is_numeric($val) ? 'scctcust.nocust' : $colName;
                         ($colName) && $filters[] = [$colName, 'like', $val];
+                    } elseif ($key == 'kelas') {
+                        $parts = explode('~~', (string) $val);
+                        if (count($parts) === 3) {
+                            $filters[] = ['scctcust.CODE02', '=', $parts[0]];
+                            $filters[] = ['scctcust.DESC02', '=', $parts[1]];
+                            $filters[] = ['scctcust.DESC03', '=', $parts[2]];
+                        }
+                    } elseif ($key == 'angkatan') {
+                        $filters[] = ['scctcust.DESC04', '=', $val];
                     } else {
                         ($colName) && $filters[] = [$colName, '=', $val];
                     }
@@ -153,7 +167,7 @@ class HapusTagihanController extends Controller
             'scctbill.BILLCD',
             'scctbill.PAIDST',
             'scctbill.PAIDDT',
-            'scctbill.BTA',
+            'scctbill.BILLAC',
             'scctbill.FIDBANK',
             'scctbill.FUrutan',
             'scctcust.CODE02',

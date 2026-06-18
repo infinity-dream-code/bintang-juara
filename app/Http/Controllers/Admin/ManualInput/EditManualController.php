@@ -22,7 +22,7 @@ class EditManualController extends Controller
     public function __construct()
     {
         $this->title = 'Manual Input';
-        $this->mainTitle = 'Edit Detail Post Manual';
+        $this->mainTitle = 'Edit Manual';
     }
 
     public function index()
@@ -33,14 +33,6 @@ class EditManualController extends Controller
         $data['thn_aka'] = mst_thn_aka::orderBy('thn_aka', 'desc')->get();
         $data['kelas'] = mst_kelas::orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")->get();
         $data['tagihan'] = mst_tagihan::orderBy('urut', 'asc')->get();
-        $data['v_dt_daftar_harga'] = mst_tagihan::query()
-            ->select([
-                DB::raw('tagihan AS KodeAkun'),
-                DB::raw('tagihan AS NamaAkun'),
-                DB::raw('0 AS nominal'),
-            ])
-            ->orderBy('urut', 'asc')
-            ->get();
 
         return view('admin.manual_input.edit_manual', $data);
     }
@@ -97,9 +89,9 @@ class EditManualController extends Controller
     {
         return [
             'CUSTID' => $item->CUSTID,
-            'nis' => $item->nocust ?? $item->nis ?? null,
+            'nis' => $item->NOCUST ?? $item->nocust ?? null,
             'nomor_pendaftaran' => $item->NUM2ND ?? $item->nomor_pendaftaran ?? null,
-            'nama' => $item->nmcust ?? $item->nama ?? null,
+            'nama' => $item->NMCUST ?? $item->nmcust ?? null,
             'CODE02' => $item->CODE02,
             'CODE03' => $item->CODE03,
             'kelas' => trim(($item->DESC02 ?? '') . ' ' . ($item->DESC03 ?? '')),
@@ -120,13 +112,15 @@ class EditManualController extends Controller
                 'BILLNM',
                 'PAIDST',
                 'PAIDDT',
-                'BTA',
+                'BILLAC',
                 'FIDBANK',
                 'BILLCD',
                 'FUrutan',
                 'BILLAM',
                 'BILLPAID',
                 'PAYMENTLEFT',
+                'INSTALLMENT',
+                'isINSTALLABLE',
             ])
             ->where('CUSTID', $request->siswa)
             ->where('FSTSBolehBayar', 1)
@@ -162,10 +156,7 @@ class EditManualController extends Controller
         $validator = Validator::make($request->all(), [
             'siswa' => ['required', 'string'],
             'tagihan' => ['required', 'string'],
-            'data' => ['required', 'array', 'min:1'],
-            'data.*.KodeAkun' => ['required'],
-            'data.*.NamaAkun' => ['required'],
-            'data.*.nominal' => ['required', 'numeric'],
+            'nominal' => ['required', 'numeric', 'min:1'],
         ], ValidationMessage::messages(),
             ValidationMessage::attributes());
 
@@ -192,24 +183,18 @@ class EditManualController extends Controller
             return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
         }
 
-        if ($tagihan->PAIDST === 1) {
+        if ((int) $tagihan->PAIDST === 1) {
             return response()->json(['message' => "Tagihan {$tagihan->BILLNM} sudah dibayar!"], 422);
         }
 
-        $totalTagihan = 0;
-        foreach ($request->data as $item) {
-            $nominal = (int) preg_replace('/\D/', '', (string) ($item['nominal'] ?? 0));
-            if ($nominal <= 0) {
-                return response()->json(['message' => 'Nominal tagihan tidak valid!'], 422);
-            }
-            $totalTagihan += $nominal;
+        $billPaid = (int) ($tagihan->BILLPAID ?? 0);
+        if ($billPaid > 0 || (int) ($tagihan->isINSTALLABLE ?? 0) > 0) {
+            return response()->json(['message' => 'Tagihan yang sudah pernah dibayar (cicilan) tidak bisa diedit di sini!'], 422);
         }
 
-        $billPaid = (int) ($tagihan->BILLPAID ?? 0);
-        if ($totalTagihan < $billPaid) {
-            return response()->json([
-                'message' => "Nominal tagihan tidak boleh kurang dari jumlah yang sudah dibayar (Rp " . number_format($billPaid, 0, ',', '.') . ")!",
-            ], 422);
+        $totalTagihan = (int) preg_replace('/\D/', '', (string) $request->nominal);
+        if ($totalTagihan <= 0) {
+            return response()->json(['message' => 'Nominal tagihan tidak valid!'], 422);
         }
 
         try {
@@ -217,7 +202,7 @@ class EditManualController extends Controller
 
             $tagihan->update([
                 'BILLAM' => $totalTagihan,
-                'PAYMENTLEFT' => max(0, $totalTagihan - $billPaid),
+                'PAYMENTLEFT' => $totalTagihan,
             ]);
 
             DB::commit();

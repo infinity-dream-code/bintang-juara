@@ -42,7 +42,12 @@
         </div>
         <div class="col">
             <div class="col-auto ms-auto d-print-none">
-                <div class="d-flex justify-content-end">
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{{ $exportUrl ?? route('admin.keuangan.saldo.saldo-virtual-account.export', ['id' => $siswa->CUSTID ?? 0]) }}"
+                       class="btn btn-success">
+                        <span class="ri-file-excel-2-line me-2"></span>
+                        Export Excel
+                    </a>
                     <a href="{{route('admin.keuangan.saldo.saldo-virtual-account.index')}}"
                        class="btn btn-outline-primary">
                         <span class="ri-arrow-left-s-line me-2"></span>
@@ -70,8 +75,16 @@
                                 <span>{{$siswa->NMCUST??''}}</span>
                             </li>
                             <li class="mb-2">
+                                <span class="fw-medium text-heading me-2">Unit:</span>
+                                <span>{{$siswa->CODE02??''}}</span>
+                            </li>
+                            <li class="mb-2">
                                 <span class="fw-medium text-heading me-2">Kelas:</span>
-                                <span>{{$siswa->DESC02??''}} {{$siswa->DESC03??''}}</span>
+                                <span>{{$siswa->DESC02??''}}</span>
+                            </li>
+                            <li class="mb-2">
+                                <span class="fw-medium text-heading me-2">Kelompok:</span>
+                                <span>{{$siswa->DESC03??''}}</span>
                             </li>
                             <li class="mb-2">
                                 <span class="fw-medium text-heading me-2">Angkatan:</span>
@@ -110,7 +123,7 @@
 
 @section('script')
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}"></script>
 
     <script type="text/javascript">
         let dtOptions = {
@@ -126,6 +139,12 @@
             fixedHeader: false,
             pageLength: 10,
             lengthMenu: [10, 25, 50, 75, 100],
+            buttons: ['excel', 'pdf', 'print'],
+            pdfOrientation: 'landscape',
+            pdfPageSize: 'A4',
+            pdfMargins: [16, 20, 16, 20],
+            pdfFontSize: 8,
+            pdfHeaderFontSize: 9,
         };
 
         document.addEventListener("DOMContentLoaded", function () {
@@ -168,7 +187,7 @@
                     document.getElementsByClassName('saldo-siswa')[0].innerHTML = total;
 
                     let totalRow = $('<tr class="custom-footer"></tr>');
-                    totalRow.append('<th colspan="3" class="fw-bolder">TOTAL SALDO</th>');
+                    totalRow.append('<th colspan="5" class="fw-bolder">TOTAL SALDO</th>');
                     totalRow.append(`<th colspan="2" class="fw-bolder text-end">${total}</th>`);
                     $(`#${dtOptions.tableId} tfoot`).append(totalRow);
                 },300)

@@ -32,7 +32,7 @@ class DataTagihanController extends Controller
     private string $cacheKey = 'data_tagihan';
     private array $allowedFilters = [
         'tanggal-pembuatan' => 'scctbill.FTGLTagihan',
-        'tahun_akademik' => 'scctbill.BTA',
+        'periode' => 'scctbill.BILLAC',
         'post' => 'scctbill.BILLNM',
         'kelas' => 'scctcust.DESC02',
         'sekolah' => 'scctcust.CODE02',
@@ -87,7 +87,7 @@ class DataTagihanController extends Controller
             ['data' => 'BILLAM', 'name' => 'Sisa Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
             ['data' => 'BILLPAID', 'name' => 'Jumlah Terbayar', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
             ['data' => 'PAIDDT', 'name' => 'Tanggal Bayar', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'BILLAC', 'name' => 'Periode', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             [
                 'data' => 'FUrutan',
                 'name' => 'Urutan',
@@ -126,6 +126,12 @@ class DataTagihanController extends Controller
         $data['thn_aka'] = mst_thn_aka::select(['thn_aka'])
             ->where('thn_aka', '!=', null)
             ->orderBy('thn_aka', 'desc')->get();
+        $data['periode'] = scctbill::query()
+            ->whereNotNull('BILLAC')
+            ->where('BILLAC', '!=', '')
+            ->distinct()
+            ->orderBy('BILLAC', 'desc')
+            ->pluck('BILLAC');
         $data['sekolah'] = mst_sekolah::when($this->sekolah, function ($query) {
             $query->where(function ($q) {
                 $q->where("CODE01", $this->sekolah)
@@ -273,7 +279,7 @@ class DataTagihanController extends Controller
                     $filterQuery($query);
                 })
                 ->orderBy('scctbill.CUSTID', 'desc')
-                ->orderBy('scctbill.BTA', 'desc')
+                ->orderBy('scctbill.BILLAC', 'desc')
                 ->orderBy('scctbill.PAIDDT', 'desc')
                 ->get();
 
@@ -372,7 +378,6 @@ class DataTagihanController extends Controller
             'BILLAM' => 'scctbill.PAYMENTLEFT',
             'BILLPAID' => 'scctbill.BILLPAID',
             'BILLAC' => 'scctbill.BILLAC',
-            'BTA' => 'scctbill.BTA',
             'FUrutan' => 'scctbill.FUrutan',
             'PAIDDT' => 'scctbill.PAIDDT',
             'NOCUST' => 'scctcust.NOCUST',
@@ -477,7 +482,7 @@ class DataTagihanController extends Controller
                 ->orderBy('scctbill.AA', 'asc');
         } else {
             $recordsQuery
-                ->orderBy('scctbill.BTA')
+                ->orderBy('scctbill.BILLAC')
                 ->orderByRaw("
                     CASE
                         WHEN scctbill.BILLNM LIKE '%JULI%' THEN 1
@@ -743,13 +748,8 @@ class DataTagihanController extends Controller
                         ($key) && $filters[] = [$key, '=', $val];
                     }
                     break;
-                case 'scctbill.BTA':
-                    $normalizedVal = str_replace([' ', '-'], ['', '/'], trim((string) $val));
-                    $filters[] = [
-                        'whereRaw',
-                        '(REPLACE(REPLACE(TRIM(scctbill.BTA), " ", ""), "-", "/") = ? OR REPLACE(REPLACE(TRIM(scctcust.DESC04), " ", ""), "-", "/") = ?)',
-                        [$normalizedVal, $normalizedVal],
-                    ];
+                case 'scctbill.BILLAC':
+                    $filters[] = ['scctbill.BILLAC', '=', trim((string) $val)];
                     break;
                 case 'scctcust.DESC02':
                     $delimiter = str_contains((string) $val, '~~') ? '~~' : '~~';

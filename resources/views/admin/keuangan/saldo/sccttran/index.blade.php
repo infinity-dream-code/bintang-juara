@@ -99,7 +99,7 @@
                                            placeholder="Masukkan nama siswa" id="filter[nama]" name="filter[nama]">
                                 </div>
                             </div>
-                            <div class="mb-3 row">
+                            <div class="mb-3 row d-none">
                                 <label class="col-sm-4 col-form-label form-label" for="filter[angkatan]">
                                     Angkatan Siswa
                                 </label>

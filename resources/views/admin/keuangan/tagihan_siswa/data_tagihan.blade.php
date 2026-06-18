@@ -140,18 +140,17 @@
                                        class="form-control" autocomplete="false" inputmode="numeric"/>
                             </div>
                             <div class="mb-5">
-                                <label class="form-label" for="tahun_akademik">
-                                    Tahun Akademik
+                                <label class="form-label" for="filter_periode">
+                                    Periode
                                 </label>
-                                <select class="form-select" id="tahun_akademik"
-                                        name="filter[tahun_akademik]"
+                                <select class="form-select" id="filter_periode"
+                                        name="filter[periode]"
                                         data-control="select2"
-                                        data-placeholder="Pilih Tahun Akademik">
+                                        data-placeholder="Pilih Periode">
                                     <option value="all">Semua</option>
-                                    @isset($thn_aka)
-                                        @foreach($thn_aka as $item)
-                                            <option
-                                                value="{{$item->thn_aka}}">{{$item->thn_aka}}</option>
+                                    @isset($periode)
+                                        @foreach($periode as $item)
+                                            <option value="{{$item}}">{{$item}}</option>
                                         @endforeach
                                     @else
                                         <option>data kosong</option>
@@ -233,7 +232,7 @@
                             </button>
                             <button type="button" class="btn btn-google-plus btn-print-rekap">
                                 <span class="ri-file-pdf-2-line me-2"></span>
-                                Cetak Cekap
+                                Cetak Rekap
                             </button>
                             <button type="reset" class="btn btn-secondary" disabled>
                                 <span class="ri-reset-left-line me-2"></span>
@@ -1385,7 +1384,7 @@
                     });
 
                     const tableBody = [
-                        ['#', 'Tanggal Bayar', 'Tahun Akademik', 'Nama Tagihan', 'Total Tagihan', 'Total Bayar', 'Sisa', 'Status']
+                        ['#', 'Tanggal Bayar', 'Periode', 'Nama Tagihan', 'Total Tagihan', 'Total Bayar', 'Sisa', 'Status']
                             .map(h => ({text: h, style: 'tableHeader'}))
                     ];
 
@@ -1416,7 +1415,7 @@
                         tableBody.push([
                             {text: String(index + 1), alignment: 'center', border: [true, true, true, true]},
                             {text: tanggalBayar, border: [true, true, true, true]},
-                            {text: item.BTA || '-', border: [true, true, true, true]},
+                            {text: item.BILLAC || '-', border: [true, true, true, true]},
                             {text: item.BILLNM || '-', border: [true, true, true, true]},
                             {text: formatRupiah(jumlahTagihan), alignment: 'right', border: [true, true, true, true]},
                             {text: formatRupiah(jumlahBayar), alignment: 'right', border: [true, true, true, true]},

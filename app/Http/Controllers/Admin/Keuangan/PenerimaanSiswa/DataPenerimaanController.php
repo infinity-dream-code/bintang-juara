@@ -244,6 +244,8 @@ class DataPenerimaanController extends Controller
             'scctbill.CUSTID',
             'scctbill.BILLNM',
             'scctbill.BILLAM',
+            'scctbill.BILLPAID',
+            'scctbill.BILLAC',
             'scctbill.PAIDST',
             'scctbill.PAIDDT',
             'scctbill.BTA',
@@ -353,6 +355,48 @@ class DataPenerimaanController extends Controller
         }
 
         return response()->json(['logs' => $logs], 200);
+    }
+
+    public function getTransLogsBulk(Request $request)
+    {
+        $bills = $request->input('bills', []);
+        if (!is_array($bills) || empty($bills)) {
+            return response()->json(['logs' => []], 200);
+        }
+
+        $allLogs = [];
+        foreach ($bills as $bill) {
+            if (!is_array($bill)) {
+                continue;
+            }
+
+            $aa = $bill['aa'] ?? $bill['AA'] ?? null;
+            if (blank($aa)) {
+                continue;
+            }
+
+            $custId = $bill['custid'] ?? $bill['CUSTID'] ?? null;
+            $billTransNo = $bill['bill_transno'] ?? $bill['TRANSNO'] ?? null;
+            $billName = $bill['billnm'] ?? $bill['BILLNM'] ?? null;
+
+            $logs = $this->getTransactionLogsForBill($custId, $aa, $billTransNo, $billName);
+            foreach ($logs as $log) {
+                if ((int) ($log['debet'] ?? 0) <= 0 && (int) ($log['kredit'] ?? 0) <= 0) {
+                    continue;
+                }
+
+                $allLogs[] = array_merge($log, [
+                    'bill_aa' => $aa,
+                    'billnm' => $billName,
+                ]);
+            }
+        }
+
+        usort($allLogs, function ($a, $b) {
+            return strcmp((string) ($b['trxdate'] ?? ''), (string) ($a['trxdate'] ?? ''));
+        });
+
+        return response()->json(['logs' => $allLogs], 200);
     }
 
     private function getTransactionLogsForBill($custId, $aa, $billTransNo = null, $billName = null): array

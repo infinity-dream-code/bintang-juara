@@ -15,6 +15,36 @@ use Illuminate\Support\Facades\DB;
 
 class SccttranController extends Controller
 {
+    /** Metode pembayaran manual / jurnal internal — bukan transfer online VA. */
+    private const MANUAL_METODE = ['FROM TELLER', 'JURNAL SALDO', 'REVERSAL'];
+
+    /** Channel H2H VA BMI (online). */
+    private const H2H_CHANNELS = ['1', '2', '3', '4', '5', '6'];
+
+    private function onlineMetodeScope($query, string $tablePrefix = 'sccttran.')
+    {
+        $metodeColumn = $tablePrefix . 'METODE';
+        $kdChannelColumn = $tablePrefix . 'KDCHANNEL';
+        $isReversalColumn = $tablePrefix . 'isreversal';
+
+        return $query
+            ->where(function ($q) use ($metodeColumn, $kdChannelColumn) {
+                $q->whereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) = 'ONLINE'")
+                    ->orWhereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) = 'TRANSFER'")
+                    ->orWhereIn(DB::raw("TRIM(CAST({$kdChannelColumn} AS CHAR))"), self::H2H_CHANNELS);
+            })
+            ->where(function ($q) use ($metodeColumn) {
+                foreach (self::MANUAL_METODE as $manualMetode) {
+                    $q->whereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) != ?", [$manualMetode]);
+                }
+            })
+            ->where(function ($q) use ($isReversalColumn) {
+                $q->whereNull($isReversalColumn)
+                    ->orWhere($isReversalColumn, 0)
+                    ->orWhere($isReversalColumn, '0');
+            });
+    }
+
     public function __construct()
     {
 //        $this->middleware('CheckUserRoleOrPermission:pimpinan');
@@ -53,8 +83,8 @@ class SccttranController extends Controller
             ['data' => 'NMCUST', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'METODE', 'name' => 'Metode', 'orderable' => true, 'exportable' => true],
             ['data' => 'TRXDATE', 'name' => 'Tanggal Transaksi', 'orderable' => true, 'columnType' => 'timestamp', 'exportable' => true],
-            ['data' => 'DEBET', 'name' => 'Debet', 'orderable' => true, "className" => "dt-right", 'columnType' => 'currency', 'exportable' => true],
-            ['data' => 'KREDIT', 'name' => 'Kredit', 'orderable' => true, "className" => "dt-right", 'columnType' => 'currency', 'exportable' => true],
+            ['data' => 'NOREFF', 'name' => 'No Ref', 'orderable' => true, 'exportable' => true],
+            ['data' => 'NOMINAL', 'name' => 'Nominal', 'orderable' => true, 'className' => 'dt-right', 'columnType' => 'currency', 'exportable' => true],
         ];
     }
 
@@ -90,6 +120,12 @@ class SccttranController extends Controller
         if (!$columnName || $columnName == 'no') {
             $columnName = $defaultColumn;
             $columnSortOrder = $defaultOrder;
+        } elseif ($columnName === 'NOMINAL') {
+            $columnName = 'sccttran.KREDIT';
+        } elseif (!str_contains((string) $columnName, '.')) {
+            $columnName = in_array($columnName, ['NOCUST', 'NMCUST', 'NUM2ND'], true)
+                ? 'scctcust.' . $columnName
+                : 'sccttran.' . $columnName;
         }
 
         $filter = $request->input('filter');
@@ -145,6 +181,7 @@ class SccttranController extends Controller
             'scctcust.NOCUST',
             'scctcust.NUM2ND',
             'sccttran.METODE',
+            'sccttran.NOREFF',
         ];
 
         $select = array_merge($whereAny, [
@@ -159,24 +196,32 @@ class SccttranController extends Controller
             'sccttran.TRANSNO',
         ]);
 
-        $query = sccttran::whereAny($whereAny, 'like', '%' . $searchValue . '%')
-            ->leftJoin('scctcust', 'scctcust.CUSTID', 'sccttran.CUSTID')
-            ->where(function ($query) use ($filterQuery) {
-                if ($filterQuery) {
-                    $filterQuery($query);
+        $query = $this->onlineMetodeScope(
+            sccttran::query()
+                ->leftJoin('scctcust', 'scctcust.CUSTID', 'sccttran.CUSTID')
+        );
+
+        if (!blank($searchValue)) {
+            $query->where(function ($q) use ($whereAny, $searchValue) {
+                $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
+                foreach ($whereAny as $column) {
+                    $q->orWhere($column, 'like', '%' . $sanitizeSearch . '%');
                 }
             });
-
-//        dd($query);
-
-        if ($custid) {
-            $totalKredit = sccttran::where('CUSTID', $custid)->sum('KREDIT');
-            $totalDebet = sccttran::where('CUSTID', $custid)->sum('DEBET');
         }
 
-        // Total records
-//        $totalRecords = sccttran::select('count(sccttran.*) as allcount')->count();
-        $totalRecords = DB::table('sccttran')->count('urut');
+        $query->where(function ($query) use ($filterQuery) {
+            if ($filterQuery) {
+                $filterQuery($query);
+            }
+        });
+
+        if ($custid) {
+            $custQuery = $this->onlineMetodeScope(sccttran::query())->where('CUSTID', $custid);
+            $totalNominal = (clone $custQuery)->sum('KREDIT');
+        }
+
+        $totalRecords = $this->onlineMetodeScope(sccttran::query())->count();
         $totalRecordswithFilter = (clone $query)->count();
 
         $records = (clone $query)->orderBy($columnName, $columnSortOrder)
@@ -191,7 +236,9 @@ class SccttranController extends Controller
                     $NOVA = scctcust::showVA($item->NUM2ND);
                 }
                 $item->NOVA = $NOVA;
-//                unset($item->id);
+                $item->NOMINAL = (int) ($item->KREDIT ?? 0);
+                unset($item->DEBET, $item->KREDIT);
+
                 return $item;
             })->toArray();
 
@@ -204,8 +251,7 @@ class SccttranController extends Controller
 
         if ($custid) {
             $response['totals'] = [
-                'kredit' => ['location' => 5, 'value' => $totalKredit, 'columnType' => 'currency'],
-                'debet' => ['location' => 4, 'value' => $totalDebet, 'columnType' => 'currency'],
+                'nominal' => ['location' => 7, 'value' => $totalNominal, 'columnType' => 'currency'],
             ];
         }
 

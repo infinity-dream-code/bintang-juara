@@ -64,10 +64,11 @@
         </div>
         <div class="card-body px-0">
             <div class="row">
-                <div class="col-12 col-md-7">
+                <div class="col-12">
                     <div class="card-datatable table-responsive text-nowrap px-5">
                         <div class="card-header">
                             TAGIHAN YANG TAMPIL DI BANK
+                            <small class="text-muted d-block">Tagihan belum pernah dibayar (cicilan = 0)</small>
                         </div>
                         <div class="col-12">
                             <table class="table table-sm table-bordered table-hover"
@@ -92,66 +93,6 @@
                         </table>
                     </div>
                 </div>
-                <div class="col-12 col-md-5">
-                    <div class="card-datatable table-responsive text-nowrap px-5">
-                        <div class="card-header">
-                            POST
-                        </div>
-                        <table class="table table-sm table-bordered table-hover">
-                            <tbody>
-                            <tr>
-                                <th class="table-light">Akun</th>
-                                <td>
-                                    <select class="form-select" name="pilih-akun" id="pilih-akun">
-                                        <option disabled selected>Pilih Akun</option>
-                                        @isset($v_dt_daftar_harga)
-                                            @foreach($v_dt_daftar_harga as $item)
-                                                <option data-val="{{json_encode($item)}}"
-                                                        value="{{$item->KodeAkun}}">{{$item->NamaAkun}}</option>
-                                            @endforeach
-                                        @endisset
-                                    </select>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th class="table-light">Nominal</th>
-                                <td>
-                                    <input type="text"
-                                           class="form-control bg-body rounded-end formattedNumber"
-                                           id="nominal-pilih-akun" autocomplete="off"
-                                           placeholder="" value="" readonly>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" class="text-center">
-                                    <button type="button" class="btn btn-primary" id="btn-buat-detail">Buat Detail
-                                    </button>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="card-datatable table-responsive text-nowrap px-5">
-                        <div class="card-header">
-                            DETAIL POST
-                            <ul class="list-group list-group-timeline">
-                                <li class="list-group-item list-group-timeline-info">
-                                    <strong>Klik 2x pada Detail Post Untuk menghapus</strong>
-                                </li>
-                            </ul>
-                        </div>
-                        <table class="table table-sm table-bordered table-hover" id="table-post-baru">
-                            <thead class="table-light">
-                            <tr>
-                                <th>Nama Post</th>
-                                <th>Nominal</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -166,19 +107,6 @@
                         <button class="btn btn-warning w-md-auto" type="button" id="btn-edit-tagihan">
                             <span class="ri-save-line me-2"></span>
                             Edit Tagihan
-                        </button>
-                        <button class="btn btn-primary w-md-auto" type="button" id="btn-copy-tagihan">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-                                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 class="icon icon-tabler icons-tabler-outline icon-tabler-copy me-2">
-                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                <path
-                                    d="M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666"/>
-                                <path
-                                    d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"/>
-                            </svg>
-                            Copy Tagihan
                         </button>
                     </div>
                 </div>
@@ -197,9 +125,28 @@
         let tableSiswa;
         let tableTagihan;
         let tableTagihanDibayar;
-        let tablePostBaru;
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         let select2Param = '';
+
+        function formatRupiahInput(value) {
+            const number = parseInt(String(value ?? '').replace(/\D/g, '') || '0', 10);
+            return number.toLocaleString('id-ID');
+        }
+
+        function parseRupiahInput(value) {
+            return parseInt(String(value ?? '').replace(/\D/g, '') || '0', 10);
+        }
+
+        function getSelectedNominalFromRow(table, rowIndex) {
+            const node = table.row(rowIndex).node();
+            if (!node) return 0;
+            const input = node.querySelector('.nominal-tagihan-input');
+            if (input) {
+                return parseRupiahInput(input.value);
+            }
+            const rowData = table.row(rowIndex).data();
+            return parseRupiahInput(rowData?.BILLAM ?? 0);
+        }
 
         function loadSiswaByCustId(custid) {
             if (!custid) {
@@ -216,7 +163,6 @@
                 refreshDataTable(response.data ?? []);
                 tableTagihan.clear().draw();
                 tableTagihanDibayar.clear().draw();
-                tablePostBaru.clear().draw();
 
                 const siswa = response.data?.[0];
                 if (!siswa?.CUSTID) {
@@ -248,31 +194,6 @@
             });
         }
 
-        document.getElementById('btn-buat-detail').addEventListener('click', function (e) {
-            const akun = document.getElementById('pilih-akun');
-            const selectedOption = akun.options[akun.selectedIndex];
-            const dataVal = selectedOption.getAttribute('data-val');
-            // const akunValue = akun.value;
-            // const nominalInput = document.getElementById('nominal-pilih-akun');
-            // const nominalValue = nominalInput.value;
-            const dataObj = JSON.parse(dataVal);
-            const exists = tablePostBaru
-                .rows()
-                .data()
-                .toArray()
-                .some(row => row.KodeAkun === dataObj.KodeAkun);
-
-            if (!exists) {
-                tablePostBaru.row.add({
-                    KodeAkun: dataObj.KodeAkun,
-                    nominal: dataObj.nominal ?? 0,
-                    NamaAkun: dataObj.NamaAkun
-                }).draw();
-            } else {
-                warningAlert(`<b>${dataObj.NamaAkun}</b> sudah ada!`)
-            }
-        })
-
         document.getElementById('table-siswa').addEventListener('click', function (e) {
             if (!e.target.classList.contains('checkbox-siswa')) {
                 const row = e.target.closest('tr');
@@ -282,7 +203,6 @@
                         checkbox.checked = !checkbox.checked;
                         tableTagihan.clear().draw();
                         tableTagihanDibayar.clear().draw();
-                        tablePostBaru.clear().draw();
                         checkbox.dispatchEvent(new Event('change', {bubbles: true}));
                     }
                 }
@@ -315,138 +235,23 @@
         // });
 
         document.getElementById('btn-reset').addEventListener('click', function (e) {
-            tablePostBaru.clear().draw();
             tableTagihan.clear().draw();
             tableTagihanDibayar.clear().draw();
             tableSiswa.clear().draw();
             $('#siswa').val(null).trigger('change');
-        })
-
-        document.getElementById('table-post-baru').addEventListener('input', function (e) {
-            if (e.target.classList.contains('nominal-input')) {
-                const input = e.target;
-                const rowEl = input.closest('tr');
-                const row = tablePostBaru.row(rowEl);
-
-                const raw = input.value.replace(/\./g, '');
-
-                input.dataset.raw = raw;
-            }
         });
 
-        document.getElementById('table-post-baru').addEventListener('blur', function (e) {
-            if (!e.target.classList.contains('nominal-input')) return;
-            const input = e.target;
-            const rowEl = input.closest('tr');
-            const row = tablePostBaru.row(rowEl);
-
-            const raw = input.value.replace(/\./g, '');
-            const number = parseInt(raw || 0, 10);
-            input.value = number.toLocaleString('id-ID');
-            const data = row.data();
-            data.nominal = number;
-            row.data(data);
+        document.getElementById('table-tagihan').addEventListener('blur', function (e) {
+            if (!e.target.classList.contains('nominal-tagihan-input')) return;
+            e.target.value = formatRupiahInput(e.target.value);
         }, true);
-        // document.querySelector('#table-tagihan tbody').addEventListener('dblclick', function (e) {
-        //     const rowEl = e.target.closest('tr');
-        //
-        //     if (rowEl) {
-        //         const rowData = tableTagihan.row(rowEl).data();
-        //         if (rowData) {
-        //             tablePostBaru.row.add(rowData);
-        //             tablePostBaru.draw();
-        //         }
-        //     }
-        // });
-        //
-        // document.querySelector('#table-tagihan-dibayar tbody').addEventListener('dblclick', function (e) {
-        //     const rowEl = e.target.closest('tr');
-        //
-        //     if (rowEl) {
-        //         const rowData = tableTagihanDibayar.row(rowEl).data();
-        //         if (rowData) {
-        //             tablePostBaru.row.add(rowData);
-        //             tablePostBaru.draw();
-        //         }
-        //     }
-        // });
 
-        document.querySelector('#table-post-baru tbody').addEventListener('dblclick', function (e) {
-            if (e.target.tagName.toLowerCase() === 'input' || e.target.closest('input')) {
-                return;
-            }
-
-            const rowEl = e.target.closest('tr');
-            if (rowEl) {
-                tablePostBaru.row(rowEl).remove();
-                tablePostBaru.draw();
-            }
-        });
-
-        document.querySelector('#pilih-akun').addEventListener('change', function (e) {
-            const selectedOption = this.options[this.selectedIndex];
-            const value = selectedOption.value;
-            const dataVal = selectedOption.getAttribute("data-val");
-
-            const obj = JSON.parse(dataVal);
-            let val = parseInt(obj.nominal ?? 0);
-            val = val.toLocaleString('id-ID');
-
-            document.getElementById('nominal-pilih-akun').value = val;
-        });
-
-        document.getElementById('btn-copy-tagihan').addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedSiswa = tableSiswa.rows({selected: true}).data();
-            if (!selectedSiswa[0]?.CUSTID) {
-                warningAlert('Silahkan pilih 1 siswa!')
-                return;
-            }
-            const selectedTagihanDibayar = tableTagihanDibayar.rows({selected: true}).data();
-            const selectedTagihan = tableTagihan.rows({selected: true}).data();
-
-            if (!selectedTagihanDibayar[0] && !selectedTagihan[0]) {
-                warningAlert('Silahkan pilih tagihan yang akan disalin!')
-                return;
-            } else if (selectedTagihan[0] && selectedTagihanDibayar[0]) {
-                warningAlert('Silahkan pilih satu tagihan antara tagihan yang belum dan sudah dibayarkan untuk disalin')
-                return;
-            }
-
-
-            const data = tablePostBaru.data().toArray();
-            if (data.length === 0) {
-                warningAlert('Silahkan tambahkan paling tidak satu detail post!');
-                return;
-            }
-            const formData = new FormData();
-            formData.append(`siswa`, selectedSiswa[0].CUSTID);
-            const tagihan =
-                selectedTagihan?.[0]?.AA ??
-                selectedTagihanDibayar?.[0]?.AA ??
-                null;
-
-            if (tagihan !== null) {
-                formData.append('tagihan', tagihan);
-            }
-            appendDetailPostToFormData(formData);
-
-            loadingAlert('Mengedit data...');
-            const request = new Request(
-                `{{route('admin.manual-input.edit-manual.copy-tagihan')}}`,
-                {
-                    method: "POST",
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                    body: formData
-                });
-
-            let result = await submitForm(request);
-            if (result) {
-                await getTagihan(selectedSiswa[0].CUSTID, false);
-                tablePostBaru.clear().draw();
-                successAlert(result.message ?? "Tagihan telah disalin");
+        document.getElementById('table-tagihan').addEventListener('click', function (e) {
+            if (e.target.classList.contains('nominal-tagihan-input')) {
+                const row = e.target.closest('tr');
+                if (row) {
+                    tableTagihan.row(row).select();
+                }
             }
         });
 
@@ -464,28 +269,25 @@
                 return;
             }
 
-            const selectedTagihan = tableTagihan.rows({selected: true}).data();
-            if (!selectedTagihan[0]) {
-                warningAlert('Silahkan pilih tagihan yang akan diedit!')
+            const selectedTagihan = tableTagihan.rows({selected: true});
+            if (!selectedTagihan.data()[0]) {
+                warningAlert('Silahkan pilih tagihan yang tampil di bank!')
                 return;
             }
 
-            const data = tablePostBaru.data().toArray();
-            if (data.length === 0) {
-                warningAlert('Silahkan tambahkan paling tidak satu detail post!');
+            const selectedIndexes = selectedTagihan.indexes();
+            const nominal = getSelectedNominalFromRow(tableTagihan, selectedIndexes[0]);
+            if (!nominal || nominal <= 0) {
+                warningAlert('Nominal tagihan tidak valid!');
                 return;
             }
 
             const formData = new FormData();
-            formData.append(`siswa`, selectedSiswa[0]?.CUSTID);
-            const tagihan = selectedTagihan?.[0]?.AA ?? null;
-
-            if (tagihan !== null) {
-                formData.append('tagihan', tagihan);
-            }
-            appendDetailPostToFormData(formData);
-
+            formData.append('siswa', selectedSiswa[0].CUSTID);
+            formData.append('tagihan', selectedTagihan.data()[0].AA);
+            formData.append('nominal', nominal);
             formData.append('_method', 'PUT');
+
             loadingAlert('Mengedit data...');
             const request = new Request(
                 `{{route('admin.manual-input.edit-manual.edit-tagihan')}}`,
@@ -500,7 +302,6 @@
             let result = await submitForm(request);
             if (result) {
                 await getTagihan(selectedSiswa[0].CUSTID, false);
-                tablePostBaru.clear().draw();
                 successAlert(result.message);
             }
         });
@@ -557,55 +358,16 @@
                 });
         }
 
-        function appendDetailPostToFormData(formData) {
-            tablePostBaru.rows().every(function (index) {
-                const rowData = this.data();
-                const node = this.node();
-                if (!node) return;
-                const input = node.querySelector('.nominal-input');
-                const rawNominal = input
-                    ? input.value.replace(/\./g, '')
-                    : String(rowData.nominal ?? '').replace(/\./g, '');
-                const nominal = parseInt(rawNominal || '0', 10);
-                formData.append(`data[${index}][KodeAkun]`, rowData.KodeAkun);
-                formData.append(`data[${index}][NamaAkun]`, rowData.NamaAkun);
-                formData.append(`data[${index}][nominal]`, nominal);
-            });
-        }
-
-        async function getDetailTagihan(siswa, tagihan) {
-            loadingAlert('Memuat data...');
-            const request = new Request(
-                `{{route('admin.manual-input.edit-manual.get-detail-tagihan')}}?siswa=${encodeURIComponent(siswa)}&tagihan=${encodeURIComponent(tagihan)}`,
-                {
-                    method: "get",
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                });
-
-            let data = await submitForm(request);
-            if (data) {
-                tablePostBaru.rows.add(data);
-                tablePostBaru.draw();
-                Swal.close();
-            }
-        }
-
-        function refreshDataTable(newData = []) {
-            tableSiswa.rows().deselect();
-            tableSiswa.clear();
-            tableSiswa.rows.add(newData);
-            tableSiswa.draw();
-        }
-
         function refreshTableTagihan(newData = []) {
             const splitByPaidStatus = newData.reduce((acc, item) => {
-                if (item.PAIDST === 0 || item.PAIDST === "0") {
-                    acc.unpaid.push(item);
-                } else if (item.PAIDST === 1 || item.PAIDST === "1") {
+                const paidSt = Number(item.PAIDST ?? 0);
+                const billPaid = Number(item.BILLPAID ?? 0);
+                const installmentPaid = Number(item.isINSTALLABLE ?? 0);
+
+                if (paidSt === 1) {
                     acc.paid.push(item);
+                } else if (billPaid === 0 && installmentPaid === 0) {
+                    acc.unpaid.push(item);
                 }
                 return acc;
             }, {paid: [], unpaid: []});
@@ -619,6 +381,13 @@
             tableTagihanDibayar.clear();
             tableTagihanDibayar.rows.add(splitByPaidStatus.paid);
             tableTagihanDibayar.draw();
+        }
+
+        function refreshDataTable(newData = []) {
+            tableSiswa.rows().deselect();
+            tableSiswa.clear();
+            tableSiswa.rows.add(newData);
+            tableSiswa.draw();
         }
 
         async function submitForm(request, options = {}) {
@@ -722,8 +491,12 @@
             tableSiswa = $('#table-siswa').DataTable({
                 columns: [
                     {data: 'CUSTID'},
-                    {data: 'nis', title: 'NIS'},
-                    {data: 'nama', title: 'NAMA'},
+                    {data: 'nis', title: 'NIS', render: function (data, type, row) {
+                        return data || row.NOCUST || row.nocust || '-';
+                    }},
+                    {data: 'nama', title: 'NAMA', render: function (data, type, row) {
+                        return data || row.NMCUST || row.nmcust || '-';
+                    }},
                     {data: 'kelas', title: 'Kelas'},
                     {data: 'jenjang', title: 'Jenjang'},
                     {data: 'angkatan', title: 'Angkatan'},
@@ -766,22 +539,15 @@
                         data: 'BILLAM',
                         title: 'JUMLAH',
                         className: 'text-end',
-                        render: function (data, type, row) {
-                            const value = Number(data);
-
-                            if (!Number.isFinite(value)) {
-                                return 'Rp. 0';
+                        render: function (data, type) {
+                            const value = Number(data ?? 0);
+                            if (type === 'display') {
+                                return `<input type="text" class="form-control form-control-sm nominal-tagihan-input text-end" value="${formatRupiahInput(value)}" autocomplete="off">`;
                             }
-
-                            const formatted = $.fn.dataTable
-                                .render
-                                .number('.', ',', 0, 'Rp. ')
-                                .display(Math.abs(value));
-
-                            return value < 0 ? `Rp. -${formatted.replace('Rp. ', '')}` : formatted;
+                            return value;
                         }
                     },
-                    {data: 'BTA', title: 'TAHUN PELAJARAN'},
+                    {data: 'BILLAC', title: 'PERIODE'},
                     {data: 'FUrutan', title: 'Urutan'},
                 ],
                 columnDefs: [
@@ -801,7 +567,7 @@
                 ],
                 language: {
                     ...languageData,
-                    emptyTable: "Tidak ada tagihan yang belum dibayar"
+                    emptyTable: "Tidak ada tagihan yang belum pernah dibayar"
                 },
 
                 paging: true,
@@ -816,44 +582,25 @@
 
             tableTagihanDibayar = $('#table-tagihan-dibayar').DataTable({
                 columns: [
-                    {data: 'AA'},
                     {data: 'BILLNM', title: 'NAMA TAGIHAN'},
                     {
                         data: 'BILLAM',
                         title: 'JUMLAH',
                         className: 'text-end',
-                        render: function (data, type, row) {
+                        render: function (data) {
                             const value = Number(data);
-
                             if (!Number.isFinite(value)) {
                                 return 'Rp. 0';
                             }
-
                             const formatted = $.fn.dataTable
                                 .render
                                 .number('.', ',', 0, 'Rp. ')
                                 .display(Math.abs(value));
-
                             return value < 0 ? `Rp. -${formatted.replace('Rp. ', '')}` : formatted;
                         }
                     },
-                    {data: 'BTA', title: 'TAHUN PELAJARAN'},
+                    {data: 'BILLAC', title: 'PERIODE'},
                     {data: 'FUrutan', title: 'Urutan'},
-                ],
-                columnDefs: [
-                    {
-                        targets: 0,
-                        searchable: false,
-                        orderable: false,
-                        render: function (data) {
-                            return `<input type="checkbox" id="penerimaan-checkbox-${data}" class="dt-checkboxes form-check-input checkbox" name="checkbox_tagihan_dibayar" value="${data}">`;
-                        },
-                        checkboxes: {
-                            selectRow: true,
-                            selectAll: false,
-                        },
-                        className: 'text-center',
-                    }
                 ],
                 language: {
                     ...languageData,
@@ -861,45 +608,12 @@
                 },
 
                 paging: true,
-                select: {style: 'single'},
+                select: false,
                 serverSide: false,
                 searching: false,
                 lengthChange: false,
                 pageLength: 10,
-                order: [[4, 'asc']],
-                scrollX: true,
-            });
-
-            tablePostBaru = $('#table-post-baru').DataTable({
-                columns: [
-                    {data: 'NamaAkun', title: 'NAMA POST'},
-                    {
-                        data: 'nominal',
-                        title: 'NOMINAL',
-                        searchable: false,
-                        orderable: false,
-                        render: function (data, type, row) {
-                            let val = parseInt(data ?? 0);
-                            val = val.toLocaleString('id-ID');
-                            return `
-                            <input type="text" class="form-control bg-body rounded-end nominal-input text-end formattedNumber"
-                                    id="tagihan[${row.AA}][nominal]" name="nominal_post_baru" autocomplete="off" placeholder="Nominal Tagihan" value="${val}">
-                                <div class="invalid-feedback" role="alert"></div>
-                            `;
-                        }
-                    },
-                ],
-                language: {
-                    ...languageData,
-                    emptyTable: "silahkan pilih tagihan atau tambahkan detail post baru"
-                },
-
-                paging: false,
-                serverSide: false,
-                searching: false,
-                lengthChange: false,
-                pageLength: 10,
-                order: [[1, 'desc']],
+                order: [[3, 'asc']],
                 scrollX: true,
             });
 
@@ -949,65 +663,6 @@
                 tableSiswa.clear().draw();
                 tableTagihan.clear().draw();
                 tableTagihanDibayar.clear().draw();
-                tablePostBaru.clear().draw();
-            });
-
-            tableTagihan.on('select.dt deselect.dt', async function (e, dt, type, indexes) {
-                if (type === 'row') {
-                    if (e.type === 'select') {
-                        const rowData = tableTagihan.rows(indexes).data();
-                        tableTagihanDibayar.rows().every(function () {
-                            const node = this.node();
-                            if (!node) return;
-
-                            const checkbox = node.querySelector('.checkbox');
-                            if (checkbox && checkbox.checked) {
-                                tableTagihanDibayar.rows().deselect();
-                            }
-                        });
-
-                        tablePostBaru.clear().draw();
-
-                        const selectedData = tableSiswa.rows({selected: true}).data();
-                        if (!selectedData[0].CUSTID) {
-                            warningAlert('Terjadi Kesalahan pada sistem, silahkan hubungi administrator!')
-                            return;
-                        }
-                        await getDetailTagihan(selectedData[0].CUSTID, rowData[0].BILLCD);
-                        Swal.close();
-                    } else {
-                        tablePostBaru.clear().draw();
-                    }
-                }
-            });
-
-            tableTagihanDibayar.on('select.dt deselect.dt', async function (e, dt, type, indexes) {
-                if (type === 'row') {
-                    if (e.type === 'select') {
-                        const rowData = tableTagihanDibayar.rows(indexes).data();
-                        tableTagihan.rows().every(function () {
-                            const node = this.node();
-                            if (!node) return;
-
-                            const checkbox = node.querySelector('.checkbox');
-                            if (checkbox && checkbox.checked) {
-                                tableTagihan.rows().deselect();
-                            }
-                        });
-
-                        tablePostBaru.clear().draw();
-
-                        const selectedData = tableSiswa.rows({selected: true}).data();
-                        if (!selectedData[0].CUSTID) {
-                            warningAlert('Terjadi Kesalahan pada sistem, silahkan hubungi administrator!')
-                            return;
-                        }
-                        await getDetailTagihan(selectedData[0].CUSTID, rowData[0].BILLCD);
-                        Swal.close();
-                    } else {
-                        tablePostBaru.clear().draw();
-                    }
-                }
             });
         });
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin\Keuangan\Saldo;
 
+use App\Exports\SaldoVirtualAccountDetailExport;
 use App\Http\Controllers\Controller;
 use App\Models\mst_kelas;
 use App\Models\mst_sekolah;
@@ -9,10 +10,13 @@ use App\Models\mst_thn_aka;
 use App\Models\scctcust;
 use App\Models\sccttran;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 use Mockery\Exception;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SaldoVirtualAccountController extends Controller
 {
@@ -134,6 +138,7 @@ class SaldoVirtualAccountController extends Controller
         //        $data['showTitle'] = $this->showTitle;
         $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.get-column');
         $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.get-data');
+        $data['dataTransaksiUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.index');
 
         return view('admin.keuangan.saldo.saldo_virtual_account.index', $data);
     }
@@ -148,6 +153,8 @@ class SaldoVirtualAccountController extends Controller
             $data['indexUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.index');
             $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.transaksi.get-column');
             $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.transaksi.get-data', ['CUSTID' => $id]);
+
+            $data['exportUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.export', ['id' => $id]);
 
             $data['siswa'] = scctcust::find($id);
 
@@ -176,6 +183,63 @@ class SaldoVirtualAccountController extends Controller
         }
     }
 
+    public function exportDetail($id): BinaryFileResponse
+    {
+        $siswa = scctcust::query()->where('CUSTID', $id)->first();
+        if (!$siswa) {
+            abort(404, 'Siswa tidak ditemukan');
+        }
+
+        $transactions = $this->getCustTransactions($id);
+        $totalKredit = (int) $transactions->sum('KREDIT');
+        $totalDebet = (int) $transactions->sum('DEBET');
+        $saldo = $totalKredit - $totalDebet;
+
+        $rows = [
+            ['Detail Saldo Virtual Account'],
+            [],
+            ['NIS', $siswa->NOCUST ?? $siswa->nocust ?? '-'],
+            ['Nama', $siswa->NMCUST ?? $siswa->nmcust ?? '-'],
+            ['Unit', $siswa->CODE02 ?? '-'],
+            ['Kelas', $siswa->DESC02 ?? '-'],
+            ['Kelompok', $siswa->DESC03 ?? '-'],
+            ['Total Saldo', $saldo],
+            [],
+            ['Riwayat Transaksi'],
+            ['No', 'Metode', 'Tanggal Transaksi', 'Debet', 'Kredit', 'No Ref', 'Trans No'],
+        ];
+
+        foreach ($transactions as $index => $trx) {
+            $rows[] = [
+                $index + 1,
+                $trx->METODE ?? '-',
+                $trx->TRXDATE ? date('d-m-Y H:i:s', strtotime($trx->TRXDATE)) : '-',
+                (int) ($trx->DEBET ?? 0),
+                (int) ($trx->KREDIT ?? 0),
+                $trx->NOREFF ?? '-',
+                $trx->TRANSNO ?? '-',
+            ];
+        }
+
+        $rows[] = [];
+        $rows[] = ['', '', 'Total', $totalDebet, $totalKredit, '', ''];
+
+        $nis = preg_replace('/\D/', '', (string) ($siswa->NOCUST ?? $siswa->nocust ?? $id));
+        $filename = 'saldo-va-' . ($nis !== '' ? $nis : $id) . '-' . date('Ymd-His') . '.xlsx';
+
+        return Excel::download(new SaldoVirtualAccountDetailExport($rows), $filename);
+    }
+
+    private function getCustTransactions(string|int $custId)
+    {
+        return $this->excludeManualCashScope(
+            sccttran::query()->where('CUSTID', $custId),
+            'FIDBANK'
+        )
+            ->orderBy('TRXDATE', 'desc')
+            ->get(['METODE', 'TRXDATE', 'DEBET', 'KREDIT', 'NOREFF', 'TRANSNO']);
+    }
+
     public function getColumn(Request $request)
     {
         return [
@@ -183,10 +247,10 @@ class SaldoVirtualAccountController extends Controller
             ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NOVA', 'name' => 'NO VA', 'exportable' => true],
             ['data' => 'NMCUST', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'NUM2ND', 'name' => 'No Pendaftaran', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'DESC03', 'name' => 'Jenjang', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'NUM2ND', 'name' => 'No Pendaftaran', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'DESC04', 'name' => 'Angkatan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'saldo', 'name' => 'Saldo', 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
             [
@@ -376,11 +440,13 @@ class SaldoVirtualAccountController extends Controller
     public function getColumnTran()
     {
         return [
-            ['data' => null, 'columnType' => 'row', 'name' => 'No'],
-            ['data' => 'METODE', 'name' => 'Metode', 'orderable' => true],
-            ['data' => 'TRXDATE', 'name' => 'Tanggal Transaksi', 'orderable' => true, 'columnType' => 'timestamp'],
-            ['data' => 'DEBET', 'name' => 'Debet', 'orderable' => true, "className" => "dt-right", 'columnType' => 'currency'],
-            ['data' => 'KREDIT', 'name' => 'Kredit', 'orderable' => true, "className" => "dt-right", 'columnType' => 'currency'],
+            ['data' => null, 'columnType' => 'row', 'name' => 'No', 'exportable' => true],
+            ['data' => 'METODE', 'name' => 'Metode', 'orderable' => true, 'exportable' => true],
+            ['data' => 'TRXDATE', 'name' => 'Tanggal Transaksi', 'orderable' => true, 'columnType' => 'timestamp', 'exportable' => true],
+            ['data' => 'DEBET', 'name' => 'Debet', 'orderable' => true, 'className' => 'dt-right', 'columnType' => 'currency', 'exportable' => true],
+            ['data' => 'KREDIT', 'name' => 'Kredit', 'orderable' => true, 'className' => 'dt-right', 'columnType' => 'currency', 'exportable' => true],
+            ['data' => 'NOREFF', 'name' => 'No Ref', 'orderable' => true, 'exportable' => true],
+            ['data' => 'TRANSNO', 'name' => 'Trans No', 'orderable' => true, 'exportable' => true],
         ];
     }
 
@@ -550,6 +616,155 @@ class SaldoVirtualAccountController extends Controller
     {
         return response()->json([
             'saldo' => $this->resolveCustSaldo($request->input('siswa')),
+        ]);
+    }
+
+    public function transaksiIndex()
+    {
+        $data['title'] = $this->title;
+        $data['mainTitle'] = $this->dataTitle;
+        $data['pageTitle'] = 'Data Transaksi';
+        $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.get-column');
+        $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.get-data');
+
+        return view('admin.keuangan.saldo.saldo_virtual_account.data_transaksi', $data);
+    }
+
+    public function getColumnDataTransaksi()
+    {
+        return [
+            ['data' => null, 'name' => 'no', 'columnType' => 'row', 'exportable' => true],
+            ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'NOVA', 'name' => 'No VA', 'exportable' => true],
+            ['data' => 'NMCUST', 'name' => 'Nama', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'TRXDATE', 'name' => 'Tanggal', 'orderable' => true, 'columnType' => 'timestamp', 'exportable' => true],
+            ['data' => 'DEBET', 'name' => 'Debet', 'orderable' => true, 'className' => 'text-end', 'columnType' => 'currency', 'exportable' => true],
+            ['data' => 'KREDIT', 'name' => 'Kredit', 'orderable' => true, 'className' => 'text-end', 'columnType' => 'currency', 'exportable' => true],
+            ['data' => 'NOREFF', 'name' => 'No Ref', 'orderable' => true, 'exportable' => true],
+            ['data' => 'CODE02', 'name' => 'Unit', 'orderable' => true, 'exportable' => true],
+            ['data' => 'DESC02', 'name' => 'Kelas', 'orderable' => true, 'exportable' => true],
+            ['data' => 'DESC03', 'name' => 'Kelompok', 'orderable' => true, 'exportable' => true],
+        ];
+    }
+
+    public function getDataDataTransaksi(Request $request)
+    {
+        $filters = [];
+
+        $draw = (int) $request->get('draw');
+        $start = (int) $request->get('start', 0);
+        $rowperpage = (int) $request->get('length', 25);
+
+        $columnName_arr = $request->get('columns', []);
+        $search_arr = $request->get('search', []);
+        $searchValue = $search_arr['value'] ?? '';
+
+        $defaultColumn = 'sccttran.TRXDATE';
+        $defaultOrder = 'desc';
+        $columnName = $defaultColumn;
+        $columnSortOrder = $defaultOrder;
+
+        if ($request->has('order') && !empty($request->get('order'))) {
+            $order_arr = $request->get('order');
+            $columnIndex = $order_arr[0]['column'] ?? 0;
+            $columnSortOrder = $order_arr[0]['dir'] ?? $defaultOrder;
+            $requestedData = $columnName_arr[$columnIndex]['data'] ?? null;
+            if ($requestedData && $requestedData !== 'no') {
+                $columnName = match ($requestedData) {
+                    'NOCUST', 'NMCUST', 'CODE02', 'DESC02', 'DESC03' => 'scctcust.' . $requestedData,
+                    'NOVA' => 'scctcust.NOCUST',
+                    default => 'sccttran.' . $requestedData,
+                };
+            }
+        }
+
+        $filter = $request->input('filter', []);
+        foreach ($filter as $key => $val) {
+            if ($val === null || $val === '' || strtolower((string) $val) === 'all') {
+                continue;
+            }
+
+            if (in_array($key, ['dari_tanggal', 'sampai_tanggal'], true) && preg_match('/^\d{2}-\d{2}-\d{4}$/', (string) $val)) {
+                $date = Carbon::createFromFormat('d-m-Y', $val);
+                if ($date) {
+                    $filters[] = [
+                        'sccttran.TRXDATE',
+                        $key === 'dari_tanggal' ? '>=' : '<=',
+                        $key === 'dari_tanggal' ? $date->copy()->startOfDay() : $date->copy()->endOfDay(),
+                    ];
+                }
+            }
+        }
+
+        $schoolCodes = $this->resolveScopedSchoolCodes();
+        if (!empty($schoolCodes)) {
+            $filters[] = ['scctcust.CODE01', 'in', $schoolCodes];
+        }
+
+        $whereAny = [
+            'scctcust.NOCUST',
+            'scctcust.NMCUST',
+            'scctcust.NUM2ND',
+            'sccttran.NOREFF',
+            'sccttran.METODE',
+        ];
+
+        $query = sccttran::query()
+            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID');
+
+        foreach ($filters as $filter) {
+            if (count($filter) === 3 && ($filter[1] ?? null) === 'in' && is_array($filter[2] ?? null)) {
+                $query->whereIn($filter[0], $filter[2]);
+            } elseif (count($filter) === 3) {
+                $query->where($filter[0], $filter[1], $filter[2]);
+            }
+        }
+
+        if (!blank($searchValue)) {
+            $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
+            $query->where(function ($q) use ($whereAny, $sanitizeSearch) {
+                foreach ($whereAny as $column) {
+                    $q->orWhere($column, 'like', '%' . $sanitizeSearch . '%');
+                }
+            });
+        }
+
+        $totalRecords = sccttran::query()->count();
+        $totalRecordswithFilter = (clone $query)->count();
+
+        $records = (clone $query)
+            ->orderBy($columnName, $columnSortOrder)
+            ->select([
+                'scctcust.NOCUST',
+                'scctcust.NUM2ND',
+                'scctcust.NMCUST',
+                'scctcust.CODE02',
+                'scctcust.DESC02',
+                'scctcust.DESC03',
+                'sccttran.TRXDATE',
+                'sccttran.DEBET',
+                'sccttran.KREDIT',
+                'sccttran.NOREFF',
+            ])
+            ->skip($start)
+            ->take($rowperpage > 0 ? $rowperpage : 25)
+            ->get()
+            ->map(function ($item) {
+                if ($item->NOCUST && $item->NOCUST != '-') {
+                    $item->NOVA = scctcust::showVA($item->NOCUST);
+                } else {
+                    $item->NOVA = scctcust::showVA($item->NUM2ND);
+                }
+
+                return $item;
+            })
+            ->toArray();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $totalRecords,
+            'recordsFiltered' => $totalRecordswithFilter,
+            'data' => $records,
         ]);
     }
 }

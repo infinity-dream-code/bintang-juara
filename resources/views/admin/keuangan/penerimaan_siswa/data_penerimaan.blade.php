@@ -1183,6 +1183,10 @@
             }
 
             function generateKuitansi(biayaLayanan = false) {
+                return generateKuitansiAsync(biayaLayanan);
+            }
+
+            async function generateKuitansiAsync(biayaLayanan = false) {
                 let data = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
                 data = data.filter(item => Number(item.PAIDST) === 1 && item.PAIDDT);
 
@@ -1197,6 +1201,34 @@
                 if (!allSame) {
                     warningAlert('silahkan pilih siswa yang sama!');
                     return;
+                }
+
+                loadingAlert('Membuat kuitansi...');
+
+                const billsPayload = data.map(item => ({
+                    aa: item.item_id ?? item.AA,
+                    custid: item.CUSTID,
+                    billnm: item.BILLNM,
+                    bill_transno: item.TRANSNO ?? item.BILL_TRANSNO ?? '',
+                }));
+
+                let paymentLogs = [];
+                try {
+                    const response = await fetch('{{ route('admin.keuangan.penerimaan-siswa.data-penerimaan.get-trans-logs-bulk') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({bills: billsPayload}),
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (response.ok) {
+                        paymentLogs = Array.isArray(result.logs) ? result.logs : [];
+                    }
+                } catch (e) {
+                    console.error('Gagal ambil rincian pembayaran:', e);
                 }
 
                 let siswa = data[0];
@@ -1237,6 +1269,7 @@
                 );
 
                 let totalTagihan = 0;
+                let totalBayar = 0;
 
                 data.forEach((item, index) => {
                     let tanggalBayar = item.PAIDDT;
@@ -1249,14 +1282,17 @@
                         });
                     }
 
-                    totalTagihan += item.BILLAM;
+                    const billAm = Number(item.BILLAM ?? 0);
+                    const billPaid = Number(item.BILLPAID ?? item.BILLAM ?? 0);
+                    totalTagihan += billAm;
+                    totalBayar += billPaid;
 
                     tableBody.push([
                         {text: index + 1, alignment: 'center'},
                         {text: item.BILLNM, alignment: 'left'},
-                        {text: item.BTA, alignment: 'left'},
-                        {text: formatRupiah(item.BILLAM), alignment: 'right'},
-                        {text: formatRupiah(item.BILLAM), alignment: 'right'},
+                        {text: item.BILLAC ?? item.BTA ?? '-', alignment: 'left'},
+                        {text: formatRupiah(billAm), alignment: 'right'},
+                        {text: formatRupiah(billPaid), alignment: 'right'},
                         {text: formatMetodePembayaran(item.FIDBANK ?? ''), alignment: 'left'},
                         {text: tanggalBayar, alignment: 'left'},
                     ]);
@@ -1271,11 +1307,10 @@
                     ])
                 }
 
-
                 tableBody.push([
                     {colSpan: 4, text: 'Total', alignment: 'right', style: 'tableHeader'},
                     {}, {}, {},
-                    {text: formatRupiah(totalTagihan + (biayaLayanan ? 2000 : 0)), alignment: 'right'},
+                    {text: formatRupiah(totalBayar + (biayaLayanan ? 2000 : 0)), alignment: 'right'},
                     {}, {}
                 ])
 
@@ -1293,17 +1328,77 @@
                     fontSize: 12
                 });
 
+                if (paymentLogs.length) {
+                    content.push({
+                        text: 'Rincian Pembayaran',
+                        bold: true,
+                        fontSize: 12,
+                        margin: [0, 8, 0, 4],
+                    });
+
+                    const rincianBody = [];
+                    rincianBody.push(
+                        ['#', 'Nama Tagihan', 'Tanggal', 'Metode', 'Debet', 'Kredit', 'Bank', 'No Ref', 'Trans No']
+                            .map(h => ({text: h, style: 'tableHeader'})),
+                    );
+
+                    let totalDebet = 0;
+                    let totalKredit = 0;
+
+                    paymentLogs.forEach((log, index) => {
+                        const debet = Number(log.debet ?? 0);
+                        const kredit = Number(log.kredit ?? 0);
+                        totalDebet += debet;
+                        totalKredit += kredit;
+
+                        rincianBody.push([
+                            {text: index + 1, alignment: 'center'},
+                            {text: log.billnm ?? '-', alignment: 'left'},
+                            {text: log.trxdate ?? '-', alignment: 'left'},
+                            {text: log.metode ?? '-', alignment: 'left'},
+                            {text: debet > 0 ? formatRupiah(debet) : '-', alignment: 'right'},
+                            {text: kredit > 0 ? formatRupiah(kredit) : '-', alignment: 'right'},
+                            {text: formatMetodePembayaran(log.fidbank ?? ''), alignment: 'left'},
+                            {text: log.noreff ?? '-', alignment: 'left'},
+                            {text: log.transno ?? '-', alignment: 'left'},
+                        ]);
+                    });
+
+                    rincianBody.push([
+                        {colSpan: 4, text: 'Total Rincian', alignment: 'right', style: 'tableHeader'},
+                        {}, {}, {},
+                        {text: formatRupiah(totalDebet), alignment: 'right'},
+                        {text: formatRupiah(totalKredit), alignment: 'right'},
+                        {}, {}, {},
+                    ]);
+
+                    content.push({
+                        table: {
+                            widths: ['3%', '16%', '14%', '12%', '10%', '10%', '12%', '10%', '13%'],
+                            body: rincianBody,
+                        },
+                        layout: {
+                            fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
+                            hLineWidth: () => 0.5,
+                            vLineWidth: () => 0.5
+                        },
+                        margin: [0, 0, 0, 10],
+                        fontSize: 9
+                    });
+                }
+
+                Swal.close();
                 generatePdf('KUITANSI', content, siswa.CODE02);
             }
 
-            document.getElementById('cetak-kuitansi').addEventListener('click', function (e) {
+            document.getElementById('cetak-kuitansi').addEventListener('click', async function (e) {
                 e.preventDefault();
-                generateKuitansi();
+                await generateKuitansi();
             });
 
-            document.getElementById('cetak-kuitansi-2000').addEventListener('click', function (e) {
+            document.getElementById('cetak-kuitansi-2000').addEventListener('click', async function (e) {
                 e.preventDefault();
-                generateKuitansi(true);
+                await generateKuitansi(true);
             });
 
             document.getElementById('cetak-kartu-siswa').addEventListener('click', async function (e) {

@@ -35,9 +35,12 @@
         <div class="card-header header-elements">
             <h5 class="mb-0 me-2">{{($dataTitle??$mainTitle)}}</h5>
             <div class="card-header-elements ms-auto">
-                <div class="w-100">
-                    <div class="row">
-                    </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ $dataTransaksiUrl ?? route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.index') }}"
+                       class="btn btn-primary btn-sm">
+                        <span class="ri-list-check-2 me-1"></span>
+                        Data Transaksi
+                    </a>
                 </div>
             </div>
         </div>

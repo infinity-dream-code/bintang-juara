@@ -144,6 +144,7 @@ Route::prefix("admin")
                         Route::get("get-data", "getData")->name("get-data");
                         Route::get("get-column", "getColumn")->name("get-column");
                         Route::get("get-trans-log/{id}", "getTransLog")->name("get-trans-log");
+                        Route::post("get-trans-logs-bulk", "getTransLogsBulk")->name("get-trans-logs-bulk");
                         Route::get("cetak-rekap", "cetak")->name("cetak-rekap");
                         Route::get("cetak-rekap-new", "cetakNew")->name("cetak-rekap-new");
                         Route::get("cetak-kartu-siswa", "cetakKartuSiswa")->name("cetak-kartu-siswa");
@@ -180,6 +181,12 @@ Route::prefix("admin")
                         Route::get("get-data", "getData")->name("get-data");
                         Route::get("get-column", "getColumn")->name("get-column");
                         Route::get("get-saldo", "getSaldo")->name("get-saldo");
+                        Route::get("{id}/export", "exportDetail")->name("export");
+                        Route::prefix("data-transaksi")->name("data-transaksi.")->group(function () {
+                            Route::get("", "transaksiIndex")->name("index");
+                            Route::get("get-data", "getDataDataTransaksi")->name("get-data");
+                            Route::get("get-column", "getColumnDataTransaksi")->name("get-column");
+                        });
                         Route::post("tarik", "tarik")->name("tarik");
                         Route::prefix("transaksi")->name("transaksi.")->group(function () {
                             Route::get("get-data", "getDataTran")->name("get-data");

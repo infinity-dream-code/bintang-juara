@@ -68,7 +68,7 @@
                                        placeholder="tanggal/bulan/tahun"
                                        class="form-control" autocomplete="false" inputmode="numeric"/>
                             </div>
-                            <div class="mb-5">
+                            <div class="mb-5 d-none">
                                 <label class="form-label" for="tahun_akademik">
                                     Tahun Ajaran
                                 </label>
@@ -87,7 +87,7 @@
                                     @endisset
                                 </select>
                             </div>
-                            <div class="mb-5">
+                            <div class="mb-5 d-none">
                                 <label class="form-label" for="post">
                                     Post
                                 </label>
@@ -160,7 +160,7 @@
                             </div>
                         </div>
                         <div class="col">
-                            <div class="col mb-5">
+                            <div class="col mb-5 d-none">
                                 <label class="form-label" for="filter[angkatan]]">
                                     Tahun Siswa
                                 </label>
@@ -228,11 +228,11 @@
                     </div>
                     <div class="row">
                         <div class="d-flex justify-content-center flex-column flex-md-row justify-content-md-end gap-4">
-                            <button type="button" class="btn btn-facebook btn-print-rekap" id="cetak-rekap">
+                            <button type="button" class="btn btn-facebook btn-print-rekap d-none" id="cetak-rekap">
                                 <span class="ri-file-text-line me-2"></span>
                                 Cetak Rekap
                             </button>
-                            <button type="button" class="btn btn-facebook" id="cetak-per-nis">
+                            <button type="button" class="btn btn-facebook d-none" id="cetak-per-nis">
                                 <span class="ri-user-line me-2"></span>
                                 Cetak Per NIS
                             </button>

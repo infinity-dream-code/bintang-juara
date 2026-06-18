@@ -61,18 +61,17 @@
                                        class="form-control" autocomplete="false" inputmode="numeric"/>
                             </div>
                             <div class="mb-5">
-                                <label class="form-label" for="tahun_akademik">
-                                    Tahun Akademik
+                                <label class="form-label" for="filter_periode">
+                                    Periode
                                 </label>
-                                <select class="form-select" id="tahun_akademik"
-                                        name="filter[tahun_akademik]"
+                                <select class="form-select" id="filter_periode"
+                                        name="filter[periode]"
                                         data-control="select2"
-                                        data-placeholder="Pilih Tahun Akademik">
+                                        data-placeholder="Pilih Periode">
                                     <option value="all">Semua</option>
-                                    @isset($thn_aka)
-                                        @foreach($thn_aka as $item)
-                                            <option
-                                                value="{{$item->thn_aka}}">{{$item->thn_aka}}</option>
+                                    @isset($periode)
+                                        @foreach($periode as $item)
+                                            <option value="{{$item}}">{{$item}}</option>
                                         @endforeach
                                     @else
                                         <option>data kosong</option>
@@ -129,8 +128,8 @@
                                     @isset($kelas)
                                         @foreach($kelas as $item)
                                             <option
-                                                value="{{$item->jenjang}}">{{$item->unit}}
-                                                - {{$item->kelas}} {{$item->jenjang}}</option>
+                                                value="{{$item->unit}}~~{{$item->jenjang}}~~{{$item->kelas}}">{{$item->unit}}
+                                                - {{$item->jenjang}} {{$item->kelas}}</option>
                                         @endforeach
                                     @else
                                         <option>data kosong</option>

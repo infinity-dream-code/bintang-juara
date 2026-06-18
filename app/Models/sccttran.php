@@ -30,5 +30,6 @@ class sccttran extends Model
         "BILLID",
         "BILLTARGET",
         "INSTALLMENT",
+        "isreversal",
     ];
 }

@@ -313,13 +313,12 @@ class DataPenerimaanController extends Controller
         $custId = (string) $tagihan->CUSTID;
         $aa = (string) $tagihan->AA;
         $username = (string) (Auth::user()->username ?? Auth::id() ?? 'system');
-        $fidBank = (string) ($tagihan->FIDBANK ?? '');
 
         try {
             DB::connection('DATA_MYSQL')->beginTransaction();
 
-            if ($this->isCashPaymentMethod($fidBank)) {
-                $this->cancelCashPayment($tagihan);
+            if ($this->shouldCancelAsTellerPayment($tagihan)) {
+                $this->cancelCashPayment($tagihan, $username);
             } else {
                 $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username);
             }
@@ -338,15 +337,64 @@ class DataPenerimaanController extends Controller
         }
     }
 
-    /** Pembayaran tunai / loket — reset status lunas + jurnal REVERSAL di sccttran. */
-    private function isCashPaymentMethod(?string $fidBank): bool
+    /** Manual Pembayaran teller/cash — sama dengan bank yang pakai FROM TELLER di sccttran. */
+    private const TELLER_FIDBANKS = ['1140000', '1140001', '1140003', '1140004', '1140005', '1200001', '1200002'];
+
+    private const SALDO_FIDBANK = '1140002';
+
+    private function normalizeFidBank(?string $fidBank): string
     {
-        return in_array((string) $fidBank, ['1140000', '1200001', '1200002'], true);
+        return preg_replace('/\D/', '', (string) $fidBank);
     }
 
-    private function cancelCashPayment(scctbill $tagihan): void
+    /** Cash/teller: reset scctbill + insert REVERSAL. Saldo/VA lewat CancelPaymentSaldo. */
+    private function shouldCancelAsTellerPayment(scctbill $tagihan): bool
+    {
+        $fidBank = $this->normalizeFidBank($tagihan->FIDBANK ?? '');
+
+        if ($fidBank === self::SALDO_FIDBANK) {
+            return false;
+        }
+
+        if (in_array($fidBank, self::TELLER_FIDBANKS, true)) {
+            return true;
+        }
+
+        return sccttran::query()
+            ->where('BILLID', $tagihan->AA)
+            ->where('CUSTID', $tagihan->CUSTID)
+            ->whereRaw('UPPER(TRIM(METODE)) = ?', ['FROM TELLER'])
+            ->exists();
+    }
+
+    private function resolvePaidAmount(scctbill $tagihan): int
+    {
+        $billPaid = (int) ($tagihan->BILLPAID ?? 0);
+        if ($billPaid > 0) {
+            return $billPaid;
+        }
+
+        $fromTeller = (int) sccttran::query()
+            ->where('BILLID', $tagihan->AA)
+            ->where('CUSTID', $tagihan->CUSTID)
+            ->whereRaw('UPPER(TRIM(METODE)) = ?', ['FROM TELLER'])
+            ->sum('DEBET');
+
+        if ($fromTeller > 0) {
+            return $fromTeller;
+        }
+
+        return max(0, (int) ($tagihan->BILLAM ?? 0));
+    }
+
+    private function cancelCashPayment(scctbill $tagihan, string $username): void
     {
         $billAm = (int) ($tagihan->BILLAM ?? 0);
+        $nominalBayar = $this->resolvePaidAmount($tagihan);
+
+        if ($nominalBayar > 0) {
+            $this->insertReversalTransaction($tagihan, $nominalBayar, 'REVERSAL', $username);
+        }
 
         $tagihan->update([
             'PAIDST' => 0,
@@ -393,7 +441,11 @@ class DataPenerimaanController extends Controller
     private function reverseSaldoPaymentManually(scctbill $tagihan, string $username): void
     {
         $billAm = (int) ($tagihan->BILLAM ?? 0);
-        $nominalBayar = (int) ($tagihan->BILLPAID ?: $billAm);
+        $nominalBayar = $this->resolvePaidAmount($tagihan);
+
+        if ($nominalBayar > 0) {
+            $this->insertReversalTransaction($tagihan, $nominalBayar, 'JURNAL SALDO', $username);
+        }
 
         $tagihan->update([
             'PAIDST' => 0,
@@ -403,10 +455,6 @@ class DataPenerimaanController extends Controller
             'PAYMENTLEFT' => $billAm,
             'INSTALLMENT' => 0,
         ]);
-
-        if ($nominalBayar > 0) {
-            $this->insertReversalTransaction($tagihan, $nominalBayar, 'JURNAL SALDO', $username);
-        }
     }
 
     private function insertReversalTransaction(scctbill $tagihan, int $nominalBayar, string $metode, string $username): void
@@ -431,7 +479,17 @@ class DataPenerimaanController extends Controller
             'isreversal' => 1,
         ];
 
-        DB::connection('DATA_MYSQL')->table('sccttran')->insert($payload);
+        try {
+            sccttran::create($payload);
+        } catch (\Throwable $e) {
+            if (stripos($e->getMessage(), 'isreversal') === false
+                && stripos($e->getMessage(), 'Unknown column') === false) {
+                throw $e;
+            }
+
+            unset($payload['isreversal']);
+            sccttran::create($payload);
+        }
     }
 
     public function cetak(Request $request)

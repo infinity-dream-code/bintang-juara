@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\ValidationMessage;
 use App\Support\CacheHandler;
 use App\Support\FilterHandler;
+use App\Support\TagihanPaymentReversal;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -226,6 +227,38 @@ class DataTagihanController extends Controller
 
             return response()->json([
                 'message' => 'Gagal mengubah urutan tagihan: ' . $e->getMessage(),
+                'error' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function destroy($id, Request $request)
+    {
+        $custId = $request->input('user_id') ?? $request->input('custid');
+
+        $tagihan = scctbill::where('AA', $id)
+            ->where('FSTSBolehBayar', '=', 1)
+            ->where('PAIDST', '=', 0)
+            ->when($custId, fn ($q) => $q->where('CUSTID', $custId))
+            ->first();
+
+        if (!$tagihan) {
+            return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
+        }
+
+        $siswa = scctcust::where('CUSTID', $tagihan->CUSTID)->first();
+        if (!$siswa) {
+            return response()->json(['message' => 'Siswa tidak ditemukan!'], 422);
+        }
+
+        try {
+            app(TagihanPaymentReversal::class)->deleteUnpaidTagihan($tagihan, $request);
+            Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
+
+            return response()->json(['message' => 'Tagihan dihapus!'], 200);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Gagal Menghapus Tagihan!',
                 'error' => $e->getMessage(),
             ], 422);
         }

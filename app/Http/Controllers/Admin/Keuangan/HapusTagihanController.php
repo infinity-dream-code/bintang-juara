@@ -10,6 +10,7 @@ use App\Models\scctbill;
 use App\Models\scctbill_detail;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
+use App\Support\TagihanPaymentReversal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -231,25 +232,32 @@ class HapusTagihanController extends Controller
 
     public function destroy($id, Request $request)
     {
+        $custId = $request->input('user_id') ?? $request->input('custid');
+
         $tagihan = scctbill::where('AA', $id)
             ->where('FSTSBolehBayar', '=', 1)
             ->where('PAIDST', '=', 0)
+            ->when($custId, fn ($q) => $q->where('CUSTID', $custId))
             ->first();
-        if (!$tagihan) return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
 
-        $siswa = scctcust::where('CUSTID', $request->input('user_id'))->first();
-        if (!$siswa) return response()->json(['message' => 'Siswa tidak ditemukan!'], 422);
+        if (!$tagihan) {
+            return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
+        }
+
+        $siswa = scctcust::where('CUSTID', $tagihan->CUSTID)->first();
+        if (!$siswa) {
+            return response()->json(['message' => 'Siswa tidak ditemukan!'], 422);
+        }
 
         try {
-            DB::beginTransaction();
-            $tagihan->update([
-                'FSTSBolehBayar' => 0
-            ]);
-            DB::commit();
+            app(TagihanPaymentReversal::class)->deleteUnpaidTagihan($tagihan, $request);
+
             return response()->json(['message' => 'Tagihan dihapus!'], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['message' => 'Gagal Menghapus Tagihan!'], 422);
+            return response()->json([
+                'message' => 'Gagal Menghapus Tagihan!',
+                'error' => $e->getMessage(),
+            ], 422);
         }
     }
 
@@ -280,13 +288,23 @@ class HapusTagihanController extends Controller
         }
 
         try {
-            DB::beginTransaction();
-            $tagihan = scctbill::whereIn('AA', $request->AA)->update(['FSTSBolehBayar' => 0]);
-            DB::commit();
+            $reversal = app(TagihanPaymentReversal::class);
+            $tagihans = scctbill::query()
+                ->whereIn('AA', $request->AA)
+                ->where('FSTSBolehBayar', 1)
+                ->where('PAIDST', 0)
+                ->get();
+
+            foreach ($tagihans as $tagihan) {
+                $reversal->deleteUnpaidTagihan($tagihan, $request);
+            }
+
             return response()->json(['message' => 'Tagihan dihapus!'], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['message' => 'Gagal Menghapus Tagihan!'], 422);
+            return response()->json([
+                'message' => 'Gagal Menghapus Tagihan!',
+                'error' => $e->getMessage(),
+            ], 422);
         }
     }
 }

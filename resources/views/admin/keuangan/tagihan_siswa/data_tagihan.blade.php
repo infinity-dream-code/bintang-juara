@@ -826,7 +826,7 @@
                     loadingAlert('Menghapus tagihan....');
                     item_id = document.getElementById('delete_id').value;
                     user_id = document.getElementById('user_delete_id').value;
-                    url = '{{route('admin.keuangan.hapus-tagihan.destroy',':id')}}'
+                    url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.destroy',':id')}}'
                     url = url.replace(':id', item_id)
 
                     request = new Request(

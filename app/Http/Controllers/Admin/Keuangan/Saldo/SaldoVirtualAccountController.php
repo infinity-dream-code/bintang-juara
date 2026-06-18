@@ -205,17 +205,35 @@ class SaldoVirtualAccountController extends Controller
         }
 
         $transactions = $this->getCustTransactions($id);
-        $exportPayload = $this->buildExportPayload($siswa, $transactions);
+        $totalKredit = (int) $transactions->sum('KREDIT');
+        $totalDebet = (int) $transactions->sum('DEBET');
+        $saldo = $totalKredit - $totalDebet;
+
+        if ($siswa->NOCUST && $siswa->NOCUST != '-') {
+            $nova = scctcust::showVA($siswa->NOCUST);
+        } else {
+            $nova = scctcust::showVA($siswa->NUM2ND);
+        }
+
+        $nis = preg_replace('/\D/', '', (string) ($siswa->NOCUST ?? $siswa->nocust ?? $siswa->CUSTID));
+        $filename = 'transaksi-saldo-va-' . ($nis !== '' ? $nis : $siswa->CUSTID) . '-' . date('Ymd-His') . '.xlsx';
 
         return Excel::download(
             new SaldoVirtualAccountDetailExport(
-                $exportPayload['rows'],
-                $exportPayload['sectionTitleRow'],
-                $exportPayload['columnHeaderRow'],
-                $exportPayload['tableDataEndRow'],
-                $exportPayload['totalRow'],
+                [
+                    'nis' => (string) ($siswa->NOCUST ?? $siswa->nocust ?? '-'),
+                    'nama' => (string) ($siswa->NMCUST ?? $siswa->nmcust ?? '-'),
+                    'unit' => (string) ($siswa->CODE02 ?? '-'),
+                    'kelas' => (string) ($siswa->DESC02 ?? '-'),
+                    'kelompok' => (string) ($siswa->DESC03 ?? '-'),
+                    'nova' => (string) ($nova ?? '-'),
+                ],
+                $transactions,
+                $totalDebet,
+                $totalKredit,
+                $saldo,
             ),
-            $exportPayload['filename']
+            $filename
         );
     }
 
@@ -250,67 +268,6 @@ class SaldoVirtualAccountController extends Controller
         }
 
         return null;
-    }
-
-    private function buildExportPayload(scctcust $siswa, $transactions): array
-    {
-        $totalKredit = (int) $transactions->sum('KREDIT');
-        $totalDebet = (int) $transactions->sum('DEBET');
-        $saldo = $totalKredit - $totalDebet;
-
-        if ($siswa->NOCUST && $siswa->NOCUST != '-') {
-            $nova = scctcust::showVA($siswa->NOCUST);
-        } else {
-            $nova = scctcust::showVA($siswa->NUM2ND);
-        }
-
-        $rows = [
-            ['Detail Saldo Virtual Account'],
-            [],
-            ['NIS', $siswa->NOCUST ?? $siswa->nocust ?? '-'],
-            ['Nama', $siswa->NMCUST ?? $siswa->nmcust ?? '-'],
-            ['Unit', $siswa->CODE02 ?? '-'],
-            ['Kelas', $siswa->DESC02 ?? '-'],
-            ['Kelompok', $siswa->DESC03 ?? '-'],
-            ['No Virtual Account', $nova ?? '-'],
-            ['Total Saldo', $saldo],
-            [],
-            ['Riwayat Transaksi'],
-            ['No', 'Metode', 'Tanggal Transaksi', 'Debet', 'Kredit', 'No Ref', 'Trans No'],
-        ];
-
-        foreach ($transactions as $index => $trx) {
-            $rows[] = [
-                $index + 1,
-                $trx->METODE ?? '-',
-                $trx->TRXDATE ? date('d-m-Y H:i:s', strtotime($trx->TRXDATE)) : '-',
-                (int) ($trx->DEBET ?? 0),
-                (int) ($trx->KREDIT ?? 0),
-                $trx->NOREFF ?? '-',
-                $trx->TRANSNO ?? '-',
-            ];
-        }
-
-        $transactionCount = $transactions->count();
-        $sectionTitleRow = 11;
-        $columnHeaderRow = 12;
-        $tableDataEndRow = $columnHeaderRow + $transactionCount;
-        $totalRow = $tableDataEndRow + 2;
-
-        $rows[] = [];
-        $rows[] = ['', '', 'Total', $totalDebet, $totalKredit, '', ''];
-
-        $nis = preg_replace('/\D/', '', (string) ($siswa->NOCUST ?? $siswa->nocust ?? $siswa->CUSTID));
-        $filename = 'transaksi-saldo-va-' . ($nis !== '' ? $nis : $siswa->CUSTID) . '-' . date('Ymd-His') . '.xlsx';
-
-        return [
-            'rows' => $rows,
-            'sectionTitleRow' => $sectionTitleRow,
-            'columnHeaderRow' => $columnHeaderRow,
-            'tableDataEndRow' => $tableDataEndRow,
-            'totalRow' => $totalRow,
-            'filename' => $filename,
-        ];
     }
 
     private function getCustTransactions(string|int $custId)

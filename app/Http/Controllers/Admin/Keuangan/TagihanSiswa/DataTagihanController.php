@@ -64,7 +64,8 @@ class DataTagihanController extends Controller
                 'orderable' => false,
                 'dataVal' => false,
                 'columnType' => 'button',
-                'className' => 'text-center',
+                'className' => 'text-center exclude-selection',
+                'excludeFromSelection' => true,
                 'button' => 'action',
                 'buttonText' => '+',
                 'buttonClass' => 'btn btn-sm btn-primary btn-detail-trx',
@@ -101,7 +102,8 @@ class DataTagihanController extends Controller
                 'orderable' => false,
                 'dataVal' => false,
                 'columnType' => 'button',
-                'className' => 'text-center',
+                'className' => 'text-center exclude-selection',
+                'excludeFromSelection' => true,
                 'button' => 'action',
                 'buttonText' => 'Hapus',
                 'buttonClass' => 'btn btn-sm btn-danger btn-hapus',
@@ -226,163 +228,73 @@ class DataTagihanController extends Controller
     public function cetak(Request $request)
     {
         ini_set('max_execution_time', 300);
-//        $pdf = Pdf::loadView('cetak.data-penerimaan')->setPaper('a4', 'landscape');
-//        return $pdf->download('rekap-tagihan.pdf');
 
         try {
-            $filters = [];
-            $filterQuery = null;
+            $filterQuery = $this->resolveTagihanFilterQuery($request);
+            $selectedBillNames = $this->resolveSelectedBillNames($request);
 
-            $filter = FilterHandler::resolveFilters($request->input('filter'), $this->allowedFilters);
-            if (!is_array($filter)) {
-                $filter = [];
+            $mstTagihanQuery = mst_tagihan::query()
+                ->select('urut', 'tagihan', 'kode')
+                ->orderBy('urut');
+
+            if (!empty($selectedBillNames)) {
+                $mstTagihanQuery->whereIn('tagihan', $selectedBillNames);
             }
 
-            // Multi-select Nama Tagihan dikirim sebagai filter[post][].
-            $rawPosts = $request->input('filter.post', []);
-            if (!is_array($rawPosts) && !is_null($rawPosts) && $rawPosts !== '') {
-                $rawPosts = [$rawPosts];
-            }
-            if (is_array($rawPosts)) {
-                $postValues = array_values(array_filter($rawPosts, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
-                if (!empty($postValues)) {
-                    $filter['scctbill.BILLNM'] = $postValues;
-                }
-            }
-            if ($filter) {
-                foreach ($filter as $key => $val) {
-                    switch ($key) {
-                        case 'scctbill.FTGLTagihan':
-                            if (preg_match('/^\d{2}-\d{2}-\d{4} [-\/~] \d{2}-\d{2}-\d{4}$/', $val)) {
-                                $val = preg_replace('/[-\/~]/', '-', $val);
-
-                                list($startDate, $endDate) = explode(' - ', $val);
-                                $startDate = Carbon::createFromFormat('d-m-Y', $startDate)->startOfDay();
-                                $endDate = Carbon::createFromFormat('d-m-Y', $endDate)->endOfDay();
-                                if ($startDate && $endDate) {
-                                    ($key) && $filters[] = [$key, $startDate, $endDate, 'whereBetween'];
-                                }
-                            }
-                            break;
-                        case 'scctcust.nmcust':
-                            $val = is_numeric($val) ? $val : '%' . $val . '%';
-                            $colName = is_numeric($val) ? 'scctcust.nocust' : $key;
-                            ($colName) && $filters[] = [$colName, 'like', $val];
-                            break;
-                        case 'scctbill.BILLNM':
-                            if (is_array($val)) {
-                                $postValues = array_values(array_filter($val, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
-                                if (!empty($postValues)) {
-                                    $filters[] = ['scctbill.BILLNM', 'in', $postValues];
-                                }
-                            } else {
-                                ($key) && $filters[] = [$key, '=', $val];
-                            }
-                            break;
-                        case 'scctbill.BTA':
-                            $normalizedVal = str_replace([' ', '-'], ['', '/'], trim((string) $val));
-                            $filters[] = [
-                                'whereRaw',
-                                '(REPLACE(REPLACE(TRIM(scctbill.BTA), " ", ""), "-", "/") = ? OR REPLACE(REPLACE(TRIM(scctcust.DESC04), " ", ""), "-", "/") = ?)',
-                                [$normalizedVal, $normalizedVal]
-                            ];
-                            break;
-                        default:
-                            ($key) && $filters[] = [$key, '=', $val];
-                            break;
-                        case 'scctcust.DESC02':
-                            $delimiter = str_contains($val, '~~') ? '~~' : ',';
-                            $val = explode($delimiter, $val);
-                            if (count($val) == 3) {
-                                if (!$this->sekolah) {
-                                    $filters[] = [
-                                        "scctcust.CODE02",
-                                        "=",
-                                        $val[0],
-                                    ];
-                                }
-                                $filters[] = ['scctcust.DESC02', '=', $val[1]];
-                                $filters[] = ['scctcust.DESC03', '=', $val[2]];
-                            }
-                            break;
-                        case 'scctcust.CODE02':
-                            $filters[] = ["scctcust.CODE02", "=", $val];
-                            break;
-                    }
-                };
-
-                if ($this->sekolah !== null && $this->sekolah !== '') {
-                    $filters[] = ['scctcust.CODE02', '=', $this->sekolah];
-                }
-
-                if (!empty($filters)) {
-                    $filterQuery = function ($query) use ($filters) {
-                        foreach ($filters as $filter) {
-                            if (($filter[0] ?? null) === 'whereRaw') {
-                                $query->whereRaw($filter[1], $filter[2] ?? []);
-                                continue;
-                            }
-                            if (count($filter) === 3) {
-                                if (($filter[1] ?? null) === 'in' && is_array($filter[2] ?? null)) {
-                                    $query->whereIn($filter[0], $filter[2]);
-                                } else {
-                                    $query->where($filter[0], $filter[1], $filter[2]);
-                                }
-                            } elseif (count($filter) === 4) {
-                                if ($filter[3] == 'whereBetween') {
-                                    $query->whereBetween($filter[0], [$filter[1], $filter[2]]);
-                                } else {
-                                    $query->{$filter[3]}($filter[0], $filter[1], $filter[2]);
-                                }
-                            }
-                        }
-                    };
-                }
-
-
-                $posts = mst_tagihan::select('urut', 'tagihan', 'kode')->get()
-                    ->map(function ($item) use ($filterQuery) {
-                        $item->tagihans = scctbill::leftJoin('scctcust', 'scctcust.CUSTID', 'scctbill.CUSTID')
-                            ->select([
-                                'scctcust.nmcust',
-                                'scctcust.nocust',
-                                'scctbill.AA',
-                                'scctbill.BILLNM',
-                                'scctbill.BILLAM',
-                                'scctbill.PAIDST',
-                                'scctbill.PAIDDT',
-                                'scctbill.BTA',
-                                'scctbill.FIDBANK',
-                                'scctbill.FUrutan',
-                                'scctcust.CODE02',
-                                'scctcust.DESC02',
-                            ])
-                            ->where('scctbill.BILLNM', $item->tagihan)
-                            ->where(function ($q) {
-                                $q->whereNull('scctbill.PAIDST')
-                                    ->orWhere('scctbill.PAIDST', '<>', 1);
-                            })
-                            ->where(function ($query) use ($filterQuery) {
-                                if ($filterQuery) {
-                                    $filterQuery($query);
-                                }
-                            })
-                            ->orderBy('scctbill.CUSTID', 'desc')
-                            ->orderBy('scctbill.BTA', 'desc')
-                            ->orderBy('scctbill.PAIDDT', 'desc')
-                            ->get()
-                            ->toArray();;
-
-                        return $item;
-                    });
-
-            }
-            if ($posts) {
-                $pdf = Pdf::loadView('cetak.data-tagihan', ['posts' => $posts])->setPaper('a4', 'landscape');
-                return $pdf->download('rekap-tagihan.pdf');
-            } else {
+            $mstTagihan = $mstTagihanQuery->get();
+            if ($mstTagihan->isEmpty()) {
                 return response()->json(['message' => 'Data Kosong'], 422);
             }
+
+            $records = scctbill::query()
+                ->join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
+                ->select([
+                    'scctcust.nmcust',
+                    'scctcust.nocust',
+                    'scctbill.AA',
+                    'scctbill.BILLNM',
+                    'scctbill.BILLAM',
+                    'scctbill.PAIDST',
+                    'scctbill.PAIDDT',
+                    'scctbill.BTA',
+                    'scctbill.FIDBANK',
+                    'scctbill.FUrutan',
+                    'scctcust.CODE02',
+                    'scctcust.DESC02',
+                ])
+                ->whereIn('scctbill.BILLNM', $mstTagihan->pluck('tagihan'))
+                ->where(function ($q) {
+                    $q->whereNull('scctbill.PAIDST')
+                        ->orWhere('scctbill.PAIDST', '<>', 1);
+                })
+                ->where('scctbill.FSTSBolehBayar', 1)
+                ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
+                ->when($filterQuery, function ($query) use ($filterQuery) {
+                    $filterQuery($query);
+                })
+                ->orderBy('scctbill.CUSTID', 'desc')
+                ->orderBy('scctbill.BTA', 'desc')
+                ->orderBy('scctbill.PAIDDT', 'desc')
+                ->get();
+
+            $groupedByBill = $records->groupBy('BILLNM');
+
+            $posts = $mstTagihan->map(function ($item) use ($groupedByBill) {
+                $item->tagihans = ($groupedByBill->get($item->tagihan) ?? collect())
+                    ->map(fn ($row) => $row->toArray())
+                    ->values()
+                    ->all();
+
+                return $item;
+            });
+
+            if ($posts->every(fn ($post) => empty($post->tagihans))) {
+                return response()->json(['message' => 'Data Kosong'], 422);
+            }
+
+            $pdf = Pdf::loadView('cetak.data-tagihan', ['posts' => $posts])->setPaper('a4', 'landscape');
+
+            return $pdf->download('rekap-tagihan.pdf');
         } catch (\Exception $e) {
             return response()->json(['message' => 'Tidak dapat mencetak rekap', 'error' => $e->getMessage(), 'e' => $e], 422);
         }
@@ -476,114 +388,8 @@ class DataTagihanController extends Controller
             $columnName = 'scctbill.' . $columnName;
         }
 
-        $filters = [];
-        $filterQuery = null;
-
-        $filter = FilterHandler::resolveFilters($request->input('filter'), $this->allowedFilters);
-        if (!is_array($filter)) {
-            $filter = [];
-        }
-
-        // Multi-select Nama Tagihan dikirim sebagai filter[post][].
-        $rawPosts = $request->input('filter.post', []);
-        if (!is_array($rawPosts) && !is_null($rawPosts) && $rawPosts !== '') {
-            $rawPosts = [$rawPosts];
-        }
-        if (is_array($rawPosts)) {
-            $postValues = array_values(array_filter($rawPosts, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
-            if (!empty($postValues)) {
-                $filter['scctbill.BILLNM'] = $postValues;
-            }
-        }
-
-        if ($this->sekolah !== null) {
-            $filter = array_merge($filter, [
-                'scctcust.CODE02' => $this->sekolah,
-            ]);
-        }
-
-        if ($filter) {
-            foreach ($filter as $key => $val) {
-                switch ($key) {
-                    case 'scctbill.FTGLTagihan':
-                        if (preg_match('/^\d{2}-\d{2}-\d{4} [-\/~] \d{2}-\d{2}-\d{4}$/', $val)) {
-                            $val = preg_replace('/[-\/~]/', '-', $val);
-
-                            list($startDate, $endDate) = explode(' - ', $val);
-                            $startDate = Carbon::createFromFormat('d-m-Y', $startDate)->startOfDay();
-                            $endDate = Carbon::createFromFormat('d-m-Y', $endDate)->endOfDay();
-                            if ($startDate && $endDate) {
-                                ($key) && $filters[] = [$key, $startDate, $endDate, 'whereBetween'];
-                            }
-                        }
-                        break;
-                    case 'scctcust.nmcust':
-                        $val = is_numeric($val) ? $val : '%' . $val . '%';
-                        $colName = is_numeric($val) ? 'scctcust.nocust' : $key;
-                        ($colName) && $filters[] = [$colName, 'like', $val];
-                        break;
-                    case 'scctbill.BILLNM':
-                        if (is_array($val)) {
-                            $postValues = array_values(array_filter($val, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
-                            if (!empty($postValues)) {
-                                $filters[] = ['scctbill.BILLNM', 'in', $postValues];
-                            }
-                        } else {
-                            ($key) && $filters[] = [$key, '=', $val];
-                        }
-                        break;
-                    case 'scctbill.BTA':
-                        $normalizedVal = str_replace([' ', '-'], ['', '/'], trim((string) $val));
-                        $filters[] = [
-                            'whereRaw',
-                            '(REPLACE(REPLACE(TRIM(scctbill.BTA), " ", ""), "-", "/") = ? OR REPLACE(REPLACE(TRIM(scctcust.DESC04), " ", ""), "-", "/") = ?)',
-                            [$normalizedVal, $normalizedVal]
-                        ];
-                        break;
-                    case 'scctcust.DESC02':
-                        $val = explode("~~", $val);
-                        if (count($val) == 3) {
-                            $filters[] = ['scctcust.CODE02', '=', $val[0]];
-                            $filters[] = ['scctcust.DESC02', '=', $val[1]];
-                            $filters[] = ['scctcust.DESC03', '=', $val[2]];
-                        }
-                        break;
-                    case 'scctcust.CODE02':
-                        $filters[] = ["scctcust.CODE02", "=", $val];
-                        break;
-                    case 'scctcust.DESC04':
-                        $filters[] = ['scctcust.DESC04', '=', $val];
-                        break;
-                    default:
-                        ($key) && $filters[] = [$key, '=', $val];
-                        break;
-                }
-            };
-
-            if (!empty($filters)) {
-                $filterQuery = function ($query) use ($filters) {
-                    foreach ($filters as $filter) {
-                        if (($filter[0] ?? null) === 'whereRaw') {
-                            $query->whereRaw($filter[1], $filter[2] ?? []);
-                            continue;
-                        }
-                        if (count($filter) === 3) {
-                            if (($filter[1] ?? null) === 'in' && is_array($filter[2] ?? null)) {
-                                $query->whereIn($filter[0], $filter[2]);
-                            } else {
-                                $query->where($filter[0], $filter[1], $filter[2]);
-                            }
-                        } elseif (count($filter) === 4) {
-                            if ($filter[3] == 'whereBetween') {
-                                $query->whereBetween($filter[0], [$filter[1], $filter[2]]);
-                            } else {
-                                $query->{$filter[3]}($filter[0], $filter[1], $filter[2]);
-                            }
-                        }
-                    }
-                };
-            }
-        }
+        $filterQuery = $this->resolveTagihanFilterQuery($request);
+        $filter = $request->input('filter', []);
 
         $whereAny = [
             'scctcust.NMCUST',
@@ -610,14 +416,14 @@ class DataTagihanController extends Controller
 
         ]));
 
-        $query = scctbill::leftJoin('scctcust', 'scctcust.CUSTID', 'scctbill.CUSTID')
+        $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
             ->select($select)
             ->selectRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) AS FUrutan')
             ->where(function ($q) {
                 $q->whereNull('scctbill.PAIDST')
                     ->orWhere('scctbill.PAIDST', '<>', 1);
             })
-            ->where('scctcust.STCUST', 1)
+            ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
             ->where('scctbill.FSTSBolehBayar', 1)
             ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
                 $query->where(function ($q) use ($whereAny, $searchValue) {
@@ -720,6 +526,7 @@ class DataTagihanController extends Controller
                     'BILLAM_TOTAL' => $get('BILLAM'),
                     'BILLAM' => $get('PAYMENTLEFT'),
                     'BILLPAID' => $get('BILLPAID'),
+                    'PAYMENTLEFT' => $get('PAYMENTLEFT'),
                     'BILLAC' => $get('BILLAC'),
                     'BTA' => $get('BTA'),
                     'PAIDST' => $get('PAIDST'),
@@ -731,12 +538,7 @@ class DataTagihanController extends Controller
                         ? '0'
                         : (string) (int) $furutan,
                     'detail_trx' => true,
-                    'TRX_LOGS' => $this->getTransactionLogsForBill(
-                        $get('CUSTID'),
-                        $get('AA'),
-                        $get('BILL_TRANSNO'),
-                        $get('BILLNM')
-                    ),
+                    'TRX_LOGS' => [],
                     'BILL_TRANSNO' => $get('BILL_TRANSNO'),
                     'print' => true,
                     'delete' => true,
@@ -860,12 +662,142 @@ class DataTagihanController extends Controller
         return Cache::remember(
             "{$this->cacheKey}:total_all_data",
             now()->addMinutes(10),
-            fn() => scctbill::where(function ($q) {
-                $q->whereNull('scctbill.PAIDST')
-                    ->orWhere('scctbill.PAIDST', '<>', 1);
-            })
-            ->where('scctbill.FSTSBolehBayar', 1)
-            ->count()
+            fn() => scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
+                ->where(function ($q) {
+                    $q->whereNull('scctbill.PAIDST')
+                        ->orWhere('scctbill.PAIDST', '<>', 1);
+                })
+                ->where('scctbill.FSTSBolehBayar', 1)
+                ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
+                ->count()
         );
+    }
+
+    private function resolveSelectedBillNames(Request $request): array
+    {
+        $rawPosts = $request->input('filter.post', []);
+        if (!is_array($rawPosts) && !is_null($rawPosts) && $rawPosts !== '') {
+            $rawPosts = [$rawPosts];
+        }
+
+        if (!is_array($rawPosts)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $rawPosts,
+            fn ($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'
+        ));
+    }
+
+    private function resolveTagihanFilterQuery(Request $request): ?\Closure
+    {
+        $filters = [];
+
+        $filter = FilterHandler::resolveFilters($request->input('filter'), $this->allowedFilters);
+        if (!is_array($filter)) {
+            $filter = [];
+        }
+
+        $postValues = $this->resolveSelectedBillNames($request);
+        if (!empty($postValues)) {
+            $filter['scctbill.BILLNM'] = $postValues;
+        }
+
+        if ($this->sekolah !== null) {
+            $filter = array_merge($filter, [
+                'scctcust.CODE02' => $this->sekolah,
+            ]);
+        }
+
+        if (!$filter) {
+            return null;
+        }
+
+        foreach ($filter as $key => $val) {
+            switch ($key) {
+                case 'scctbill.FTGLTagihan':
+                    if (preg_match('/^\d{2}-\d{2}-\d{4} [-\/~] \d{2}-\d{2}-\d{4}$/', $val)) {
+                        $val = preg_replace('/[-\/~]/', '-', $val);
+
+                        list($startDate, $endDate) = explode(' - ', $val);
+                        $startDate = Carbon::createFromFormat('d-m-Y', $startDate)->startOfDay();
+                        $endDate = Carbon::createFromFormat('d-m-Y', $endDate)->endOfDay();
+                        if ($startDate && $endDate) {
+                            ($key) && $filters[] = [$key, $startDate, $endDate, 'whereBetween'];
+                        }
+                    }
+                    break;
+                case 'scctcust.nmcust':
+                    $val = is_numeric($val) ? $val : '%' . $val . '%';
+                    $colName = is_numeric($val) ? 'scctcust.nocust' : $key;
+                    ($colName) && $filters[] = [$colName, 'like', $val];
+                    break;
+                case 'scctbill.BILLNM':
+                    if (is_array($val)) {
+                        $billNames = array_values(array_filter($val, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
+                        if (!empty($billNames)) {
+                            $filters[] = ['scctbill.BILLNM', 'in', $billNames];
+                        }
+                    } else {
+                        ($key) && $filters[] = [$key, '=', $val];
+                    }
+                    break;
+                case 'scctbill.BTA':
+                    $normalizedVal = str_replace([' ', '-'], ['', '/'], trim((string) $val));
+                    $filters[] = [
+                        'whereRaw',
+                        '(REPLACE(REPLACE(TRIM(scctbill.BTA), " ", ""), "-", "/") = ? OR REPLACE(REPLACE(TRIM(scctcust.DESC04), " ", ""), "-", "/") = ?)',
+                        [$normalizedVal, $normalizedVal],
+                    ];
+                    break;
+                case 'scctcust.DESC02':
+                    $delimiter = str_contains((string) $val, '~~') ? '~~' : '~~';
+                    $parts = explode($delimiter, (string) $val);
+                    if (count($parts) == 3) {
+                        if (!$this->sekolah) {
+                            $filters[] = ['scctcust.CODE02', '=', $parts[0]];
+                        }
+                        $filters[] = ['scctcust.DESC02', '=', $parts[1]];
+                        $filters[] = ['scctcust.DESC03', '=', $parts[2]];
+                    }
+                    break;
+                case 'scctcust.CODE02':
+                    $filters[] = ['scctcust.CODE02', '=', $val];
+                    break;
+                case 'scctcust.DESC04':
+                    $filters[] = ['scctcust.DESC04', '=', $val];
+                    break;
+                default:
+                    ($key) && $filters[] = [$key, '=', $val];
+                    break;
+            }
+        }
+
+        if (empty($filters)) {
+            return null;
+        }
+
+        return function ($query) use ($filters) {
+            foreach ($filters as $filter) {
+                if (($filter[0] ?? null) === 'whereRaw') {
+                    $query->whereRaw($filter[1], $filter[2] ?? []);
+                    continue;
+                }
+                if (count($filter) === 3) {
+                    if (($filter[1] ?? null) === 'in' && is_array($filter[2] ?? null)) {
+                        $query->whereIn($filter[0], $filter[2]);
+                    } else {
+                        $query->where($filter[0], $filter[1], $filter[2]);
+                    }
+                } elseif (count($filter) === 4) {
+                    if ($filter[3] == 'whereBetween') {
+                        $query->whereBetween($filter[0], [$filter[1], $filter[2]]);
+                    } else {
+                        $query->{$filter[3]}($filter[0], $filter[1], $filter[2]);
+                    }
+                }
+            }
+        };
     }
 }

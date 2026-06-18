@@ -83,6 +83,37 @@ function addRupiahStyleOnce(xlsx) {
     return xfCount - 1;
 }
 
+function addBoldHeaderStyleOnce(xlsx) {
+    const stylesXml = xlsx.xl['styles.xml'];
+    const fonts = stylesXml.getElementsByTagName('fonts')[0];
+
+    const font = stylesXml.createElement('font');
+    font.appendChild(stylesXml.createElement('b'));
+    fonts.appendChild(font);
+    fonts.setAttribute('count', String(fonts.getElementsByTagName('font').length));
+
+    const fontId = fonts.getElementsByTagName('font').length - 1;
+
+    const cellXfs = stylesXml.getElementsByTagName('cellXfs')[0];
+    const xf = stylesXml.createElement('xf');
+    xf.setAttribute('numFmtId', '0');
+    xf.setAttribute('fontId', String(fontId));
+    xf.setAttribute('fillId', '0');
+    xf.setAttribute('borderId', '0');
+    xf.setAttribute('xfId', '0');
+    xf.setAttribute('applyFont', '1');
+
+    cellXfs.appendChild(xf);
+    const xfCount = cellXfs.getElementsByTagName('xf').length;
+    cellXfs.setAttribute('count', String(xfCount));
+
+    return xfCount - 1;
+}
+
+function applyBoldHeaderRow(sheet, styleIndex) {
+    $('row:first c', sheet).attr('s', String(styleIndex));
+}
+
 function applyStyleToColumns(sheetXml, styleIndex, targetColumnIndexes) {
     $('row c[r]', sheetXml).each(function () {
         const cell = $(this);
@@ -479,6 +510,9 @@ function dtButtons(options, buttons) {
 
                 const duplicateCols = getDuplicateExportColumns(options.dataColumns);
                 mergeExcelDuplicates(xlsx, sheet, duplicateCols);
+
+                const boldHeaderStyleIndex = addBoldHeaderStyleOnce(xlsx);
+                applyBoldHeaderRow(sheet, boldHeaderStyleIndex);
             },
         },
         pdf: {

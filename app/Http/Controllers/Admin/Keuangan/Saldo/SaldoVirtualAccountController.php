@@ -176,10 +176,10 @@ class SaldoVirtualAccountController extends Controller
                 }
                 $data['siswa']->NOVA = $NOVA;
 
-                $data['totalKredit'] = $this->applySaldoWalletScope(sccttran::query())
+                $data['totalKredit'] = (int) $this->applySaldoWalletScope(sccttran::query())
                     ->where('CUSTID', $id)
                     ->sum('KREDIT');
-                $data['totalDebet'] = $this->applySaldoWalletScope(sccttran::query())
+                $data['totalDebet'] = (int) $this->applySaldoWalletScope(sccttran::query())
                     ->where('CUSTID', $id)
                     ->sum('DEBET');
 //                $data['siswa']-> = $NOVA;
@@ -403,9 +403,8 @@ class SaldoVirtualAccountController extends Controller
 
     public function getDataTran(Request $request)
     {
-        $custid = $request->CUSTID;
+        $custid = $request->input('CUSTID');
         $filters = [];
-        $filterQuery = null;
 
         $draw = $request->get('draw');
         $start = $request->get("start");
@@ -451,21 +450,11 @@ class SaldoVirtualAccountController extends Controller
                     };
                     ($colName) && $filters[] = [$colName, '=', $val];
                 }
-            };
+            }
         }
 
-        ($custid) && $filters[] = ['sccttran.CUSTID', '=', $custid];
-        $filters[] = ['whereRaw', 'UPPER(TRIM(sccttran.METODE)) = ?', [self::METODE_TRANSFER]];
-        if (!empty($filters)) {
-            $filterQuery = function ($query) use ($filters) {
-                foreach ($filters as $filter) {
-                    if (count($filter) === 3) {
-                        $query->where($filter[0], $filter[1], $filter[2]);
-                    } elseif (count($filter) === 4) {
-                        $query->{$filter[3]}($filter[0], $filter[1], $filter[2]);
-                    }
-                }
-            };
+        if ($custid) {
+            $filters[] = ['sccttran.CUSTID', '=', $custid];
         }
 
         $whereAny = [
@@ -473,7 +462,6 @@ class SaldoVirtualAccountController extends Controller
             'scctcust.NOCUST',
             'scctcust.NUM2ND',
             'sccttran.METODE',
-
         ];
 
         $select = array_merge($whereAny, [
@@ -488,55 +476,69 @@ class SaldoVirtualAccountController extends Controller
             'sccttran.TRANSNO',
         ]);
 
-        $query = sccttran::whereAny($whereAny, 'like', '%' . $searchValue . '%')
-            ->leftJoin('scctcust', 'scctcust.CUSTID', 'sccttran.CUSTID')
-            ->where(function ($query) use ($filterQuery) {
-                if ($filterQuery) {
-                    $filterQuery($query);
+        $query = $this->applyTransferMetodeScope(
+            sccttran::query()->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
+        );
+
+        if (!empty($filters)) {
+            $this->applyFilterQuery($query, $filters);
+        }
+
+        if (!blank($searchValue)) {
+            $query->where(function ($q) use ($whereAny, $searchValue) {
+                $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
+                foreach ($whereAny as $column) {
+                    $q->orWhere($column, 'like', '%' . $sanitizeSearch . '%');
                 }
             });
+        }
 
-//        dd($query);
+        $totalRecords = $this->applyTransferMetodeScope(sccttran::query())
+            ->when($custid, fn ($q) => $q->where('CUSTID', $custid))
+            ->count();
 
-        // Total records
-        $totalRecords = sccttran::select('count(sccttran.*) as allcount')->count();
-        $totalRecordswithFilter = $query->count();
+        $totalRecordswithFilter = (clone $query)->count();
 
-        $records = $query->orderBy($columnName, $columnSortOrder)
+        $records = (clone $query)
+            ->orderBy($columnName, $columnSortOrder)
             ->select($select)
             ->skip($start)
             ->take($rowperpage)
             ->get()
-            ->map(function ($item, $index) {
+            ->map(function ($item) {
                 unset($item->id);
+
                 return $item;
-            })->toArray();
+            })
+            ->toArray();
+
+        $totalKredit = 0;
+        $totalDebet = 0;
 
         if ($custid) {
-            $totalKredit = Cache::remember("total_kredit_transfer_custid_" . $custid, 600,
-                function () use ($custid) {
-                    return $this->applyTransferMetodeScope(sccttran::query())
-                        ->where('CUSTID', $custid)
-                        ->sum('KREDIT');
-                }
+            $totalKredit = Cache::remember(
+                "total_kredit_transfer_custid_" . $custid,
+                600,
+                fn () => (int) $this->applyTransferMetodeScope(sccttran::query())
+                    ->where('CUSTID', $custid)
+                    ->sum('KREDIT')
             );
 
-            $totalDebet = Cache::remember("total_debet_transfer_custid_" . $custid, 600,
-                function () use ($custid) {
-                    return $this->applyTransferMetodeScope(sccttran::query())
-                        ->where('CUSTID', $custid)
-                        ->sum('DEBET');
-                }
+            $totalDebet = Cache::remember(
+                "total_debet_transfer_custid_" . $custid,
+                600,
+                fn () => (int) $this->applyTransferMetodeScope(sccttran::query())
+                    ->where('CUSTID', $custid)
+                    ->sum('DEBET')
             );
         }
 
-        $response = array(
+        $response = [
             "draw" => intval($draw),
             "recordsTotal" => $totalRecords,
             "recordsFiltered" => $totalRecordswithFilter,
             "data" => $records,
-        );
-
+        ];
 
         if ($custid) {
             $response['totals'] = [
@@ -544,6 +546,7 @@ class SaldoVirtualAccountController extends Controller
                 'debet' => ['location' => 3, 'value' => $totalDebet, 'columnType' => 'currency'],
             ];
         }
+
         return response()->json($response);
     }
 

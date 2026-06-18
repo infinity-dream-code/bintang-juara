@@ -249,6 +249,14 @@
             </form>
         </div>
         <div class="card-datatable table-responsive text-nowrap">
+            <div id="tagihan-urutan-toolbar" class="d-none">
+                <button type="button" id="btn-naik-toolbar" class="btn btn-outline-primary me-2" disabled>
+                    <span class="ri-arrow-up-line me-1"></span>Naikkan
+                </button>
+                <button type="button" id="btn-turun-toolbar" class="btn btn-outline-primary me-2" disabled>
+                    <span class="ri-arrow-down-line me-1"></span>Turunkan
+                </button>
+            </div>
             <table class="table table-sm table-bordered table-hover"
                    id="main_table">
                 <thead class="table-light">
@@ -415,7 +423,7 @@
 
     <script src="{{asset('main/libs/select2/select2.js')}}"></script>
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260610-row-border"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260618-excel-bold-header"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-daterangepicker/bootstrap-daterangepicker.js')}}"></script>
 
@@ -507,17 +515,56 @@
             return true;
         }
 
-        function getSelectedTagihanRow() {
-            const selectedRows = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
+        function getSelectedTagihanRows() {
+            if (!DT[`${dtOptions.tableId}`]) {
+                return [];
+            }
+            return DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
+        }
+
+        function getSelectedTagihanRow(showAlert = true) {
+            const selectedRows = getSelectedTagihanRows();
             if (selectedRows.length === 0) {
-                warningAlert('Pilih 1 data tagihan dulu.');
+                if (showAlert) {
+                    warningAlert('Pilih 1 data tagihan dulu.');
+                }
                 return null;
             }
             if (selectedRows.length > 1) {
-                warningAlert('Pilih 1 data saja untuk ubah urutan.');
+                if (showAlert) {
+                    warningAlert('Pilih 1 data saja untuk ubah urutan.');
+                }
                 return null;
             }
             return selectedRows[0];
+        }
+
+        function syncTagihanCheckboxSelection() {
+            const dt = DT[`${dtOptions.tableId}`];
+            if (!dt) {
+                return;
+            }
+
+            const selectedIndexes = dt.rows({selected: true}).indexes().toArray();
+            $('#main_table .checkbox-siswa').each(function () {
+                const rowIndex = dt.row($(this).closest('tr')).index();
+                this.checked = selectedIndexes.includes(rowIndex);
+            });
+        }
+
+        function updateUrutanToolbarState() {
+            const naikBtn = document.getElementById('btn-naik-toolbar');
+            const turunBtn = document.getElementById('btn-turun-toolbar');
+            if (!naikBtn || !turunBtn) {
+                return;
+            }
+
+            const selected = getSelectedTagihanRow(false);
+            const urut = parseInt(selected?.FUrutan ?? selected?.furutan ?? '0', 10);
+            const canChange = !!selected && Number.isFinite(urut) && urut > 0;
+
+            naikBtn.disabled = !canChange;
+            turunBtn.disabled = !canChange;
         }
 
         function submitUbahUrutanDirect(direction) {
@@ -569,28 +616,32 @@
         }
 
         function ensureUrutanToolbarButtons() {
-            const wrapper = document.querySelector(`#${dtOptions.tableId}_wrapper`);
-            if (!wrapper) return;
-            const dtButtons = wrapper.querySelector('.dt-buttons');
-            if (!dtButtons) return;
-            if (wrapper.querySelector('#btn-naik-toolbar') || wrapper.querySelector('#btn-turun-toolbar')) return;
+            const actionBar = document.querySelector(`#${dtOptions.tableId}_wrapper .dt-action-buttons`);
+            const dtButtons = actionBar?.querySelector('.dt-buttons');
+            const sourceToolbar = document.getElementById('tagihan-urutan-toolbar');
+            const naikBtn = document.getElementById('btn-naik-toolbar');
+            const turunBtn = document.getElementById('btn-turun-toolbar');
 
-            const naikBtn = document.createElement('button');
-            naikBtn.type = 'button';
-            naikBtn.id = 'btn-naik-toolbar';
-            naikBtn.className = 'btn btn-secondary me-2';
-            naikBtn.innerHTML = '<span class="ri-arrow-up-line me-2"></span>Naikkan';
-            naikBtn.addEventListener('click', () => submitUbahUrutanDirect('naik'));
+            if (!actionBar || !dtButtons || !naikBtn || !turunBtn) {
+                return;
+            }
 
-            const turunBtn = document.createElement('button');
-            turunBtn.type = 'button';
-            turunBtn.id = 'btn-turun-toolbar';
-            turunBtn.className = 'btn btn-secondary me-2';
-            turunBtn.innerHTML = '<span class="ri-arrow-down-line me-2"></span>Turunkan';
-            turunBtn.addEventListener('click', () => submitUbahUrutanDirect('turun'));
+            if (naikBtn.dataset.mounted !== '1') {
+                naikBtn.addEventListener('click', () => submitUbahUrutanDirect('naik'));
+                turunBtn.addEventListener('click', () => submitUbahUrutanDirect('turun'));
+                naikBtn.dataset.mounted = '1';
+            }
 
-            dtButtons.parentNode.insertBefore(turunBtn, dtButtons);
-            dtButtons.parentNode.insertBefore(naikBtn, turunBtn);
+            if (naikBtn.closest('.dt-action-buttons') !== actionBar) {
+                actionBar.insertBefore(turunBtn, dtButtons);
+                actionBar.insertBefore(naikBtn, turunBtn);
+            }
+
+            if (sourceToolbar && !sourceToolbar.children.length) {
+                sourceToolbar.remove();
+            }
+
+            updateUrutanToolbarState();
         }
 
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
@@ -846,10 +897,33 @@
                 });
         }
 
+        $(document).on('change', '#main_table .checkbox-siswa', function (e) {
+            e.stopPropagation();
+            const dt = DT[`${dtOptions.tableId}`];
+            if (!dt) {
+                return;
+            }
+
+            const $row = $(this).closest('tr');
+            if (this.checked) {
+                $('#main_table .checkbox-siswa').not(this).prop('checked', false);
+                dt.rows().deselect();
+                dt.row($row).select();
+            } else {
+                dt.row($row).deselect();
+            }
+            updateUrutanToolbarState();
+        });
+
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
                 setTimeout(ensureUrutanToolbarButtons, 300);
+                $(`#${dtOptions.tableId}`).on('init.dt draw.dt select.dt deselect.dt', function () {
+                    ensureUrutanToolbarButtons();
+                    syncTagihanCheckboxSelection();
+                    updateUrutanToolbarState();
+                });
                 $(`#${dtOptions.tableId}`).on('draw.dt', function () {
                     closeAllTransLogRows();
                 });
@@ -900,7 +974,7 @@
                         xhrFields: {
                             responseType: 'blob'
                         },
-                        timeout: 50000
+                        timeout: 180000
                     }
                     $.ajax(ajaxOptions).done(function (response, status, xhr) {
                         try {
@@ -1311,11 +1385,13 @@
                     });
 
                     const tableBody = [
-                        ['#', 'Tanggal Bayar', 'Tahun Akademik', 'Nama Tagihan', 'Tagihan', 'Status']
+                        ['#', 'Tanggal Bayar', 'Tahun Akademik', 'Nama Tagihan', 'Total Tagihan', 'Total Bayar', 'Sisa', 'Status']
                             .map(h => ({text: h, style: 'tableHeader'}))
                     ];
 
-                    let total = 0;
+                    let totalTagihan = 0;
+                    let totalBayar = 0;
+                    let totalSisa = 0;
                     const sortedTagihans = [...(data.tagihans || [])].sort((a, b) => {
                         const urutA = Number(a?.FUrutan ?? 0);
                         const urutB = Number(b?.FUrutan ?? 0);
@@ -1333,20 +1409,28 @@
                                 minute: '2-digit'
                             })
                             : '-';
+                        const jumlahTagihan = Number(item.BILLAM_TOTAL ?? 0);
+                        const jumlahBayar = Number(item.BILLPAID ?? 0);
+                        const sisaTagihan = Number(item.PAYMENTLEFT ?? item.BILLAM ?? 0);
+
                         tableBody.push([
                             {text: String(index + 1), alignment: 'center', border: [true, true, true, true]},
                             {text: tanggalBayar, border: [true, true, true, true]},
                             {text: item.BTA || '-', border: [true, true, true, true]},
                             {text: item.BILLNM || '-', border: [true, true, true, true]},
-                            {text: formatRupiah(item.BILLAM), alignment: 'right', border: [true, true, true, true]},
+                            {text: formatRupiah(jumlahTagihan), alignment: 'right', border: [true, true, true, true]},
+                            {text: formatRupiah(jumlahBayar), alignment: 'right', border: [true, true, true, true]},
+                            {text: formatRupiah(sisaTagihan), alignment: 'right', border: [true, true, true, true]},
                             {
-                                text: Number(item.PAIDST) === 1 ? 'LUNAS' : 'BELUM LUNAS',
+                                text: Number(item.PAIDST) === 1 || sisaTagihan <= 0 ? 'LUNAS' : 'BELUM LUNAS',
                                 alignment: 'center',
                                 border: [true, true, true, true]
                             }
                         ]);
 
-                        total += item.BILLAM;
+                        totalTagihan += jumlahTagihan;
+                        totalBayar += jumlahBayar;
+                        totalSisa += sisaTagihan;
                     });
 
                     tableBody.push([
@@ -1355,7 +1439,19 @@
                         '',
                         '',
                         {
-                            text: formatRupiah(total),
+                            text: formatRupiah(totalTagihan),
+                            style: 'tableHeader',
+                            alignment: 'right',
+                            border: [true, true, true, true]
+                        },
+                        {
+                            text: formatRupiah(totalBayar),
+                            style: 'tableHeader',
+                            alignment: 'right',
+                            border: [true, true, true, true]
+                        },
+                        {
+                            text: formatRupiah(totalSisa),
                             style: 'tableHeader',
                             alignment: 'right',
                             border: [true, true, true, true]
@@ -1368,7 +1464,7 @@
 
                     bodyContent.push({
                         table: {
-                            widths: ['8%', '18%', '16%', '24%', '18%', '16%'],
+                            widths: ['6%', '13%', '11%', '18%', '13%', '13%', '13%', '13%'],
                             body: tableBody
                         },
                         layout: {

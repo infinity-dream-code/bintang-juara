@@ -11,6 +11,7 @@ use App\Models\u_akun;
 use App\Models\scctbill;
 use App\Models\scctbill_detail;
 use App\Models\scctcust;
+use App\Models\sccttran;
 use App\Models\User;
 use App\Support\CacheHandler;
 use App\Support\FilterHandler;
@@ -318,16 +319,9 @@ class DataPenerimaanController extends Controller
             DB::connection('DATA_MYSQL')->beginTransaction();
 
             if ($this->isCashPaymentMethod($fidBank)) {
-                $tagihan->update([
-                    'PAIDST' => 0,
-                    'PAIDDT' => null,
-                    'PAIDDT_ACTUAL' => null,
-                ]);
+                $this->cancelCashPayment($tagihan);
             } else {
-                DB::connection('DATA_MYSQL')->select(
-                    'CALL CancelPaymentSaldo(?, ?, ?)',
-                    [$custId, $aa, $username]
-                );
+                $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username);
             }
 
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
@@ -344,10 +338,100 @@ class DataPenerimaanController extends Controller
         }
     }
 
-    /** Pembayaran tunai / loket — cukup reset status lunas di scctbill. */
+    /** Pembayaran tunai / loket — reset status lunas + jurnal REVERSAL di sccttran. */
     private function isCashPaymentMethod(?string $fidBank): bool
     {
         return in_array((string) $fidBank, ['1140000', '1200001', '1200002'], true);
+    }
+
+    private function cancelCashPayment(scctbill $tagihan): void
+    {
+        $billAm = (int) ($tagihan->BILLAM ?? 0);
+
+        $tagihan->update([
+            'PAIDST' => 0,
+            'PAIDDT' => null,
+            'PAIDDT_ACTUAL' => null,
+            'BILLPAID' => 0,
+            'PAYMENTLEFT' => $billAm,
+            'INSTALLMENT' => 0,
+        ]);
+    }
+
+    private function cancelSaldoOrVaPayment(scctbill $tagihan, string $custId, string $aa, string $username): void
+    {
+        try {
+            $this->callCancelPaymentSaldo($custId, $aa, $username);
+        } catch (\Throwable $e) {
+            $message = $e->getMessage();
+            $procedureMissing = stripos($message, 'CancelPaymentSaldo') !== false
+                && (
+                    stripos($message, 'does not exist') !== false
+                    || stripos($message, '1305') !== false
+                );
+
+            if (!$procedureMissing) {
+                throw $e;
+            }
+
+            $this->reverseSaldoPaymentManually($tagihan, $username);
+        }
+    }
+
+    private function callCancelPaymentSaldo(string $custId, string $aa, string $username): void
+    {
+        $pdo = DB::connection('DATA_MYSQL')->getPdo();
+        $stmt = $pdo->prepare('CALL CancelPaymentSaldo(?, ?, ?)');
+        $stmt->execute([$custId, $aa, $username]);
+
+        do {
+            $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } while ($stmt->nextRowset());
+    }
+
+    /** Fallback jika procedure CancelPaymentSaldo gagal / tidak ada. */
+    private function reverseSaldoPaymentManually(scctbill $tagihan, string $username): void
+    {
+        $billAm = (int) ($tagihan->BILLAM ?? 0);
+        $nominalBayar = (int) ($tagihan->BILLPAID ?: $billAm);
+
+        $tagihan->update([
+            'PAIDST' => 0,
+            'PAIDDT' => null,
+            'PAIDDT_ACTUAL' => null,
+            'BILLPAID' => 0,
+            'PAYMENTLEFT' => $billAm,
+            'INSTALLMENT' => 0,
+        ]);
+
+        if ($nominalBayar > 0) {
+            $this->insertReversalTransaction($tagihan, $nominalBayar, 'JURNAL SALDO', $username);
+        }
+    }
+
+    private function insertReversalTransaction(scctbill $tagihan, int $nominalBayar, string $metode, string $username): void
+    {
+        $lastInstallment = (int) sccttran::query()
+            ->where('BILLID', $tagihan->AA)
+            ->where('CUSTID', $tagihan->CUSTID)
+            ->max('INSTALLMENT');
+
+        $payload = [
+            'CUSTID' => $tagihan->CUSTID,
+            'METODE' => $metode,
+            'TRXDATE' => now(),
+            'NOREFF' => 'REVERSAL',
+            'FIDBANK' => (string) ($tagihan->FIDBANK ?? ''),
+            'DEBET' => 0,
+            'KREDIT' => $nominalBayar,
+            'BILLID' => $tagihan->AA,
+            'BILLTARGET' => $tagihan->BILLNM,
+            'INSTALLMENT' => $lastInstallment,
+            'TRANSNO' => $tagihan->TRANSNO ?? $username,
+            'isreversal' => 1,
+        ];
+
+        DB::connection('DATA_MYSQL')->table('sccttran')->insert($payload);
     }
 
     public function cetak(Request $request)

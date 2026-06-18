@@ -705,7 +705,10 @@
                     },
                 }
                 $.ajax(ajaxOptions).done(function (response) {
-                    let saldo = parseInt(response.replace(/\./g, ''));
+                    const raw = typeof response === 'object' && response !== null
+                        ? (response.saldo ?? 0)
+                        : response;
+                    let saldo = parseInt(String(raw).replace(/\./g, ''), 10) || 0;
                     saldo = saldo.toLocaleString('id-ID');
 
                     $('#saldo').val(saldo);

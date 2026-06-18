@@ -322,9 +322,8 @@ class ManualPembayaranController extends Controller
             DB::beginTransaction();
 
             if ($request->bank == '1140002') {
-                $newRequest = new Request(['siswa' => $request->siswa]);
                 $saldoController = new SaldoVirtualAccountController();
-                $saldo = $saldoController->getSaldo($newRequest);
+                $saldo = $saldoController->resolveCustSaldo($request->siswa);
                 if ($saldo < $totalBayar) {
                     DB::rollBack();
                     return response()->json(['message' => 'Saldo siswa kurang.<br> saldo: Rp.' . $saldo], 422);

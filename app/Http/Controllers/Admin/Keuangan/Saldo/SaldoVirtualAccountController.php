@@ -176,10 +176,10 @@ class SaldoVirtualAccountController extends Controller
                 }
                 $data['siswa']->NOVA = $NOVA;
 
-                $data['totalKredit'] = (int) $this->applySaldoWalletScope(sccttran::query())
+                $data['totalKredit'] = (int) sccttran::query()
                     ->where('CUSTID', $id)
                     ->sum('KREDIT');
-                $data['totalDebet'] = (int) $this->applySaldoWalletScope(sccttran::query())
+                $data['totalDebet'] = (int) sccttran::query()
                     ->where('CUSTID', $id)
                     ->sum('DEBET');
 //                $data['siswa']-> = $NOVA;
@@ -320,7 +320,7 @@ class SaldoVirtualAccountController extends Controller
             'scctcust.DESC04',
         ]));
 
-        $saldoAgg = $this->applySaldoWalletScope(sccttran::query())
+        $saldoAgg = sccttran::query()
             ->select([
                 'CUSTID',
                 DB::raw('COALESCE(SUM(KREDIT), 0) AS kredit'),
@@ -550,18 +550,22 @@ class SaldoVirtualAccountController extends Controller
         return response()->json($response);
     }
 
-    public function getSaldo(Request $request)
+    public function resolveCustSaldo(string|int|null $custId): int
     {
-        if ($request->siswa) {
-            $saldo = $this->applySaldoWalletScope(sccttran::query())
-                ->selectRaw('COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) as saldo')
-                ->where('CUSTID', $request->siswa)
-                ->groupBy('CUSTID')
-                ->first();
-
-            return $saldo->saldo ?? 0;
+        if (blank($custId)) {
+            return 0;
         }
 
-        return 0;
+        return (int) sccttran::query()
+            ->where('CUSTID', $custId)
+            ->selectRaw('COALESCE(SUM(KREDIT), 0) - COALESCE(SUM(DEBET), 0) AS saldo')
+            ->value('saldo');
+    }
+
+    public function getSaldo(Request $request)
+    {
+        return response()->json([
+            'saldo' => $this->resolveCustSaldo($request->input('siswa')),
+        ]);
     }
 }

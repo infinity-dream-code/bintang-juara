@@ -490,7 +490,7 @@ class DataPenerimaanController extends Controller
 
         try {
             // Procedure MySQL tidak boleh dibungkus transaction Laravel.
-            $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username);
+            $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username, $request);
 
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
 
@@ -599,14 +599,21 @@ class DataPenerimaanController extends Controller
             ->update(['KREDIT' => 0]);
     }
 
-    private function cancelSaldoOrVaPayment(scctbill $tagihan, string $custId, string $aa, string $username): void
+    private function cancelSaldoOrVaPayment(scctbill $tagihan, string $custId, string $aa, string $username, Request $request): void
     {
+        $userId = $this->resolveCyberKeyUserId();
+        $hostname = $this->resolveClientHostname($request);
+        $billCd = (string) ($tagihan->BILLCD ?? '');
+
         try {
-            $this->callCancelPaymentSaldo($custId, $aa, $username);
+            $this->callCancelPaymentSaldo($custId, $aa, $billCd, $userId, $hostname);
 
             Log::info('data-penerimaan.cancel.procedure_ok', [
                 'custid' => $custId,
                 'aa' => $aa,
+                'billcd' => $billCd,
+                'users' => $userId,
+                'hostname' => $hostname,
             ]);
         } catch (\Throwable $e) {
             Log::error('data-penerimaan.cancel.procedure_failed', [
@@ -656,22 +663,40 @@ class DataPenerimaanController extends Controller
             );
     }
 
-    private function callCancelPaymentSaldo(string $custId, string $aa, string $username): void
+    private function callCancelPaymentSaldo(string $custId, string $aa, string $billCd, string $userId, string $hostname): void
     {
         Log::info('data-penerimaan.cancel.call_procedure', [
             'procedure' => 'CancelPaymentSaldo',
             'custid' => $custId,
             'aa' => $aa,
-            'username' => $username,
+            'billcd' => $billCd,
+            'users' => $userId,
+            'hostname' => $hostname,
         ]);
 
         $pdo = DB::connection('DATA_MYSQL')->getPdo();
-        $stmt = $pdo->prepare('CALL CancelPaymentSaldo(?, ?, ?)');
-        $stmt->execute([$custId, $aa, $username]);
+        $stmt = $pdo->prepare('CALL CancelPaymentSaldo(?, ?, ?, ?, ?)');
+        $stmt->execute([$custId, $aa, $billCd, $userId, $hostname]);
 
         do {
             $stmt->fetchAll(\PDO::FETCH_ASSOC);
         } while ($stmt->nextRowset());
+    }
+
+    private function resolveCyberKeyUserId(): string
+    {
+        $user = Auth::user();
+
+        if ($user === null) {
+            return '';
+        }
+
+        return (string) ($user->urut ?? Auth::id() ?? '');
+    }
+
+    private function resolveClientHostname(Request $request): string
+    {
+        return Str::limit((string) ($request->ip() ?? ''), 250, '');
     }
 
     /** Fallback jika procedure CancelPaymentSaldo gagal / tidak ada. */

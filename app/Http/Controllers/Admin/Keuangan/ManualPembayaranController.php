@@ -58,6 +58,7 @@ class ManualPembayaranController extends Controller
             ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
             ['data' => 'BILLAC', 'name' => 'Periode', 'searchable' => true, 'orderable' => true, 'columnType' => 'periode'],
             ['data' => 'BILLAM', 'name' => 'Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
+            ['data' => 'PAYMENTLEFT', 'name' => 'Sisa Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
             [
                 'data' => null,
                 'name' => 'Nominal Bayar',
@@ -156,7 +157,8 @@ class ManualPembayaranController extends Controller
                     } else {
                         $item->NOVA = '-';
                     }
-                    $item->sisa_bayar = $this->resolvePaymentLeft($item);
+                    $item->PAYMENTLEFT = $this->resolvePaymentLeft($item);
+                    $item->sisa_bayar = $item->PAYMENTLEFT;
                     $item->can_cicil = mst_tagihan::canInstallment($item->BILLNM) ? 1 : 0;
                     unset($item->AA);
                     return $item;

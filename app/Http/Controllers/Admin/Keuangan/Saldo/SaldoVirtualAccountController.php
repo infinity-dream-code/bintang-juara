@@ -26,11 +26,18 @@ class SaldoVirtualAccountController extends Controller
     private string $showTitle = 'Detail Saldo  Virtual Account';
     private string $cacheKey = 'saldo_virtual_account';
 
-    /** Top-up saldo VA dari transfer (H2H / VA). */
-    private const METODE_TRANSFER = 'TRANSFER';
+    /** Pembayaran manual cash — tidak masuk saldo/jurnal VA. */
+    private const FIDBANK_MANUAL_CASH = '1140000';
 
-    /** Pembayaran tagihan memakai saldo VA. */
-    private const FIDBANK_SALDO = '1140002';
+    /** Tampilkan semua transaksi sccttran kecuali manual cash (1140000). */
+    private function excludeManualCashScope($query, string $fidBankColumn = 'FIDBANK')
+    {
+        return $query->where(function ($q) use ($fidBankColumn) {
+            $q->whereNull($fidBankColumn)
+                ->orWhereRaw("TRIM(COALESCE(CAST({$fidBankColumn} AS CHAR), '')) = ''")
+                ->orWhereRaw("TRIM(COALESCE(CAST({$fidBankColumn} AS CHAR), '')) != ?", [self::FIDBANK_MANUAL_CASH]);
+        });
+    }
 
     private array $allowedFilters = [
         'kelas' => 'scctcust.DESC02',
@@ -58,30 +65,6 @@ class SaldoVirtualAccountController extends Controller
             ->unique()
             ->values()
             ->all();
-    }
-
-    /** Hanya transaksi top-up transfer VA (tampilan detail / daftar transfer). */
-    private function applyTransferMetodeScope($query)
-    {
-        return $query->whereRaw('UPPER(TRIM(METODE)) = ?', [self::METODE_TRANSFER]);
-    }
-
-    /**
-     * Transaksi yang mempengaruhi saldo VA:
-     * - TRANSFER = top-up
-     * - FROM TELLER + FIDBANK saldo = pembayaran tagihan
-     * - JURNAL SALDO = reversal batal bayar
-     */
-    private function applySaldoWalletScope($query)
-    {
-        return $query->where(function ($q) {
-            $q->whereRaw('UPPER(TRIM(METODE)) = ?', [self::METODE_TRANSFER])
-                ->orWhere(function ($q2) {
-                    $q2->whereRaw('UPPER(TRIM(METODE)) = ?', ['FROM TELLER'])
-                        ->where('FIDBANK', self::FIDBANK_SALDO);
-                })
-                ->orWhereRaw('UPPER(TRIM(METODE)) = ?', ['JURNAL SALDO']);
-        });
     }
 
     private function applyFilterQuery($query, array $filters): void
@@ -176,10 +159,10 @@ class SaldoVirtualAccountController extends Controller
                 }
                 $data['siswa']->NOVA = $NOVA;
 
-                $data['totalKredit'] = (int) sccttran::query()
+                $data['totalKredit'] = (int) $this->excludeManualCashScope(sccttran::query())
                     ->where('CUSTID', $id)
                     ->sum('KREDIT');
-                $data['totalDebet'] = (int) sccttran::query()
+                $data['totalDebet'] = (int) $this->excludeManualCashScope(sccttran::query())
                     ->where('CUSTID', $id)
                     ->sum('DEBET');
 //                $data['siswa']-> = $NOVA;
@@ -320,7 +303,7 @@ class SaldoVirtualAccountController extends Controller
             'scctcust.DESC04',
         ]));
 
-        $saldoAgg = sccttran::query()
+        $saldoAgg = $this->excludeManualCashScope(sccttran::query())
             ->select([
                 'CUSTID',
                 DB::raw('COALESCE(SUM(KREDIT), 0) AS kredit'),
@@ -476,8 +459,9 @@ class SaldoVirtualAccountController extends Controller
             'sccttran.TRANSNO',
         ]);
 
-        $query = $this->applyTransferMetodeScope(
-            sccttran::query()->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
+        $query = $this->excludeManualCashScope(
+            sccttran::query()->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID'),
+            'sccttran.FIDBANK'
         );
 
         if (!empty($filters)) {
@@ -493,7 +477,7 @@ class SaldoVirtualAccountController extends Controller
             });
         }
 
-        $totalRecords = $this->applyTransferMetodeScope(sccttran::query())
+        $totalRecords = $this->excludeManualCashScope(sccttran::query())
             ->when($custid, fn ($q) => $q->where('CUSTID', $custid))
             ->count();
 
@@ -517,17 +501,17 @@ class SaldoVirtualAccountController extends Controller
 
         if ($custid) {
             $totalKredit = Cache::remember(
-                "total_kredit_transfer_custid_" . $custid,
+                "total_kredit_va_custid_" . $custid,
                 600,
-                fn () => (int) $this->applyTransferMetodeScope(sccttran::query())
+                fn () => (int) $this->excludeManualCashScope(sccttran::query())
                     ->where('CUSTID', $custid)
                     ->sum('KREDIT')
             );
 
             $totalDebet = Cache::remember(
-                "total_debet_transfer_custid_" . $custid,
+                "total_debet_va_custid_" . $custid,
                 600,
-                fn () => (int) $this->applyTransferMetodeScope(sccttran::query())
+                fn () => (int) $this->excludeManualCashScope(sccttran::query())
                     ->where('CUSTID', $custid)
                     ->sum('DEBET')
             );

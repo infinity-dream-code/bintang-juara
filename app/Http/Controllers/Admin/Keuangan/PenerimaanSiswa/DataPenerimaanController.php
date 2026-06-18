@@ -95,7 +95,23 @@ class DataPenerimaanController extends Controller
     public function getColumn()
     {
         return [
-            ['data' => 'AA', 'name' => 'no', 'columnType' => 'row'],
+            [
+                'data' => 'detail_trx',
+                'name' => '+',
+                'orderable' => false,
+                'dataVal' => false,
+                'columnType' => 'button',
+                'className' => 'text-center exclude-selection',
+                'excludeFromSelection' => true,
+                'button' => 'action',
+                'buttonText' => '+',
+                'buttonClass' => 'btn btn-sm btn-primary btn-detail-trx',
+                'buttonLink' => '#',
+                'noCaption' => false,
+                'exportable' => false,
+                'duplicate' => false,
+            ],
+            ['data' => null, 'name' => 'no', 'columnType' => 'row'],
             ['data' => 'nocust', 'name' => 'NIS', 'searchable' => true, 'orderable' => true],
             ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
             ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true],
@@ -109,14 +125,18 @@ class DataPenerimaanController extends Controller
             [
                 'data' => 'delete',
                 'name' => '',
+                'orderable' => false,
                 'dataVal' => false,
                 'columnType' => 'button',
-                'className' => 'text-center',
+                'className' => 'text-center exclude-selection',
+                'excludeFromSelection' => true,
                 'button' => 'action',
                 'buttonText' => 'Batal',
                 'buttonClass' => 'btn btn-sm btn-danger btn-batal-bayar',
                 'buttonLink' => '#modal-delete',
-                'buttonIcon' => 'ri-delete-bin-line me-2'
+                'buttonIcon' => 'ri-delete-bin-line me-2',
+                'exportable' => false,
+                'duplicate' => false,
             ],
         ];
     }
@@ -140,8 +160,7 @@ class DataPenerimaanController extends Controller
             if (
                 $columnIndex !== null &&
                 !empty($columnName_arr[$columnIndex]["data"]) &&
-                $columnName_arr[$columnIndex]["data"] !== "no" &&
-                $columnName_arr[$columnIndex]["data"] !== "AA"
+                !in_array($columnName_arr[$columnIndex]["data"], ['no', 'AA', 'detail_trx', 'delete'], true)
             ) {
                 $columnName = $columnName_arr[$columnIndex]["data"];
                 $columnSortOrder = $order_arr[0]["dir"] ?? "desc";
@@ -229,6 +248,7 @@ class DataPenerimaanController extends Controller
             'scctbill.BTA',
             'scctbill.FIDBANK',
             'scctbill.FUrutan',
+            'scctbill.TRANSNO',
             'scctcust.CODE02',
             'scctcust.DESC02',
             'scctcust.DESC03',
@@ -273,6 +293,10 @@ class DataPenerimaanController extends Controller
             ->map(function ($item, $index) {
                 $item->item_id = $item->AA;
                 $item->delete = true;
+                $item->detail_trx = true;
+                $item->NOCUST = $item->nocust;
+                $item->NMCUST = $item->nmcust;
+                $item->BILL_TRANSNO = $item->TRANSNO ?? null;
                 return $item;
             })->toArray();
 
@@ -283,6 +307,102 @@ class DataPenerimaanController extends Controller
             "data" => $records ?? [],
         );
         return response()->json($response);
+    }
+
+    public function getTransLog($id, Request $request)
+    {
+        $custId = $request->input('custid');
+        $billTransNo = $request->input('bill_transno');
+        $billName = $request->input('billnm');
+
+        if (blank($custId)) {
+            $bill = scctbill::query()
+                ->where('AA', $id)
+                ->select(['CUSTID', 'TRANSNO', 'BILLNM'])
+                ->first();
+            if ($bill) {
+                $custId = $bill->CUSTID;
+                $billTransNo = $billTransNo ?: $bill->TRANSNO;
+                $billName = $billName ?: $bill->BILLNM;
+            }
+        }
+
+        $logs = $this->getTransactionLogsForBill($custId, $id, $billTransNo, $billName);
+
+        if (empty($logs)) {
+            $logs = sccttran::query()
+                ->where('BILLID', $id)
+                ->orderBy('TRXDATE', 'desc')
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NOREFF', 'TRANSNO'])
+                ->map(function ($trx) {
+                    return [
+                        'trxdate' => $trx->TRXDATE
+                            ? Carbon::parse($trx->TRXDATE)->format('d-m-Y H:i:s')
+                            : null,
+                        'metode' => $trx->METODE,
+                        'debet' => (int) ($trx->DEBET ?? 0),
+                        'kredit' => (int) ($trx->KREDIT ?? 0),
+                        'fidbank' => $trx->FIDBANK,
+                        'noreff' => $trx->NOREFF,
+                        'transno' => $trx->TRANSNO,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return response()->json(['logs' => $logs], 200);
+    }
+
+    private function getTransactionLogsForBill($custId, $aa, $billTransNo = null, $billName = null): array
+    {
+        if (blank($aa)) {
+            return [];
+        }
+
+        try {
+            $primaryLogs = sccttran::query()
+                ->where('BILLID', $aa)
+                ->orderBy('TRXDATE', 'desc')
+                ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NOREFF', 'TRANSNO']);
+
+            $logsCollection = $primaryLogs;
+            if ($logsCollection->isEmpty()) {
+                $logsCollection = sccttran::query()
+                    ->where(function ($q) use ($billTransNo, $billName) {
+                        if (!blank($billTransNo) && (string) $billTransNo !== '-') {
+                            $q->orWhere('TRANSNO', $billTransNo);
+                        }
+                        if (!blank($billName)) {
+                            $q->orWhereRaw('UPPER(TRIM(BILLTARGET)) = UPPER(TRIM(?))', [$billName]);
+                        }
+                    })
+                    ->when(!blank($custId), function ($q) use ($custId) {
+                        $q->where('CUSTID', $custId);
+                    })
+                    ->orderBy('TRXDATE', 'desc')
+                    ->get(['TRXDATE', 'METODE', 'DEBET', 'KREDIT', 'FIDBANK', 'NOREFF', 'TRANSNO']);
+            }
+
+            return $logsCollection
+                ->map(function ($trx) {
+                    return [
+                        'trxdate' => $trx->TRXDATE
+                            ? Carbon::parse($trx->TRXDATE)->format('d-m-Y H:i:s')
+                            : null,
+                        'metode' => $trx->METODE,
+                        'debet' => (int) ($trx->DEBET ?? 0),
+                        'kredit' => (int) ($trx->KREDIT ?? 0),
+                        'fidbank' => $trx->FIDBANK,
+                        'noreff' => $trx->NOREFF,
+                        'transno' => $trx->TRANSNO,
+                    ];
+                })
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     public function total(): int

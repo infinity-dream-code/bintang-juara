@@ -8,6 +8,84 @@
             border-left: none;
             border-right: none;
         }
+
+        .trx-log-detail-row > td {
+            padding: 0 !important;
+            background: #f5f7fb;
+            border-left: 3px solid #696cff;
+        }
+
+        .trx-log-panel {
+            padding: 0.75rem 1rem 1rem;
+        }
+
+        .trx-log-panel__header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .trx-log-panel__title {
+            font-weight: 600;
+            color: #566a7f;
+            margin-right: auto;
+        }
+
+        .trx-log-panel__title i {
+            color: #696cff;
+            margin-right: 0.25rem;
+        }
+
+        .trx-log-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.2rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            background: #fff;
+            border: 1px solid #d9dee3;
+            color: #566a7f;
+        }
+
+        .trx-log-table thead th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+            background: #eef0ff !important;
+            color: #566a7f;
+        }
+
+        .trx-log-table tbody td {
+            font-size: 0.82rem;
+            vertical-align: middle;
+        }
+
+        .trx-log-metode {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .trx-log-amount--debet {
+            color: #ff3e1d;
+            font-weight: 600;
+        }
+
+        .trx-log-amount--kredit {
+            color: #71dd37;
+            font-weight: 600;
+        }
+
+        .trx-log-empty {
+            padding: 1.25rem;
+            text-align: center;
+            color: #a1acb8;
+            font-size: 0.9rem;
+        }
     </style>
     <link rel="stylesheet" href="{{asset('main/libs/select2/select2.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/select2/select2-bootstrap.css')}}">
@@ -393,6 +471,12 @@
         const modalDeleteElement = document.getElementById('modal-delete');
         const modalDelete = new bootstrap.Modal(document.getElementById('modal-delete'));
 
+        function formatRupiah(amount) {
+            const value = Number(amount) || 0;
+            if (value <= 0) return '-';
+            return 'Rp. ' + value.toLocaleString('id-ID');
+        }
+
         modalDeleteElement.addEventListener('hide.bs.modal', function () {
             const form = document.getElementById('form-delete');
             form.reset();
@@ -422,6 +506,160 @@
                 }
             }
         });
+
+        $(document).on('click', '#main_table tbody .btn-detail-trx', async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $rowEl = $(this).closest('tr');
+            const dtRow = DT[`${dtOptions.tableId}`].row($rowEl);
+            const rowData = dtRow.data();
+            if (!rowData) {
+                warningAlert('Data baris tidak ditemukan.');
+                return;
+            }
+
+            await toggleTransLogRow($rowEl, rowData, this);
+        });
+
+        function closeAllTransLogRows() {
+            $('#main_table tbody tr.trx-log-detail-row').remove();
+            $('#main_table tbody .btn-detail-trx').each(function () {
+                $(this).text('+');
+            });
+        }
+
+        async function toggleTransLogRow($rowEl, rowData, buttonEl) {
+            const billId = rowData.item_id ?? rowData.AA;
+            if (!billId) {
+                warningAlert('Data tagihan tidak valid.');
+                return;
+            }
+
+            const detailId = `trx-log-${billId}`;
+            const $existing = $(`#${detailId}`);
+            if ($existing.length) {
+                $existing.remove();
+                buttonEl.textContent = '+';
+                return;
+            }
+
+            closeAllTransLogRows();
+
+            let logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+            if (!logs.length) {
+                logs = await fetchTransLog(rowData);
+                rowData.TRX_LOGS = logs;
+            }
+
+            const colCount = $rowEl.children('td').length || 1;
+            const detailHtml = buildTransLogHtml(rowData);
+            $rowEl.after(
+                `<tr class="trx-log-detail-row" id="${detailId}"><td colspan="${colCount}" class="p-0">${detailHtml}</td></tr>`
+            );
+            buttonEl.textContent = '-';
+        }
+
+        async function fetchTransLog(rowData) {
+            try {
+                const params = new URLSearchParams({
+                    custid: rowData.CUSTID ?? '',
+                    billnm: rowData.BILLNM ?? '',
+                    bill_transno: rowData.BILL_TRANSNO ?? rowData.TRANSNO ?? ''
+                });
+                const aa = rowData.item_id ?? rowData.AA;
+                const url = `{{ route('admin.keuangan.penerimaan-siswa.data-penerimaan.get-trans-log', ':id') }}`.replace(':id', aa) + `?${params.toString()}`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                    }
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(result.message || `Gagal ambil log (${response.status})`);
+                }
+                return Array.isArray(result.logs) ? result.logs : [];
+            } catch (e) {
+                errorAlert(e.message || 'Gagal ambil log transaksi');
+                return [];
+            }
+        }
+
+        function metodeBadge(metode) {
+            const label = (metode ?? '-').toString().trim() || '-';
+            const upper = label.toUpperCase();
+            let cls = 'bg-label-secondary';
+            if (upper.includes('CASH') || upper.includes('TELLER')) cls = 'bg-label-primary';
+            else if (upper.includes('REVERSAL') || upper.includes('JURNAL')) cls = 'bg-label-warning';
+            else if (upper.includes('TRANSFER') || upper.includes('VA')) cls = 'bg-label-info';
+            return `<span class="badge trx-log-metode ${cls}">${label}</span>`;
+        }
+
+        function buildTransLogHtml(rowData) {
+            const logs = Array.isArray(rowData.TRX_LOGS) ? rowData.TRX_LOGS : [];
+
+            const rows = logs.length
+                ? logs.map((log, idx) => {
+                    const debet = Number(log.debet ?? 0);
+                    const kredit = Number(log.kredit ?? 0);
+                    return `
+                    <tr>
+                        <td class="text-center text-muted">${idx + 1}</td>
+                        <td class="text-nowrap">${log.trxdate ?? '-'}</td>
+                        <td>${metodeBadge(log.metode)}</td>
+                        <td class="text-end trx-log-amount--debet">${debet > 0 ? formatRupiah(debet) : '-'}</td>
+                        <td class="text-end trx-log-amount--kredit">${kredit > 0 ? formatRupiah(kredit) : '-'}</td>
+                        <td>${log.fidbank ?? '-'}</td>
+                        <td class="text-nowrap">${log.transno ?? '-'}</td>
+                        <td class="text-nowrap small text-muted">${log.noreff ?? '-'}</td>
+                    </tr>
+                `;
+                }).join('')
+                : '';
+
+            const tableBody = rows || `
+                <tr>
+                    <td colspan="8">
+                        <div class="trx-log-empty">
+                            <i class="ri-file-list-3-line ri-lg d-block mb-1"></i>
+                            Tidak ada log transaksi
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            return `
+                <div class="trx-log-panel">
+                    <div class="trx-log-panel__header">
+                        <div class="trx-log-panel__title">
+                            <i class="ri-history-line"></i> Riwayat Transaksi
+                        </div>
+                        <span class="trx-log-chip"><strong>Tagihan:</strong> ${rowData.BILLNM ?? '-'}</span>
+                        <span class="trx-log-chip"><strong>NIS:</strong> ${rowData.NOCUST ?? rowData.nocust ?? '-'}</span>
+                        <span class="trx-log-chip"><strong>Nama:</strong> ${rowData.NMCUST ?? rowData.nmcust ?? '-'}</span>
+                        <span class="trx-log-chip"><strong>AA:</strong> ${rowData.item_id ?? rowData.AA ?? '-'}</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover trx-log-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 48px;">No</th>
+                                    <th>Tanggal</th>
+                                    <th>Metode</th>
+                                    <th class="text-end">Debet</th>
+                                    <th class="text-end">Kredit</th>
+                                    <th>FID Bank</th>
+                                    <th>Trans No</th>
+                                    <th>No Ref</th>
+                                </tr>
+                            </thead>
+                            <tbody>${tableBody}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
 
         document.getElementById('form-delete').addEventListener('submit', function (e) {
             e.preventDefault();
@@ -470,6 +708,7 @@
                     return data;
                 })
                 .then(data => {
+                    closeAllTransLogRows();
                     dataReload(dtOptions.tableId);
                     successAlert(data.message);
                     modalDelete.hide();
@@ -498,6 +737,9 @@
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
+                $(`#${dtOptions.tableId}`).on('draw.dt', function () {
+                    closeAllTransLogRows();
+                });
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {

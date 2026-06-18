@@ -143,6 +143,7 @@ Route::prefix("admin")
                     Route::controller(\App\Http\Controllers\Admin\Keuangan\PenerimaanSiswa\DataPenerimaanController::class)->group(function () {
                         Route::get("get-data", "getData")->name("get-data");
                         Route::get("get-column", "getColumn")->name("get-column");
+                        Route::get("get-trans-log/{id}", "getTransLog")->name("get-trans-log");
                         Route::get("cetak-rekap", "cetak")->name("cetak-rekap");
                         Route::get("cetak-rekap-new", "cetakNew")->name("cetak-rekap-new");
                         Route::get("cetak-kartu-siswa", "cetakKartuSiswa")->name("cetak-kartu-siswa");

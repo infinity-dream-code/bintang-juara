@@ -424,7 +424,7 @@ class ManualPembayaranController extends Controller
                     'NOREFF' => 'TELLER',
                     'FIDBANK' => $bank,
                     'DEBET' => $nominal,
-                    'KREDIT' => $bank !== '1140002' ? $nominal : 0,
+                    'KREDIT' => $nominal,
                     'BILLID' => $item->AA,
                     'BILLTARGET' => $item->BILLNM,
                     'INSTALLMENT' => $newInstallment,

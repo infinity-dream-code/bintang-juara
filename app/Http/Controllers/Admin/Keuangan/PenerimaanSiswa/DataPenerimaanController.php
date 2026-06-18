@@ -15,6 +15,7 @@ use App\Models\sccttran;
 use App\Models\User;
 use App\Support\CacheHandler;
 use App\Support\FilterHandler;
+use App\Support\TagihanPaymentReversal;
 use Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -489,8 +490,7 @@ class DataPenerimaanController extends Controller
         ]);
 
         try {
-            // Procedure MySQL tidak boleh dibungkus transaction Laravel.
-            $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username, $request);
+            app(TagihanPaymentReversal::class)->reverseLastPayment($tagihan, $request);
 
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
 

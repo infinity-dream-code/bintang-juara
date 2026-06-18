@@ -140,7 +140,10 @@
             </form>
         </div>
         <div id="saldo-va-export-toolbar" class="d-none">
-            <button type="button" class="btn btn-success btn-sm me-2" id="btn-export-transaksi">
+            <button type="button"
+                    class="btn btn-success btn-sm me-2"
+                    id="btn-export-transaksi"
+                    data-export-url="{{ $exportTransaksiUrl ?? route('admin.keuangan.saldo.saldo-virtual-account.export-transaksi') }}">
                 <span class="ri-file-excel-2-line me-1"></span>
                 Export Transaksi
             </button>
@@ -190,8 +193,6 @@
         };
 
         document.addEventListener("DOMContentLoaded", function () {
-            const exportTransaksiUrl = @json($exportTransaksiUrl ?? route('admin.keuangan.saldo.saldo-virtual-account.export-transaksi'));
-
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
                 mountExportTransaksiButton();
@@ -233,28 +234,36 @@
             }
         });
 
-        function mountExportTransaksiButton() {
+        function mountExportTransaksiButton(attempt = 0) {
             const actionBar = document.querySelector(`#${dtOptions.tableId}_wrapper .dt-action-buttons`);
             const dtButtons = actionBar?.querySelector('.dt-buttons');
             const exportBtn = document.getElementById('btn-export-transaksi');
             const toolbar = document.getElementById('saldo-va-export-toolbar');
 
             if (!actionBar || !dtButtons || !exportBtn) {
-                setTimeout(mountExportTransaksiButton, 250);
+                if (attempt < 40) {
+                    setTimeout(() => mountExportTransaksiButton(attempt + 1), 250);
+                }
                 return;
             }
 
             if (exportBtn.dataset.mounted !== '1') {
                 exportBtn.addEventListener('click', function () {
-                    const siswa = ($(`#${dtOptions.formId} [name="filter[siswa]"]`).val() || '').trim();
+                    const siswa = getSelectedSiswaForExport();
                     if (!siswa) {
                         warningAlert('Masukkan NIS/Nama siswa di filter terlebih dahulu.');
                         return;
                     }
 
-                    const url = new URL(exportTransaksiUrl, window.location.origin);
+                    const exportBaseUrl = exportBtn.dataset.exportUrl;
+                    if (!exportBaseUrl) {
+                        errorAlert('URL export tidak ditemukan. Muat ulang halaman.');
+                        return;
+                    }
+
+                    const url = new URL(exportBaseUrl, window.location.origin);
                     url.searchParams.set('siswa', siswa);
-                    window.location.href = url.toString();
+                    window.location.assign(url.toString());
                 });
                 exportBtn.dataset.mounted = '1';
             }
@@ -266,6 +275,26 @@
             if (toolbar && !toolbar.children.length) {
                 toolbar.remove();
             }
+        }
+
+        function getSelectedSiswaForExport() {
+            const filterInput = document.getElementById('filter[siswa]');
+            const fromFilter = (filterInput?.value || '').trim();
+            if (fromFilter) {
+                return fromFilter;
+            }
+
+            const table = DT[dtOptions.tableId];
+            if (!table) {
+                return '';
+            }
+
+            const visibleRows = table.rows({page: 'current'}).data().toArray();
+            if (visibleRows.length === 1) {
+                return String(visibleRows[0].NOCUST || visibleRows[0].NMCUST || '').trim();
+            }
+
+            return '';
         }
 
     </script>

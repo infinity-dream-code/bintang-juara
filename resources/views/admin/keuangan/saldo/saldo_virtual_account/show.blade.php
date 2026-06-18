@@ -102,6 +102,15 @@
                 </div>
             </div>
         </div>
+        <div id="saldo-va-export-toolbar" class="d-none">
+            <button type="button"
+                    class="btn btn-success btn-sm me-2"
+                    id="btn-export-transaksi"
+                    data-export-url="{{ $exportTransaksiUrl ?? '' }}">
+                <span class="ri-file-excel-2-line me-1"></span>
+                Export Transaksi
+            </button>
+        </div>
         <div class="card-datatable table-responsive text-nowrap">
             <table class="table table-sm table-bordered table-hover"
                    id="main_table">
@@ -145,25 +154,7 @@
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
-                if (dtOptions.formId) {
-                    let filterForm = $(`#${dtOptions.formId}`);
-                    filterForm.on('submit', function (e) {
-                        e.preventDefault();
-                        dataReFilter(dtOptions.tableId);
-                    });
-                    filterForm.on('reset', function (e) {
-                        setTimeout(function () {
-                            dataReFilter(dtOptions.tableId);
-                            const select2InForm = select2.filter(`#${dtOptions.formId} [data-control='select2']`);
-                            if (select2InForm.length) {
-                                select2InForm.each(function () {
-                                    let $this = $(this);
-                                    $this.trigger('change');
-                                });
-                            }
-                        }, 0)
-                    });
-                }
+                mountExportTransaksiButton();
 
                 setTimeout(function () {
                     let total = 0;
@@ -188,6 +179,41 @@
                 },300)
             }
         });
+
+        function mountExportTransaksiButton(attempt = 0) {
+            const actionBar = document.querySelector(`#${dtOptions.tableId}_wrapper .dt-action-buttons`);
+            const dtButtons = actionBar?.querySelector('.dt-buttons');
+            const exportBtn = document.getElementById('btn-export-transaksi');
+            const toolbar = document.getElementById('saldo-va-export-toolbar');
+
+            if (!actionBar || !dtButtons || !exportBtn) {
+                if (attempt < 40) {
+                    setTimeout(() => mountExportTransaksiButton(attempt + 1), 250);
+                }
+                return;
+            }
+
+            if (exportBtn.dataset.mounted !== '1') {
+                exportBtn.addEventListener('click', function () {
+                    const exportUrl = exportBtn.dataset.exportUrl;
+                    if (!exportUrl) {
+                        errorAlert('URL export tidak ditemukan. Muat ulang halaman.');
+                        return;
+                    }
+
+                    window.location.assign(exportUrl);
+                });
+                exportBtn.dataset.mounted = '1';
+            }
+
+            if (exportBtn.closest('.dt-action-buttons') !== actionBar) {
+                actionBar.insertBefore(exportBtn, dtButtons);
+            }
+
+            if (toolbar && !toolbar.children.length) {
+                toolbar.remove();
+            }
+        }
     </script>
 
     {!! ($modalLink??'') !!}

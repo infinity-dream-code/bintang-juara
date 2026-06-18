@@ -6,7 +6,7 @@
 @endsection
 @section('content')
     <h3 class="page-heading d-flex text-gray-900 fw-bold flex-column justify-content-center my-0">
-        {{ $pageTitle ?? 'Data Transaksi' }}
+        Data Transaksi
     </h3>
     <ul class="breadcrumb breadcrumb-style2">
         <li class="breadcrumb-item">
@@ -25,7 +25,7 @@
 
     <div class="card">
         <div class="card-header header-elements">
-            <h5 class="mb-0 me-2">Data Transaksi Saldo Virtual Account</h5>
+            <h5 class="mb-0 me-2">Data Transaksi</h5>
             <div class="card-header-elements ms-auto">
                 <a href="{{ route('admin.keuangan.saldo.saldo-virtual-account.index') }}" class="btn btn-outline-primary btn-sm">
                     <span class="ri-arrow-left-s-line me-1"></span>
@@ -97,7 +97,7 @@
             fixedHeader: false,
             scrollX: true,
             pageLength: 25,
-            lengthMenu: [25, 50, 75, 100],
+            lengthMenu: [25, 100],
             buttons: ['excel', 'pdf', 'print'],
             pdfOrientation: 'landscape',
             pdfPageSize: 'A4',

@@ -34,15 +34,6 @@
     <div class="card">
         <div class="card-header header-elements">
             <h5 class="mb-0 me-2">{{($dataTitle??$mainTitle)}}</h5>
-            <div class="card-header-elements ms-auto">
-                <div class="d-flex gap-2">
-                    <a href="{{ $dataTransaksiUrl ?? route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.index') }}"
-                       class="btn btn-primary btn-sm">
-                        <span class="ri-list-check-2 me-1"></span>
-                        Data Transaksi
-                    </a>
-                </div>
-            </div>
         </div>
         <div class="card-body">
             <form id="filterForm">
@@ -139,7 +130,13 @@
                 </fieldset>
             </form>
         </div>
-        <div id="saldo-va-export-toolbar" class="d-none">
+        <div id="saldo-va-action-toolbar" class="d-none">
+            <a href="{{ $dataTransaksiUrl ?? route('admin.keuangan.saldo.saldo-virtual-account.data-transaksi.index') }}"
+               class="btn btn-primary btn-sm me-2"
+               id="btn-data-transaksi">
+                <span class="ri-list-check-2 me-1"></span>
+                Data Transaksi
+            </a>
             <button type="button"
                     class="btn btn-success btn-sm me-2"
                     id="btn-export-transaksi"
@@ -195,7 +192,7 @@
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
-                mountExportTransaksiButton();
+                mountSaldoVaActionButtons();
                 if (dtOptions.formId) {
                     let filterForm = $(`#${dtOptions.formId}`);
                     filterForm.on('submit', function (e) {
@@ -234,15 +231,16 @@
             }
         });
 
-        function mountExportTransaksiButton(attempt = 0) {
+        function mountSaldoVaActionButtons(attempt = 0) {
             const actionBar = document.querySelector(`#${dtOptions.tableId}_wrapper .dt-action-buttons`);
             const dtButtons = actionBar?.querySelector('.dt-buttons');
+            const dataTransaksiBtn = document.getElementById('btn-data-transaksi');
             const exportBtn = document.getElementById('btn-export-transaksi');
-            const toolbar = document.getElementById('saldo-va-export-toolbar');
+            const toolbar = document.getElementById('saldo-va-action-toolbar');
 
-            if (!actionBar || !dtButtons || !exportBtn) {
+            if (!actionBar || !dtButtons || !exportBtn || !dataTransaksiBtn) {
                 if (attempt < 40) {
-                    setTimeout(() => mountExportTransaksiButton(attempt + 1), 250);
+                    setTimeout(() => mountSaldoVaActionButtons(attempt + 1), 250);
                 }
                 return;
             }
@@ -268,8 +266,9 @@
                 exportBtn.dataset.mounted = '1';
             }
 
-            if (exportBtn.closest('.dt-action-buttons') !== actionBar) {
+            if (dataTransaksiBtn.closest('.dt-action-buttons') !== actionBar) {
                 actionBar.insertBefore(exportBtn, dtButtons);
+                actionBar.insertBefore(dataTransaksiBtn, exportBtn);
             }
 
             if (toolbar && !toolbar.children.length) {

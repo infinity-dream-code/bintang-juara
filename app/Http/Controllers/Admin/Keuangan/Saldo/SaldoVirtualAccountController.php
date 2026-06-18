@@ -154,6 +154,7 @@ class SaldoVirtualAccountController extends Controller
             $data['indexUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.index');
             $data['columnsUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.transaksi.get-column');
             $data['datasUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.transaksi.get-data', ['CUSTID' => $id]);
+            $data['exportTransaksiUrl'] = route('admin.keuangan.saldo.saldo-virtual-account.export', ['id' => $id]);
 
             $data['siswa'] = scctcust::find($id);
 

@@ -437,11 +437,8 @@ class DataPenerimaanController extends Controller
         try {
             DB::connection('DATA_MYSQL')->beginTransaction();
 
-            if ($this->shouldCancelAsTellerPayment($tagihan)) {
-                $this->cancelCashPayment($tagihan, $username);
-            } else {
-                $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username);
-            }
+            // Semua reversal diarahkan ke procedure DB agar konsisten.
+            $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username);
 
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
             DB::connection('DATA_MYSQL')->commit();

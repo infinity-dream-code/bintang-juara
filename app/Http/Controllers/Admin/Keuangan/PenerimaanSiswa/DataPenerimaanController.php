@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class DataPenerimaanController extends Controller
@@ -434,22 +435,40 @@ class DataPenerimaanController extends Controller
         $aa = (string) $tagihan->AA;
         $username = (string) (Auth::user()->username ?? Auth::id() ?? 'system');
 
-        try {
-            DB::connection('DATA_MYSQL')->beginTransaction();
+        Log::info('data-penerimaan.destroy.start', [
+            'aa' => $aa,
+            'custid' => $custId,
+            'username' => $username,
+            'fidbank' => $tagihan->FIDBANK,
+            'billnm' => $tagihan->BILLNM,
+            'billpaid' => $tagihan->BILLPAID,
+        ]);
 
-            // Semua reversal diarahkan ke procedure DB agar konsisten.
+        try {
+            // Procedure MySQL tidak boleh dibungkus transaction Laravel.
             $this->cancelSaldoOrVaPayment($tagihan, $custId, $aa, $username);
 
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
-            DB::connection('DATA_MYSQL')->commit();
+
+            Log::info('data-penerimaan.destroy.success', [
+                'aa' => $aa,
+                'custid' => $custId,
+            ]);
 
             return response()->json(['message' => 'Pembayaran tagihan dibatalkan!'], 200);
         } catch (\Throwable $e) {
-            DB::connection('DATA_MYSQL')->rollBack();
+            Log::error('data-penerimaan.destroy.failed', [
+                'aa' => $aa,
+                'custid' => $custId,
+                'fidbank' => $tagihan->FIDBANK,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return response()->json([
                 'message' => 'Pembatalan pembayaran tagihan gagal dilakukan!',
-                'error' => config('app.debug') ? $e->getMessage() : null,
+                'error' => $e->getMessage(),
             ], 422);
         }
     }
@@ -540,24 +559,68 @@ class DataPenerimaanController extends Controller
     {
         try {
             $this->callCancelPaymentSaldo($custId, $aa, $username);
+
+            Log::info('data-penerimaan.cancel.procedure_ok', [
+                'custid' => $custId,
+                'aa' => $aa,
+            ]);
         } catch (\Throwable $e) {
-            $message = $e->getMessage();
-            $procedureMissing = stripos($message, 'CancelPaymentSaldo') !== false
-                && (
-                    stripos($message, 'does not exist') !== false
-                    || stripos($message, '1305') !== false
-                );
+            Log::error('data-penerimaan.cancel.procedure_failed', [
+                'custid' => $custId,
+                'aa' => $aa,
+                'fidbank' => $tagihan->FIDBANK,
+                'billnm' => $tagihan->BILLNM,
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
 
-            if (!$procedureMissing) {
+            DB::connection('DATA_MYSQL')->transaction(function () use ($tagihan, $username, $e) {
+                if ($this->shouldCancelAsTellerPayment($tagihan)) {
+                    Log::warning('data-penerimaan.cancel.fallback_cash', [
+                        'aa' => $tagihan->AA,
+                        'reason' => $e->getMessage(),
+                    ]);
+                    $this->cancelCashPayment($tagihan, $username);
+
+                    return;
+                }
+
+                if ($this->isCancelPaymentSaldoMissing($e)) {
+                    Log::warning('data-penerimaan.cancel.fallback_saldo_manual', [
+                        'aa' => $tagihan->AA,
+                    ]);
+                    $this->reverseSaldoPaymentManually($tagihan, $username);
+
+                    return;
+                }
+
                 throw $e;
-            }
-
-            $this->reverseSaldoPaymentManually($tagihan, $username);
+            });
         }
+    }
+
+    private function isCancelPaymentSaldoMissing(\Throwable $e): bool
+    {
+        $message = $e->getMessage();
+
+        return stripos($message, 'CancelPaymentSaldo') !== false
+            && (
+                stripos($message, 'does not exist') !== false
+                || stripos($message, 'doesn\'t exist') !== false
+                || stripos($message, 'unknown procedure') !== false
+                || stripos($message, '1305') !== false
+            );
     }
 
     private function callCancelPaymentSaldo(string $custId, string $aa, string $username): void
     {
+        Log::info('data-penerimaan.cancel.call_procedure', [
+            'procedure' => 'CancelPaymentSaldo',
+            'custid' => $custId,
+            'aa' => $aa,
+            'username' => $username,
+        ]);
+
         $pdo = DB::connection('DATA_MYSQL')->getPdo();
         $stmt = $pdo->prepare('CALL CancelPaymentSaldo(?, ?, ?)');
         $stmt->execute([$custId, $aa, $username]);

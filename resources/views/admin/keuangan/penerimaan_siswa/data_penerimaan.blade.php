@@ -703,7 +703,11 @@
                 .then(async response => {
                     const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw {status: response.status, message: data.message || response.statusText};
+                        throw {
+                            status: response.status,
+                            message: data.message || response.statusText,
+                            error: data.error || null,
+                        };
                     }
                     return data;
                 })
@@ -716,8 +720,9 @@
                 .catch(error => {
                     if (error.status === 422) {
                         const errors = error.error || error.errors;
-                        errorAlert(error.message);
-                        if (errors) {
+                        const detail = error.error ? `<br><small class="text-muted">${error.error}</small>` : '';
+                        errorAlert((error.message || 'Pembatalan gagal') + detail);
+                        if (errors && typeof processErrors === 'function') {
                             processErrors(errors)
                         }
                     } else {

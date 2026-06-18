@@ -392,6 +392,8 @@ class DataPenerimaanController extends Controller
         $billAm = (int) ($tagihan->BILLAM ?? 0);
         $nominalBayar = $this->resolvePaidAmount($tagihan);
 
+        $this->clearTellerPaymentKredit($tagihan);
+
         if ($nominalBayar > 0) {
             $this->insertReversalTransaction($tagihan, $nominalBayar, 'REVERSAL', $username);
         }
@@ -404,6 +406,17 @@ class DataPenerimaanController extends Controller
             'PAYMENTLEFT' => $billAm,
             'INSTALLMENT' => 0,
         ]);
+    }
+
+    /** Kosongkan KREDIT baris FROM TELLER sebelum insert REVERSAL. */
+    private function clearTellerPaymentKredit(scctbill $tagihan): void
+    {
+        sccttran::query()
+            ->where('BILLID', $tagihan->AA)
+            ->where('CUSTID', $tagihan->CUSTID)
+            ->whereRaw('UPPER(TRIM(METODE)) = ?', ['FROM TELLER'])
+            ->where('KREDIT', '>', 0)
+            ->update(['KREDIT' => 0]);
     }
 
     private function cancelSaldoOrVaPayment(scctbill $tagihan, string $custId, string $aa, string $username): void

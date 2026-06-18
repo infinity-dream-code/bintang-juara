@@ -415,14 +415,15 @@ class ManualPembayaranController extends Controller
 
                 $tagihanForPrint[] = $item->AA;
 
+                $bank = (string) $request->input('bank');
                 sccttran::create([
                     'CUSTID' => $siswa->CUSTID,
                     'METODE' => 'FROM TELLER',
                     'TRXDATE' => now(),
                     'NOREFF' => 'TELLER',
-                    'FIDBANK' => $request->input('bank'),
+                    'FIDBANK' => $bank,
                     'DEBET' => $nominal,
-                    'KREDIT' => 0,
+                    'KREDIT' => $bank !== '1140002' ? $nominal : 0,
                     'BILLID' => $item->AA,
                     'BILLTARGET' => $item->BILLNM,
                     'INSTALLMENT' => $newInstallment,

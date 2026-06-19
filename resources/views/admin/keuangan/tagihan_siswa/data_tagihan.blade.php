@@ -565,33 +565,14 @@
                 const deleteId = document.getElementById('delete_id');
                 const custId = document.getElementById('user_delete_id');
                 const billPaid = parseInt(rowData.BILLPAID ?? rowData.billpaid ?? '0', 10) || 0;
-                const titleEl = document.getElementById('delete-modal-title');
-                const descEl = document.getElementById('delete-modal-desc');
-                const headerEl = document.getElementById('delete-modal-header');
-                const submitBtn = document.getElementById('delete-submit-btn');
+
+                if (billPaid <= 0) {
+                    warningAlert('Tagihan belum ada cicilan. Untuk hapus tagihan gunakan menu Hapus Tagihan.');
+                    return;
+                }
 
                 if (deleteId) deleteId.value = rowData.item_id ?? rowData.AA ?? '';
                 if (custId) custId.value = rowData.CUSTID ?? '';
-
-                if (billPaid > 0) {
-                    if (headerEl) headerEl.textContent = 'Reversal';
-                    if (titleEl) titleEl.textContent = 'Reversal Pembayaran Terakhir?';
-                    if (descEl) descEl.textContent = 'Pembayaran terakhir akan di-reversal. Tagihan cicilan tetap tampil di Data Tagihan.';
-                    if (submitBtn) {
-                        submitBtn.value = 'Reversal';
-                        submitBtn.classList.remove('btn-danger');
-                        submitBtn.classList.add('btn-warning');
-                    }
-                } else {
-                    if (headerEl) headerEl.textContent = 'Hapus Data';
-                    if (titleEl) titleEl.textContent = 'Hapus Tagihan Siswa?';
-                    if (descEl) descEl.textContent = 'Anda yakin akan menghapus data tagihan siswa?';
-                    if (submitBtn) {
-                        submitBtn.value = 'Hapus';
-                        submitBtn.classList.remove('btn-warning');
-                        submitBtn.classList.add('btn-danger');
-                    }
-                }
             }
         }
 

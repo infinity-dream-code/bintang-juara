@@ -137,7 +137,7 @@ class DataTagihanController extends Controller
             ],
             [
                 'data' => 'delete',
-                'name' => '',
+                'name' => 'Reversal',
                 'orderable' => false,
                 'dataVal' => false,
                 'columnType' => 'button',
@@ -303,19 +303,18 @@ class DataTagihanController extends Controller
 
         try {
             $reversal = app(TagihanPaymentReversal::class);
-            $hasPayments = $reversal->hasBillPayments($tagihan);
 
-            if ($hasPayments) {
-                $reversal->reverseLastPayment($tagihan, $request);
-                $message = 'Reversal berhasil!';
-            } else {
-                $tagihan->update(['FSTSBolehBayar' => 0]);
-                $message = 'Tagihan dihapus!';
+            if (!$reversal->hasBillPayments($tagihan)) {
+                return response()->json([
+                    'message' => 'Tagihan belum ada cicilan/pembayaran. Untuk menghapus tagihan gunakan menu Hapus Tagihan.',
+                ], 422);
             }
+
+            $reversal->reverseLastPayment($tagihan, $request);
 
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
 
-            return response()->json(['message' => $message], 200);
+            return response()->json(['message' => 'Reversal berhasil!'], 200);
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Gagal memproses tagihan!',
@@ -699,8 +698,8 @@ class DataTagihanController extends Controller
                     'TRX_LOGS' => [],
                     'BILL_TRANSNO' => $get('BILL_TRANSNO'),
                     'print' => true,
-                    'delete' => true,
-                    'delete_label' => ((int) ($get('BILLPAID') ?? 0)) > 0 ? 'Reversal' : 'Hapus',
+                    'delete' => ((int) ($get('BILLPAID') ?? 0)) > 0,
+                    'delete_label' => 'Reversal',
                 ];
             })
             ->values()

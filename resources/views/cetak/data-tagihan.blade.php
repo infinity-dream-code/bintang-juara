@@ -237,7 +237,10 @@
                 <th>Nama</th>
                 <th>Nama Tagihan</th>
                 <th>Tahun Akademik</th>
+                <th>Tanggal Bayar</th>
                 <th>Tagihan</th>
+                <th>Terbayar</th>
+                <th>Sisa</th>
             </tr>
             </thead>
             <tbody>
@@ -265,12 +268,31 @@
                             $nis = '';
                             $nama = '';
                         }
+
+                        $paidDt = $item['PAIDDT'] ?? null;
+                        $tanggalBayar = '-';
+                        if ($paidDt) {
+                            try {
+                                $tanggalBayar = Carbon::parse($paidDt)->format('d-m-Y H:i');
+                            } catch (\Throwable $e) {
+                                $tanggalBayar = (string) $paidDt;
+                            }
+                        }
+
+                        $billAm = (int) ($item['BILLAM'] ?? 0);
+                        $billPaid = (int) ($item['BILLPAID'] ?? 0);
+                        $paymentLeft = array_key_exists('PAYMENTLEFT', $item) && $item['PAYMENTLEFT'] !== null && $item['PAYMENTLEFT'] !== ''
+                            ? (int) $item['PAYMENTLEFT']
+                            : max(0, $billAm - $billPaid);
                     @endphp
                     <td class="{{$nisClass}} border-right-0">{{$nis}} </td>
                     <td class="{{$nisClass}} border-left-0">{{$nama}}</td>
                     <td>{{$item['BILLNM']}}</td>
                     <td>{{$item['BTA']}}</td>
-                    <td class="text-end">@rupiah($item['BILLAM']??0)</td>
+                    <td>{{$tanggalBayar}}</td>
+                    <td class="text-end">@rupiah($billAm)</td>
+                    <td class="text-end">@rupiah($billPaid)</td>
+                    <td class="text-end">@rupiah($paymentLeft)</td>
                 </tr>
             @endforeach
             </tbody>

@@ -341,6 +341,75 @@
         </div>
     </form>
 
+    <form id="form-hapus" class="mainForm">
+        <div class="modal modal-blur fade" id="modal-hapus" tabindex="-1" role="dialog" aria-hidden="true"
+             data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-status bg-danger"></div>
+                    <div class="modal-header ">
+                        <div class="modal-title">Hapus Tagihan</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-capitalize text-center py-4">
+                        <span class="ri-delete-bin-line ri-3x"></span>
+                        <h4>Hapus Tagihan Siswa?</h4>
+                        <div class="text-muted small">
+                            Hanya tagihan yang belum pernah dibayar (PAIDST = 0, INSTALLMENT = 0).
+                        </div>
+                    </div>
+                    <div class="modal-body py-4">
+                        <fieldset class="form-fieldset">
+                            <div class="mb-3 row">
+                                <label class="col-sm-4 col-form-label form-label-sm">NIS</label>
+                                <div class="col">
+                                    <input type="text" readonly class="form-control form-control-sm" id="hapus_nocust"
+                                           name="nocust">
+                                </div>
+                            </div>
+                            <div class="mb-3 row">
+                                <label class="col-sm-4 col-form-label form-label-sm">Nama Siswa</label>
+                                <div class="col-sm-8">
+                                    <input type="text" readonly class="form-control form-control-sm" id="hapus_nmcust"
+                                           name="nmcust">
+                                </div>
+                            </div>
+                            <div class="mb-3 row">
+                                <label class="col-sm-4 col-form-label form-label-sm">Nama Tagihan</label>
+                                <div class="col-sm-8">
+                                    <input type="text" readonly class="form-control form-control-sm" id="hapus_billnm"
+                                           name="billnm">
+                                </div>
+                            </div>
+                            <div class="mb-3 row">
+                                <label class="col-sm-4 col-form-label form-label-sm">Nominal</label>
+                                <div class="col-sm-8">
+                                    <input type="text" readonly class="form-control form-control-sm" id="hapus_billam"
+                                           name="billam_total">
+                                </div>
+                            </div>
+                        </fieldset>
+                        <input type="hidden" id="hapus_id" name="item_id" value="">
+                        <input type="hidden" id="user_hapus_id" name="custid" value="">
+                    </div>
+                    <div class="modal-footer ">
+                        <div class="w-100">
+                            <div class="row">
+                                <div class="col">
+                                    <input type="reset" class="btn btn-outline-secondary w-100" value="Batal"
+                                           data-bs-dismiss="modal">
+                                </div>
+                                <div class="col">
+                                    <input type="submit" value="Hapus" class="btn btn-danger w-100">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
     <form id="form-ubah-urutan" class="mainForm">
         <div class="modal modal-blur fade" id="modal-ubah-urutan" tabindex="-1" role="dialog" aria-hidden="true"
              data-bs-backdrop="static">
@@ -537,12 +606,19 @@
 
         const modalDeleteElement = document.getElementById('modal-delete');
         const modalDelete = new bootstrap.Modal(document.getElementById('modal-delete'));
+        const modalHapusElement = document.getElementById('modal-hapus');
+        const modalHapus = new bootstrap.Modal(document.getElementById('modal-hapus'));
 
         const modalUrutElement = document.getElementById('modal-ubah-urutan');
         const modalUrut = new bootstrap.Modal(document.getElementById('modal-ubah-urutan'));
 
         modalDeleteElement.addEventListener('hide.bs.modal', function () {
             const form = document.getElementById('form-delete');
+            form.reset();
+        });
+
+        modalHapusElement.addEventListener('hide.bs.modal', function () {
+            const form = document.getElementById('form-hapus');
             form.reset();
         });
 
@@ -568,11 +644,29 @@
                 const billPaid = parseInt(rowData.BILLPAID ?? rowData.billpaid ?? '0', 10) || 0;
 
                 if (billPaid <= 0) {
-                    warningAlert('Tagihan belum ada cicilan. Untuk hapus tagihan gunakan menu Hapus Tagihan.');
                     return;
                 }
 
                 if (deleteId) deleteId.value = rowData.item_id ?? rowData.AA ?? '';
+                if (custId) custId.value = rowData.CUSTID ?? '';
+            }
+            if (id === 'form-hapus') {
+                const hapusId = document.getElementById('hapus_id');
+                const custId = document.getElementById('user_hapus_id');
+                const billPaid = parseInt(rowData.BILLPAID ?? rowData.billpaid ?? '0', 10) || 0;
+                const installment = parseInt(rowData.INSTALLMENT ?? rowData.installment ?? '0', 10) || 0;
+                const paidSt = parseInt(rowData.PAIDST ?? rowData.paidst ?? '0', 10) || 0;
+
+                if (billPaid > 0 || installment > 0 || paidSt !== 0) {
+                    warningAlert('Tagihan tidak dapat dihapus. Syarat: PAIDST = 0, INSTALLMENT = 0, belum pernah dibayar.');
+                    return;
+                }
+
+                document.getElementById('hapus_nocust').value = rowData.NOCUST ?? '';
+                document.getElementById('hapus_nmcust').value = rowData.NMCUST ?? '';
+                document.getElementById('hapus_billnm').value = rowData.BILLNM ?? '';
+                document.getElementById('hapus_billam').value = rowData.BILLAM_TOTAL ?? rowData.BILLAM ?? '';
+                if (hapusId) hapusId.value = rowData.item_id ?? rowData.AA ?? '';
                 if (custId) custId.value = rowData.CUSTID ?? '';
             }
         }
@@ -721,7 +815,20 @@
                 const rowEl = e.target.closest('tr');
                 if (rowEl) {
                     fillFormValue('form-delete', rowEl);
-                    modalDelete.show();
+                    const deleteId = document.getElementById('delete_id');
+                    if (deleteId?.value) {
+                        modalDelete.show();
+                    }
+                }
+            }
+            if (e.target.closest('.btn-hapus-tagihan')) {
+                const rowEl = e.target.closest('tr');
+                if (rowEl) {
+                    fillFormValue('form-hapus', rowEl);
+                    const hapusId = document.getElementById('hapus_id');
+                    if (hapusId && hapusId.value) {
+                        modalHapus.show();
+                    }
                 }
             }
         });
@@ -888,7 +995,12 @@
         document.getElementById('form-delete').addEventListener('submit', function (e) {
             e.preventDefault();
             submitForm('delete');
-        })
+        });
+
+        document.getElementById('form-hapus').addEventListener('submit', function (e) {
+            e.preventDefault();
+            submitForm('hapus');
+        });
 
         document.getElementById('form-ubah-urutan').addEventListener('submit', function (e) {
             e.preventDefault();
@@ -917,6 +1029,24 @@
                                 user_id: user_id
                             })
                         });
+                    break;
+                case 'hapus':
+                    loadingAlert('Menghapus tagihan....');
+                    item_id = document.getElementById('hapus_id').value;
+                    user_id = document.getElementById('user_hapus_id').value;
+                    url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.hapus',':id')}}';
+                    url = url.replace(':id', item_id);
+
+                    request = new Request(url, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            user_id: user_id,
+                        }),
+                    });
                     break;
                 case'ubah-urutan':
                     loadingAlert('Mengubah Urutan....');
@@ -951,6 +1081,7 @@
                     dataReload(dtOptions.tableId);
                     successAlert(data.message);
                     modalDelete.hide();
+                    modalHapus.hide();
                     modalUrut.hide();
                 })
                 .catch(error => {
@@ -1399,6 +1530,27 @@
 
             async function generateKartuSiswa(data) {
                 try {
+                    const parsePaidDate = (val) => {
+                        if (!val) return null;
+                        const iso = new Date(val);
+                        if (!Number.isNaN(iso.getTime())) return iso;
+                        const m = String(val).match(/^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+                        if (!m) return null;
+                        return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+                    };
+
+                    const formatPaidDate = (val) => {
+                        const dt = parsePaidDate(val);
+                        if (!dt) return '-';
+                        return dt.toLocaleString('id-ID', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    };
+
                     const bodyContent = [];
 
                     let siswa = data.siswa;
@@ -1453,15 +1605,7 @@
                     });
 
                     sortedTagihans.forEach((item, index) => {
-                        const tanggalBayar = item.PAIDDT
-                            ? new Date(item.PAIDDT).toLocaleString('id-ID', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })
-                            : '-';
+                        const tanggalBayar = formatPaidDate(item.PAIDDT_ISO || item.PAIDDT);
                         const jumlahTagihan = Number(item.BILLAM_TOTAL ?? 0);
                         const jumlahBayar = Number(item.BILLPAID ?? 0);
                         const sisaTagihan = Number(item.PAYMENTLEFT ?? item.BILLAM ?? 0);

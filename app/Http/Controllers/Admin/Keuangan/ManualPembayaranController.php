@@ -315,6 +315,7 @@ class ManualPembayaranController extends Controller
             ], 422);
         }
         $tagihanForPrint = [];
+        $paymentsForReceipt = [];
         $message = 'Tagihan sukses dibayar. <br> Total Bayar : Rp. ' . number_format($totalBayar, 0, ',', '.') . '.<br> Apakah anda ingin mencetak pembayaran tagihan?';
 
         $dateInput = $request->input('tanggal');
@@ -408,6 +409,11 @@ class ManualPembayaranController extends Controller
                 );
 
                 $tagihanForPrint[] = $item->AA;
+                $paymentsForReceipt[(string) $item->AA] = [
+                    'nominal' => $nominal,
+                    'fidbank' => (string) $request->input('bank'),
+                    'tanggal' => $formattedDate,
+                ];
 
                 /*
                 // Legacy: update scctbill + insert sccttran langsung dari PHP (nonaktif — pakai BuilderPaymentCash / BuilderPaymentBill)
@@ -456,8 +462,14 @@ class ManualPembayaranController extends Controller
 
             $request->session()->forget('siswa_tagihan_baru_dibayar');
             $request->session()->forget('tagihan_baru_dibayar');
+            $request->session()->forget('manual_pembayaran_receipt');
             session(['siswa_tagihan_baru_dibayar' => $siswa]);
             session(['tagihan_baru_dibayar' => $tagihanForPrint]);
+            session(['manual_pembayaran_receipt' => [
+                'bank' => (string) $request->input('bank'),
+                'tanggal' => $formattedDate,
+                'payments' => $paymentsForReceipt,
+            ]]);
             DB::connection('DATA_MYSQL')->commit();
             DB::commit();
             Log::info('manual-pembayaran.store.success', [
@@ -527,18 +539,23 @@ class ManualPembayaranController extends Controller
                 return response()->json(['message' => 'Tagihan Tidak Ditemukan'], 422);
             }
 
+            $receipt = $request->session()->get('manual_pembayaran_receipt', []);
+            $enrichedTagihans = $this->enrichTagihansForReceipt($tagihans, (string) $cust, $receipt);
+            $receiptBank = $receipt['bank'] ?? ($enrichedTagihans[0]['FIDBANK'] ?? null);
+
             if ($request->boolean('pdf')) {
-                $fIdBank = $tagihans->first()->FIDBANK ?? null;
+                $fIdBank = $receiptBank;
 //                $biayaLayanan = ($fIdBank === '1140002') ? 0 : 2000;
                 $receiptMode = strtolower((string)$request->query('receipt_mode', 'manual'));
                 $isNisLikeReceipt = $receiptMode === 'nis';
 
                 $viewName = $isNisLikeReceipt ? 'pdf.kuitansi_with_2000' : 'pdf.kuitansi';
                 $viewData = [
-                    'tagihans' => $tagihans,
+                    'tagihans' => collect($enrichedTagihans)->map(fn ($row) => (object) $row),
                     'siswa' => $siswa,
                     'nis' => $request->boolean('no_daftar'),
                     'biayaLayanan' => 0,
+                    'fidbank' => $receiptBank,
                 ];
 
                 $pdf = Pdf::loadView($viewName, $viewData);
@@ -546,13 +563,13 @@ class ManualPembayaranController extends Controller
                 return $pdf->stream('bukti-pembayaran.pdf');
             }
 
-            $fIdBank = $tagihans->first()->FIDBANK ?? null;
             $biayaLayanan = 0;
 
             return response()->json([
-                'tagihans' => $tagihans,
+                'tagihans' => $enrichedTagihans,
                 'siswa' => $siswa,
                 'biaya_layanan' => $biayaLayanan,
+                'bank' => $receiptBank,
             ], 200);
         } else {
             return response()->json(['message' => 'Silakhan Lakukan pembayaran terlebih dahulu'], 422);
@@ -670,6 +687,60 @@ class ManualPembayaranController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Gagal memperbarui nomor VA', 'error' => $e->getMessage()], 422);
         }
+    }
+
+    private function enrichTagihansForReceipt($tagihans, string $custId, array $receipt = []): array
+    {
+        $receiptPayments = $receipt['payments'] ?? [];
+        $receiptBank = $receipt['bank'] ?? null;
+        $receiptDate = $receipt['tanggal'] ?? null;
+
+        $billIds = $tagihans
+            ->pluck('AA')
+            ->map(fn ($aa) => (string) $aa)
+            ->filter()
+            ->values()
+            ->all();
+
+        $latestTransactions = collect();
+        if ($billIds !== []) {
+            $latestTransactions = sccttran::query()
+                ->where('CUSTID', $custId)
+                ->whereIn('BILLID', $billIds)
+                ->whereRaw('CAST(COALESCE(DEBET, 0) AS SIGNED) > 0')
+                ->orderByDesc('TRXDATE')
+                ->get()
+                ->groupBy(fn ($trx) => (string) $trx->BILLID)
+                ->map(fn ($group) => $group->first());
+        }
+
+        return $tagihans->map(function ($tagihan) use ($receiptPayments, $receiptBank, $receiptDate, $latestTransactions) {
+            $aa = (string) $tagihan->AA;
+            $receiptPayment = $receiptPayments[$aa] ?? null;
+            $latestTrx = $latestTransactions->get($aa);
+
+            $fidBank = $receiptPayment['fidbank']
+                ?? $latestTrx?->FIDBANK
+                ?? $receiptBank
+                ?? $tagihan->FIDBANK;
+
+            $nominalBayar = (int) ($receiptPayment['nominal'] ?? $latestTrx?->DEBET ?? 0);
+            if ($nominalBayar <= 0) {
+                $nominalBayar = (int) ($tagihan->BILLPAID ?? $tagihan->BILLAM ?? 0);
+            }
+
+            $paidDt = $receiptPayment['tanggal']
+                ?? $latestTrx?->TRXDATE
+                ?? $tagihan->PAIDDT
+                ?? $receiptDate;
+
+            $row = $tagihan->toArray();
+            $row['FIDBANK'] = $fidBank;
+            $row['PAIDDT'] = $paidDt;
+            $row['NOMINAL_BAYAR'] = $nominalBayar;
+
+            return $row;
+        })->values()->all();
     }
 
     private function resolvePaymentLeft(object $item): int

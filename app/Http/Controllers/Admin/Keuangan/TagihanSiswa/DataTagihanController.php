@@ -116,7 +116,7 @@ class DataTagihanController extends Controller
             ['data' => 'BILLAM_TOTAL', 'name' => 'Jumlah Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
             ['data' => 'BILLAM', 'name' => 'Sisa Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
             ['data' => 'BILLPAID', 'name' => 'Jumlah Terbayar', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
-            ['data' => 'PAIDDT', 'name' => 'Tanggal Bayar', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'PAIDDT', 'name' => 'Tanggal Bayar', 'searchable' => true, 'orderable' => true, 'columnType' => 'timestamp', 'exportable' => true],
             ['data' => 'BILLAC', 'name' => 'Periode', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             [
                 'data' => 'FUrutan',
@@ -140,6 +140,22 @@ class DataTagihanController extends Controller
                 'buttonClass' => 'btn btn-sm btn-warning btn-reversal',
                 'buttonLink' => '#modal-delete',
                 'buttonIcon' => 'ri-arrow-go-back-line me-2',
+                'exportable' => false,
+                'duplicate' => false,
+            ],
+            [
+                'data' => 'hapus',
+                'name' => 'Hapus',
+                'orderable' => false,
+                'dataVal' => false,
+                'columnType' => 'button',
+                'className' => 'text-center exclude-selection',
+                'excludeFromSelection' => true,
+                'button' => 'action',
+                'buttonText' => 'Hapus',
+                'buttonClass' => 'btn btn-sm btn-danger btn-hapus-tagihan',
+                'buttonLink' => '#modal-hapus',
+                'buttonIcon' => 'ri-delete-bin-line me-2',
                 'exportable' => false,
                 'duplicate' => false,
             ],
@@ -263,6 +279,60 @@ class DataTagihanController extends Controller
         }
     }
 
+    public function hapusTagihan($id, Request $request)
+    {
+        $custId = $request->input('user_id') ?? $request->input('custid');
+
+        $tagihan = scctbill::where('AA', $id)
+            ->where('FSTSBolehBayar', 1)
+            ->when($custId, fn ($q) => $q->where('CUSTID', $custId))
+            ->first();
+
+        if (!$tagihan) {
+            return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
+        }
+
+        if (!$this->canHapusTagihan($tagihan)) {
+            return response()->json([
+                'message' => 'Tagihan tidak dapat dihapus. Syarat: PAIDST = 0, INSTALLMENT = 0, dan belum pernah ada pembayaran.',
+            ], 422);
+        }
+
+        try {
+            DB::connection('DATA_MYSQL')->beginTransaction();
+            $tagihan->update(['FSTSBolehBayar' => 0]);
+            DB::connection('DATA_MYSQL')->commit();
+
+            Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
+
+            return response()->json(['message' => 'Tagihan berhasil dihapus!'], 200);
+        } catch (\Throwable $e) {
+            DB::connection('DATA_MYSQL')->rollBack();
+
+            return response()->json([
+                'message' => 'Gagal menghapus tagihan!',
+                'error' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    private function canHapusTagihan(scctbill $tagihan): bool
+    {
+        if ((int) ($tagihan->PAIDST ?? 0) !== 0) {
+            return false;
+        }
+
+        if ((int) ($tagihan->INSTALLMENT ?? 0) !== 0) {
+            return false;
+        }
+
+        if ((int) ($tagihan->BILLPAID ?? 0) !== 0) {
+            return false;
+        }
+
+        return !app(TagihanPaymentReversal::class)->hasBillPayments($tagihan);
+    }
+
     public function destroy($id, Request $request)
     {
         $custId = $request->input('user_id') ?? $request->input('custid');
@@ -336,13 +406,17 @@ class DataTagihanController extends Controller
                     'scctcust.nmcust',
                     'scctcust.nocust',
                     'scctbill.AA',
+                    'scctbill.CUSTID',
                     'scctbill.BILLNM',
                     'scctbill.BILLAM',
+                    'scctbill.BILLPAID',
+                    'scctbill.PAYMENTLEFT',
                     'scctbill.PAIDST',
                     'scctbill.PAIDDT',
                     'scctbill.BTA',
                     'scctbill.FIDBANK',
                     'scctbill.FUrutan',
+                    'scctbill.TRANSNO',
                     'scctcust.CODE02',
                     'scctcust.DESC02',
                 ])
@@ -363,6 +437,26 @@ class DataTagihanController extends Controller
                 ->orderBy('scctbill.BILLAC', 'desc')
                 ->orderBy('scctbill.PAIDDT', 'desc')
                 ->get();
+
+            $lastPaymentDates = $this->getLastPaymentDatesForBills($records);
+
+            $records = $records->map(function ($row) use ($lastPaymentDates) {
+                $aa = (string) ($row->AA ?? '');
+                $billPaid = (int) ($row->BILLPAID ?? 0);
+                $billAm = (int) ($row->BILLAM ?? 0);
+
+                if (blank($row->PAIDDT) && $billPaid > 0 && isset($lastPaymentDates[$aa])) {
+                    $row->PAIDDT = $lastPaymentDates[$aa];
+                }
+
+                if ($row->PAYMENTLEFT === null || $row->PAYMENTLEFT === '') {
+                    $row->PAYMENTLEFT = max(0, $billAm - $billPaid);
+                }
+
+                $row->BILLPAID = $billPaid;
+
+                return $row;
+            });
 
             $groupedByBill = $records->groupBy('BILLNM');
 
@@ -449,7 +543,7 @@ class DataTagihanController extends Controller
         $columnName = 'scctbill.FUrutan';
         $columnSortOrder = 'asc';
         $userOrdered = false;
-        $nonSortableData = ['AA', 'naik', 'turun', 'delete', 'print', 'NOVA', 'detail_trx'];
+        $nonSortableData = ['AA', 'naik', 'turun', 'delete', 'hapus', 'print', 'NOVA', 'detail_trx'];
 
         if (!empty($order_arr)) {
             $columnIndex = $columnIndex_arr[0]['column'] ?? null;
@@ -516,6 +610,7 @@ class DataTagihanController extends Controller
             'scctbill.PAYMENTLEFT',
             'scctbill.PAIDST',
             'scctbill.PAIDDT',
+            'scctbill.INSTALLMENT',
             'scctbill.TRANSNO as BILL_TRANSNO',
             'scctbill.BTA',
             'scctbill.FIDBANK',
@@ -608,17 +703,30 @@ class DataTagihanController extends Controller
                 ->orderBy('scctcust.nocust', 'asc');
         }
 
-        $records = $recordsQuery
+        $rows = $recordsQuery
             ->skip($start)
             ->take($rowperpage)
-            ->get()
-            ->map(function ($item, $index) {
+            ->get();
+
+        $lastPaymentDates = $this->getLastPaymentDatesForBills($rows);
+
+        $records = $rows
+            ->map(function ($item, $index) use ($lastPaymentDates) {
                 $row = $item->toArray();
                 $get = static fn (string $key) => $row[$key] ?? $row[strtolower($key)] ?? null;
 
                 $nocust = $get('NOCUST');
                 $num2nd = $get('NUM2ND');
                 $furutan = $get('FUrutan');
+                $aa = (string) ($get('AA') ?? '');
+                $billPaid = (int) ($get('BILLPAID') ?? 0);
+                $paidDtRaw = $get('PAIDDT');
+
+                if (blank($paidDtRaw) && $billPaid > 0 && isset($lastPaymentDates[$aa])) {
+                    $paidDtRaw = $lastPaymentDates[$aa];
+                }
+
+                $canHapus = $this->canHapusTagihan($item);
 
                 return [
                     'AA' => $get('AA'),
@@ -639,8 +747,12 @@ class DataTagihanController extends Controller
                     'BILLAC' => $get('BILLAC'),
                     'BTA' => $get('BTA'),
                     'PAIDST' => $get('PAIDST'),
-                    'PAIDDT' => $get('PAIDDT')
-                        ? Carbon::parse($get('PAIDDT'))->format('d-m-Y H:i:s')
+                    'INSTALLMENT' => (int) ($get('INSTALLMENT') ?? 0),
+                    'PAIDDT' => $paidDtRaw
+                        ? Carbon::parse($paidDtRaw)->format('Y-m-d H:i:s')
+                        : null,
+                    'PAIDDT_ISO' => $paidDtRaw
+                        ? Carbon::parse($paidDtRaw)->format('Y-m-d H:i:s')
                         : null,
                     'FIDBANK' => $get('FIDBANK'),
                     'FUrutan' => ($furutan === null || $furutan === '')
@@ -650,8 +762,9 @@ class DataTagihanController extends Controller
                     'TRX_LOGS' => [],
                     'BILL_TRANSNO' => $get('BILL_TRANSNO'),
                     'print' => true,
-                    'delete' => ((int) ($get('BILLPAID') ?? 0)) > 0,
+                    'delete' => $billPaid > 0,
                     'delete_label' => 'Reversal',
+                    'hapus' => $canHapus,
                 ];
             })
             ->values()
@@ -666,6 +779,110 @@ class DataTagihanController extends Controller
             ]
         );
         return response()->json($response);
+    }
+
+    private function getLastPaymentDatesForBills(iterable $rows): array
+    {
+        $dates = [];
+        $pending = [];
+
+        foreach ($rows as $item) {
+            $row = $item instanceof \Illuminate\Database\Eloquent\Model ? $item->toArray() : (array) $item;
+            $get = static fn (string $key) => $row[$key] ?? $row[strtolower($key)] ?? null;
+
+            $aa = (string) ($get('AA') ?? '');
+            if ($aa === '') {
+                continue;
+            }
+
+            $billPaid = (int) ($get('BILLPAID') ?? 0);
+            if ($billPaid <= 0) {
+                continue;
+            }
+
+            $pending[$aa] = [
+                'custid' => $get('CUSTID'),
+                'transno' => $get('BILL_TRANSNO') ?? $get('TRANSNO'),
+                'billnm' => $get('BILLNM'),
+            ];
+        }
+
+        if ($pending === []) {
+            return [];
+        }
+
+        $paymentScope = function ($query) {
+            $query->where(function ($q) {
+                $q->whereRaw('CAST(COALESCE(KREDIT, 0) AS SIGNED) > 0')
+                    ->orWhereRaw('CAST(COALESCE(DEBET, 0) AS SIGNED) > 0');
+            });
+        };
+
+        $byBillId = sccttran::query()
+            ->whereIn('BILLID', array_keys($pending))
+            ->where($paymentScope)
+            ->selectRaw('BILLID, MAX(TRXDATE) as last_trx')
+            ->groupBy('BILLID')
+            ->pluck('last_trx', 'BILLID');
+
+        foreach ($byBillId as $billId => $trxDate) {
+            if ($trxDate) {
+                $dates[(string) $billId] = $trxDate;
+            }
+        }
+
+        $transnoMap = [];
+        foreach ($pending as $aa => $meta) {
+            if (isset($dates[$aa])) {
+                continue;
+            }
+            $transno = trim((string) ($meta['transno'] ?? ''));
+            if ($transno !== '' && $transno !== '-') {
+                $transnoMap[$transno][] = $aa;
+            }
+        }
+
+        if ($transnoMap !== []) {
+            $byTransno = sccttran::query()
+                ->whereIn('TRANSNO', array_keys($transnoMap))
+                ->where($paymentScope)
+                ->selectRaw('TRANSNO, MAX(TRXDATE) as last_trx')
+                ->groupBy('TRANSNO')
+                ->pluck('last_trx', 'TRANSNO');
+
+            foreach ($byTransno as $transno => $trxDate) {
+                if (!$trxDate) {
+                    continue;
+                }
+                foreach ($transnoMap[$transno] ?? [] as $aa) {
+                    $dates[$aa] ??= $trxDate;
+                }
+            }
+        }
+
+        foreach ($pending as $aa => $meta) {
+            if (isset($dates[$aa])) {
+                continue;
+            }
+
+            $custId = $meta['custid'] ?? null;
+            $billNm = trim((string) ($meta['billnm'] ?? ''));
+            if (blank($custId) || $billNm === '') {
+                continue;
+            }
+
+            $trxDate = sccttran::query()
+                ->where('CUSTID', $custId)
+                ->whereRaw('UPPER(TRIM(BILLTARGET)) = UPPER(TRIM(?))', [$billNm])
+                ->where($paymentScope)
+                ->max('TRXDATE');
+
+            if ($trxDate) {
+                $dates[$aa] = $trxDate;
+            }
+        }
+
+        return $dates;
     }
 
     private function getTransactionLogsForBill($custId, $aa, $billTransNo = null, $billName = null): array

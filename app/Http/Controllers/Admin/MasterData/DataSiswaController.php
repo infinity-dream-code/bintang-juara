@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\mst_sekolah;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
+use App\Support\AndroidLogonFixerProcedure;
 use App\Support\FilterHandler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -357,13 +358,13 @@ class DataSiswaController extends Controller
         }
 
         try {
-            DB::beginTransaction();
-            DB::select("CALL AndroidLogonFixer(?)", [$siswa->nocust]);
-            DB::commit();
+            DB::connection('DATA_MYSQL')->beginTransaction();
+            AndroidLogonFixerProcedure::call((string) $siswa->nocust);
+            DB::connection('DATA_MYSQL')->commit();
 
             return response()->json(["message" => "Login Android Direset!"], 200);
         } catch (\Throwable $e) {
-            DB::rollBack();
+            DB::connection('DATA_MYSQL')->rollBack();
 
             return response()->json(
                 ["message" => "Gagal Mereset Login Android!", "error" => $e->getMessage()],
@@ -412,18 +413,18 @@ class DataSiswaController extends Controller
 
         $processed = 0;
         try {
-            DB::beginTransaction();
+            DB::connection('DATA_MYSQL')->beginTransaction();
             foreach ($siswaList as $siswa) {
                 $nis = trim((string) ($siswa->nocust ?? ""));
                 if ($nis === "" || $nis === "-") {
                     continue;
                 }
-                DB::select("CALL AndroidLogonFixer(?)", [$nis]);
+                AndroidLogonFixerProcedure::call($nis);
                 $processed++;
             }
-            DB::commit();
+            DB::connection('DATA_MYSQL')->commit();
         } catch (\Throwable $e) {
-            DB::rollBack();
+            DB::connection('DATA_MYSQL')->rollBack();
             return response()->json(
                 ["message" => "Gagal reset login android massal!", "error" => $e->getMessage()],
                 422,

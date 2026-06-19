@@ -1009,21 +1009,40 @@
                 }
             }
 
+            function formatTanggalBayar(value) {
+                if (!value || value === '' || value === '0000-00-00 00:00:00') {
+                    return '-';
+                }
+                const parsed = new Date(value);
+                if (Number.isNaN(parsed.getTime())) {
+                    return '-';
+                }
+                return parsed.toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                });
+            }
+
             async function generateKuitansi(data) {
                 try {
                     const bodyContent = [];
 
                     let siswa = data.siswa;
                     const namaSiswa = siswa.NMCUST ?? siswa.nmcust ?? '-';
-                    const fidBank = data.tagihans?.[0]?.FIDBANK ?? '';
+                    const paymentBank = data.bank ?? '';
+                    const fidBank = paymentBank || data.tagihans?.[0]?.FIDBANK ?? '';
                     const biayaLayanan = (data.biaya_layanan !== undefined && data.biaya_layanan !== null)
                         ? Number(data.biaya_layanan)
                         : (fidBank === '1140002' ? 0 : 2000);
                     let nocust = siswa.NOCUST === null || siswa.NOCUST === '' || siswa.NOCUST === '-' || !siswa.NOCUST ? false : siswa.NOCUST;
-                    const uniqueMetode = [...new Set(data.tagihans.map(item => String(item.FIDBANK ?? '')))].filter(Boolean);
-                    const metodeLabel = uniqueMetode.length > 1
-                        ? 'Beragam'
-                        : formatMetodePembayaran(fidBank);
+                    const uniqueMetode = [...new Set(data.tagihans.map(item => String(item.FIDBANK ?? paymentBank ?? '')))].filter(Boolean);
+                    const metodeLabel = paymentBank
+                        ? formatMetodePembayaran(paymentBank)
+                        : (uniqueMetode.length > 1
+                            ? 'Beragam'
+                            : formatMetodePembayaran(fidBank));
 
                     const mainTable = [
                         [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : siswa.NUM2ND), 'Unit', ': ' + siswa.CODE02],
@@ -1051,29 +1070,24 @@
                             .map(h => ({text: h, style: 'tableHeader'})),
                     );
 
-                    let totalTagihan = 0;
+                    let totalBayar = 0;
 
                     let tagihans = data.tagihans;
                     tagihans.forEach((item, index) => {
-                        let tanggalBayar = item.PAIDDT;
-                        if (tanggalBayar && tanggalBayar !== '' && tanggalBayar !== '0000-00-00 00:00:00') {
-                            tanggalBayar = new Date(tanggalBayar).toLocaleDateString('id-ID', {
-                                weekday: 'long',
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
-                            });
-                        }
+                        const billAm = Number(item.BILLAM ?? 0);
+                        const nominalBayar = Number(item.NOMINAL_BAYAR ?? item.BILLAM ?? 0);
+                        const itemFidBank = item.FIDBANK ?? paymentBank ?? '';
+                        const tanggalBayar = formatTanggalBayar(item.PAIDDT);
 
-                        totalTagihan += item.BILLAM;
+                        totalBayar += nominalBayar;
 
                         tableBody.push([
                             {text: index + 1, alignment: 'center'},
                             {text: item.BILLNM, alignment: 'left'},
                             {text: item.BTA, alignment: 'left'},
-                            {text: formatRupiah(item.BILLAM), alignment: 'right'},
-                            {text: formatRupiah(item.BILLAM), alignment: 'right'},
-                            {text: formatMetodePembayaran(item.FIDBANK ?? ''), alignment: 'left'},
+                            {text: formatRupiah(billAm), alignment: 'right'},
+                            {text: formatRupiah(nominalBayar), alignment: 'right'},
+                            {text: formatMetodePembayaran(itemFidBank), alignment: 'left'},
                             {text: tanggalBayar, alignment: 'left'},
                         ]);
                     })
@@ -1082,7 +1096,7 @@
                         tableBody.push([
                             {colSpan: 4, text: 'Total Tagihan', alignment: 'right', style: 'tableHeader'},
                             {}, {}, {},
-                            {text: formatRupiah(totalTagihan), alignment: 'right'},
+                            {text: formatRupiah(totalBayar), alignment: 'right'},
                             {}, {}
                         ])
 
@@ -1097,7 +1111,7 @@
                     tableBody.push([
                         {colSpan: 4, text: 'Total', alignment: 'right', style: 'tableHeader'},
                         {}, {}, {},
-                        {text: formatRupiah(totalTagihan + biayaLayanan), alignment: 'right'},
+                        {text: formatRupiah(totalBayar + biayaLayanan), alignment: 'right'},
                         {}, {}
                     ])
 

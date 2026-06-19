@@ -57,7 +57,7 @@ class ManualPaymentBuilder
         string $hostname
     ): void {
         Log::info('manual-payment.builder.call', [
-            'procedure' => 'BuilderPaymentCash',
+            'function' => 'BuilderPaymentCash',
             'custid' => $custId,
             'aa' => $aa,
             'billcd' => $billCd,
@@ -69,9 +69,7 @@ class ManualPaymentBuilder
             'hostname' => $hostname,
         ]);
 
-        $pdo = DB::connection('DATA_MYSQL')->getPdo();
-        $stmt = $pdo->prepare('CALL BuilderPaymentCash(?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([
+        $this->invokeStoredFunction('BuilderPaymentCash', [
             $custId,
             $aa,
             $billCd,
@@ -82,8 +80,6 @@ class ManualPaymentBuilder
             $userId,
             $hostname,
         ]);
-
-        $this->drainStatement($stmt);
     }
 
     private function callBuilderPaymentBill(
@@ -96,7 +92,7 @@ class ManualPaymentBuilder
         string $hostname
     ): void {
         Log::info('manual-payment.builder.call', [
-            'procedure' => 'BuilderPaymentBill',
+            'function' => 'BuilderPaymentBill',
             'custid' => $custId,
             'aa' => $aa,
             'billcd' => $billCd,
@@ -106,9 +102,7 @@ class ManualPaymentBuilder
             'hostname' => $hostname,
         ]);
 
-        $pdo = DB::connection('DATA_MYSQL')->getPdo();
-        $stmt = $pdo->prepare('CALL BuilderPaymentBill(?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([
+        $this->invokeStoredFunction('BuilderPaymentBill', [
             $custId,
             $aa,
             $billCd,
@@ -117,15 +111,17 @@ class ManualPaymentBuilder
             $userId,
             $hostname,
         ]);
-
-        $this->drainStatement($stmt);
     }
 
-    private function drainStatement(\PDOStatement $stmt): void
+    /** MySQL FUNCTION (fx) — pakai SELECT, bukan CALL (procedure). */
+    private function invokeStoredFunction(string $functionName, array $params): void
     {
-        do {
-            $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        } while ($stmt->nextRowset());
+        $placeholders = implode(', ', array_fill(0, count($params), '?'));
+
+        DB::connection('DATA_MYSQL')->select(
+            "SELECT {$functionName}({$placeholders})",
+            $params
+        );
     }
 
     private function resolveCyberKeyUserId(): string

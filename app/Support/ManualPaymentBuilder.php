@@ -28,7 +28,7 @@ class ManualPaymentBuilder
         $hostname = Str::limit((string) ($request->ip() ?? ''), 250, '');
 
         if ($fidBank === self::SALDO_FIDBANK) {
-            $this->callBuilderPaymentBill($custId, $aa, $billCd, $nominal, $paidAt, $userId, $hostname);
+            $this->callBuilderPaymentBill($custId, $aa, $billCd, $nominal, $userId, $hostname);
             return;
         }
 
@@ -38,21 +38,18 @@ class ManualPaymentBuilder
             $billCd,
             $nominal,
             $fidBank,
-            (string) ($transno ?? ''),
-            $paidAt,
             $userId,
             $hostname
         );
     }
 
+    /** BuilderPaymentCash(custid, aa, billcd, nominal, fidbank, users, hostname) */
     private function callBuilderPaymentCash(
         string $custId,
         string $aa,
         string $billCd,
         int $nominal,
         string $fidBank,
-        string $transno,
-        string $paidAt,
         string $userId,
         string $hostname
     ): void {
@@ -63,8 +60,6 @@ class ManualPaymentBuilder
             'billcd' => $billCd,
             'nominal' => $nominal,
             'fidbank' => $fidBank,
-            'transno' => $transno,
-            'paiddt' => $paidAt,
             'users' => $userId,
             'hostname' => $hostname,
         ]);
@@ -75,19 +70,17 @@ class ManualPaymentBuilder
             $billCd,
             $nominal,
             $fidBank,
-            $transno,
-            $paidAt,
             $userId,
             $hostname,
         ]);
     }
 
+    /** BuilderPaymentBill — sama 7 param, fidbank = 1140002 */
     private function callBuilderPaymentBill(
         string $custId,
         string $aa,
         string $billCd,
         int $nominal,
-        string $paidAt,
         string $userId,
         string $hostname
     ): void {
@@ -97,7 +90,6 @@ class ManualPaymentBuilder
             'aa' => $aa,
             'billcd' => $billCd,
             'nominal' => $nominal,
-            'paiddt' => $paidAt,
             'users' => $userId,
             'hostname' => $hostname,
         ]);
@@ -107,7 +99,7 @@ class ManualPaymentBuilder
             $aa,
             $billCd,
             $nominal,
-            $paidAt,
+            self::SALDO_FIDBANK,
             $userId,
             $hostname,
         ]);

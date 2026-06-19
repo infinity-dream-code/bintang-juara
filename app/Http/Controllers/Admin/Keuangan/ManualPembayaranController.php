@@ -323,12 +323,13 @@ class ManualPembayaranController extends Controller
         $formattedDate = $datetime->toDateTimeString();
         try {
             DB::beginTransaction();
+            DB::connection('DATA_MYSQL')->beginTransaction();
 
             if ($request->bank == '1140002') {
                 $saldoController = new SaldoVirtualAccountController();
                 $saldo = $saldoController->resolveCustSaldo($request->siswa);
                 if ($saldo < $totalBayar) {
-                    DB::rollBack();
+                    $this->rollbackManualPaymentTransactions();
                     return response()->json(['message' => 'Saldo siswa kurang.<br> saldo: Rp.' . $saldo], 422);
                 }
                 $sisaSaldo = $saldo - $totalBayar;
@@ -378,11 +379,11 @@ class ManualPembayaranController extends Controller
                 $paymentLeft = $this->resolvePaymentLeft($item);
 
                 if ($nominal <= 0 && $paymentLeft > 0) {
-                    DB::rollBack();
+                    $this->rollbackManualPaymentTransactions();
                     return response()->json(['message' => 'Nominal Pembayaran terlalu kecil'], 422);
                 }
                 if ($nominal > $paymentLeft) {
-                    DB::rollBack();
+                    $this->rollbackManualPaymentTransactions();
                     $nominalTagihan = 'Rp. ' . number_format($paymentLeft, 0, ',', '.');
                     $nominalPembayaran = 'Rp. ' . number_format($nominal, 0, ',', '.');
                     return response()->json(['message' => "Nominal Pembayaran untuk tagihan terlalu besar! <br>
@@ -391,7 +392,7 @@ class ManualPembayaranController extends Controller
                     "], 422);
                 }
                 if ($nominal < $paymentLeft && !mst_tagihan::canInstallment($item->BILLNM)) {
-                    DB::rollBack();
+                    $this->rollbackManualPaymentTransactions();
                     return response()->json([
                         'message' => "Tagihan {$item->BILLNM} tidak dapat dicicil. Pembayaran harus lunas (Rp. " . number_format($paymentLeft, 0, ',', '.') . ').',
                     ], 422);
@@ -457,6 +458,7 @@ class ManualPembayaranController extends Controller
             $request->session()->forget('tagihan_baru_dibayar');
             session(['siswa_tagihan_baru_dibayar' => $siswa]);
             session(['tagihan_baru_dibayar' => $tagihanForPrint]);
+            DB::connection('DATA_MYSQL')->commit();
             DB::commit();
             Log::info('manual-pembayaran.store.success', [
                 'siswa' => $request->input('siswa'),
@@ -466,7 +468,7 @@ class ManualPembayaranController extends Controller
             ]);
             return response()->json(['message' => $message], 200);
         } catch (QueryException $e) {
-            DB::rollBack();
+            $this->rollbackManualPaymentTransactions();
             Log::error('manual-pembayaran.store.query_exception', [
                 'siswa' => $request->input('siswa'),
                 'bank' => $request->input('bank'),
@@ -475,7 +477,7 @@ class ManualPembayaranController extends Controller
             ]);
             return response()->json(['message' => 'Tagihan gagal dibayar', 'error' => $e], 422);
         } catch (Throwable $e) {
-            DB::rollBack();
+            $this->rollbackManualPaymentTransactions();
             Log::error('manual-pembayaran.store.unhandled_exception', [
                 'siswa' => $request->input('siswa'),
                 'bank' => $request->input('bank'),
@@ -485,6 +487,17 @@ class ManualPembayaranController extends Controller
             return response()->json([
                 'message' => config('app.debug') ? ('Tagihan gagal dibayar: ' . $e->getMessage()) : 'Tagihan gagal dibayar'
             ], 422);
+        }
+    }
+
+    private function rollbackManualPaymentTransactions(): void
+    {
+        if (DB::connection('DATA_MYSQL')->transactionLevel() > 0) {
+            DB::connection('DATA_MYSQL')->rollBack();
+        }
+
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
         }
     }
 

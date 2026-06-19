@@ -89,7 +89,7 @@ class DataSiswaController extends Controller
             ["data" => "CODE04", "name" => "Gender", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "DESC05", "name" => "Alamat", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "GENUS", "name" => "Orang Tua", "searchable" => true, "orderable" => true, "exportable" => true],
-            ["data" => "NO_WA", "name" => "No WA", "searchable" => true, "orderable" => true, "exportable" => false, "visible" => false],
+            ["data" => "NO_WA", "name" => "No WA", "searchable" => true, "orderable" => true, "exportable" => true],
             ["data" => "STCUST", "name" => "Status (1/0)", "searchable" => true, "orderable" => true, "exportable" => true],
             [
                 "data" => "edit_siswa",

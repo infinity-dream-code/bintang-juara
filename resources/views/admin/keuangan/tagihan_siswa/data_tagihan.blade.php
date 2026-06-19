@@ -423,6 +423,14 @@
     <script src="{{asset('main/libs/select2/select2.js')}}"></script>
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260619-data-tagihan"></script>
+    <script>
+        window.DATA_TAGIHAN_BOOT = {
+            columnUrl: @json($columnsUrl ?? null),
+            dataUrl: @json($datasUrl ?? null),
+            prefetchedColumns: @json($tableColumns ?? []),
+        };
+    </script>
+    <script src="{{asset('js/data-tagihan-init.js')}}?v=20260619"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-daterangepicker/bootstrap-daterangepicker.js')}}"></script>
 
@@ -455,6 +463,7 @@
             formId: 'filter-form',
             columnUrl: '{{($columnsUrl??null)}}',
             dataUrl: '{{($datasUrl??null)}}',
+            prefetchedColumns: window.DATA_TAGIHAN_BOOT?.prefetchedColumns ?? [],
             dataColumns: [],
             thead: true,
             tfoot: true,
@@ -474,6 +483,56 @@
             pdfFontSize: 6,
             pdfHeaderFontSize: 7,
         };
+
+        function initDataTagihanTable() {
+            if (window.__dataTagihanTableBooted) {
+                return;
+            }
+            window.__dataTagihanTableBooted = true;
+            if (!dtOptions.columnUrl || !dtOptions.dataUrl) {
+                console.error('Data Tagihan: URL tabel tidak lengkap', dtOptions);
+                if (typeof errorAlert === 'function') {
+                    errorAlert('Konfigurasi tabel tidak lengkap (columnUrl/dataUrl). Silahkan hubungi admin.');
+                }
+                return;
+            }
+            if (typeof getDT !== 'function') {
+                console.error('Data Tagihan: fungsi getDT tidak ditemukan — script Datatable gagal dimuat');
+                if (typeof errorAlert === 'function') {
+                    errorAlert('Script tabel gagal dimuat. Tekan Ctrl+F5 untuk muat ulang halaman.');
+                }
+                return;
+            }
+            getDT(dtOptions);
+            setTimeout(ensureUrutanToolbarButtons, 300);
+            $(`#${dtOptions.tableId}`).on('init.dt draw.dt select.dt deselect.dt', function () {
+                ensureUrutanToolbarButtons();
+                syncTagihanCheckboxSelection();
+                updateUrutanToolbarState();
+            });
+            $(`#${dtOptions.tableId}`).on('draw.dt', function () {
+                closeAllTransLogRows();
+            });
+            if (dtOptions.formId) {
+                let filterForm = $(`#${dtOptions.formId}`);
+                filterForm.on('submit', function (e) {
+                    e.preventDefault();
+                    dataReFilter(dtOptions.tableId);
+                });
+                filterForm.on('reset', function (e) {
+                    setTimeout(function () {
+                        dataReFilter(dtOptions.tableId);
+                        const select2InForm = select2.filter(`#${dtOptions.formId} [data-control='select2']`);
+                        if (select2InForm.length) {
+                            select2InForm.each(function () {
+                                let $this = $(this);
+                                $this.trigger('change');
+                            });
+                        }
+                    }, 0);
+                });
+            }
+        }
 
         const modalDeleteElement = document.getElementById('modal-delete');
         const modalDelete = new bootstrap.Modal(document.getElementById('modal-delete'));
@@ -706,6 +765,11 @@
                 $(this).text('+');
             });
         }
+
+        window.ensureUrutanToolbarButtons = ensureUrutanToolbarButtons;
+        window.syncTagihanCheckboxSelection = syncTagihanCheckboxSelection;
+        window.updateUrutanToolbarState = updateUrutanToolbarState;
+        window.closeAllTransLogRows = closeAllTransLogRows;
 
         async function toggleTransLogRow($rowEl, rowData, buttonEl) {
             const billId = rowData.item_id ?? rowData.AA;
@@ -947,49 +1011,6 @@
         });
 
         document.addEventListener("DOMContentLoaded", function () {
-            if (!dtOptions.columnUrl || !dtOptions.dataUrl) {
-                console.error('Data Tagihan: URL tabel tidak lengkap', dtOptions);
-                if (typeof errorAlert === 'function') {
-                    errorAlert('Konfigurasi tabel tidak lengkap (columnUrl/dataUrl). Silahkan hubungi admin.');
-                }
-                return;
-            }
-            if (typeof getDT !== 'function') {
-                console.error('Data Tagihan: fungsi getDT tidak ditemukan — script Datatable gagal dimuat');
-                if (typeof errorAlert === 'function') {
-                    errorAlert('Script tabel gagal dimuat. Tekan Ctrl+F5 untuk muat ulang halaman.');
-                }
-                return;
-            }
-            getDT(dtOptions);
-                setTimeout(ensureUrutanToolbarButtons, 300);
-                $(`#${dtOptions.tableId}`).on('init.dt draw.dt select.dt deselect.dt', function () {
-                    ensureUrutanToolbarButtons();
-                    syncTagihanCheckboxSelection();
-                    updateUrutanToolbarState();
-                });
-                $(`#${dtOptions.tableId}`).on('draw.dt', function () {
-                    closeAllTransLogRows();
-                });
-                if (dtOptions.formId) {
-                    let filterForm = $(`#${dtOptions.formId}`);
-                    filterForm.on('submit', function (e) {
-                        e.preventDefault();
-                        dataReFilter(dtOptions.tableId);
-                    });
-                    filterForm.on('reset', function (e) {
-                        setTimeout(function () {
-                            dataReFilter(dtOptions.tableId);
-                            const select2InForm = select2.filter(`#${dtOptions.formId} [data-control='select2']`);
-                            if (select2InForm.length) {
-                                select2InForm.each(function () {
-                                    let $this = $(this);
-                                    $this.trigger('change');
-                                });
-                            }
-                        }, 0)
-                    });
-                }
             document.addEventListener('click', function (e) {
                 if (e.target.closest('.paginate_button, .buttons-excel, .buttons-pdf, .buttons-print')) {
                     setTimeout(ensureUrutanToolbarButtons, 120);
@@ -1143,10 +1164,10 @@
             };
             const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
             const tandaTangan = @json($tanda_tangan);
-            const userName = "{{ Auth::user()->name }}";
+            const userName = @json(Auth::user()?->name ?? Auth::user()?->users ?? '');
             const domisili = "{{ config('app.domisili') }}";
             const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
-            const APP_NOVA = {{config('app.nova')}};
+            const APP_NOVA = @json((string) (config('app.nova') ?: '123456'));
             const showVA = (nis) => APP_NOVA + String(nis).padStart(10, '0');
 
             async function generatePdf(title, bodyContent, unit_logo = false) {

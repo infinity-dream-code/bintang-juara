@@ -1090,11 +1090,9 @@ function dataReFilter(id = null, formId = null) {
 }
 
 async function getDT(options) {
-    if (options.columnUrl) {
-        options.dataColumns = Array.isArray(options.dataColumns) ? options.dataColumns : [];
-        $.ajax({
-            url: options.columnUrl,
-            success: function (data) {
+    options.dataColumns = Array.isArray(options.dataColumns) ? options.dataColumns : [];
+
+    const finishColumns = function (data) {
                 $.each(data, function (index, column) {
                     let columnType;
                     let renderFunc = '';
@@ -1492,8 +1490,23 @@ async function getDT(options) {
                 if (options.tfoot) {
                     prepareTableFoot(options.tableId);
                 }
-                dataTableCreate(options)
-            },
+                dataTableCreate(options);
+    };
+
+    const prefetched = options.prefetchedColumns;
+    if (Array.isArray(prefetched) && prefetched.length > 0) {
+        finishColumns(prefetched);
+        return;
+    }
+
+    if (!options.columnUrl) {
+        warningAlert('Data tidak dapat dimuat, silahkan muat ulang halaman');
+        return;
+    }
+
+    $.ajax({
+        url: options.columnUrl,
+        success: finishColumns,
             error: function (xhr) {
                 const descriptions = {
                     401: 'Sesi anda telah habis, silahkan login kembali!',
@@ -1504,9 +1517,6 @@ async function getDT(options) {
                 errorAlert(descriptions[xhr.status] || 'Gagal memuat kolom tabel. Silahkan muat ulang halaman.');
             }
         });
-    } else {
-        warningAlert('Data tidak dapat dimuat, silahkan muat ulang halaman')
-    }
 }
 
 

@@ -172,6 +172,7 @@ class DataTagihanController extends Controller
         $data['dataTitle'] = $this->dataTitle;
         $data['columnsUrl'] = $this->columnsUrl();
         $data['datasUrl'] = $this->datasUrl();
+        $data['tableColumns'] = $this->getColumn();
         $data['post'] = mst_tagihan::select(['tagihan'])->get();
         $data['thn_aka'] = mst_thn_aka::select(['thn_aka'])
             ->where('thn_aka', '!=', null)

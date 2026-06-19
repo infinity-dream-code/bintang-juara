@@ -231,7 +231,7 @@
                                 <input type="text" class="form-control form-control-sm"
                                        id="edit_siswa-genus" name="ayah">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4 d-none">
                                 <label class="form-label">No WA</label>
                                 <input type="text" class="form-control form-control-sm"
                                        id="edit_siswa-nowa" name="no_wa">
@@ -476,7 +476,6 @@
                 no: 18,
                 nocust: 48,
                 va_spp: 72,
-                va_saku: 72,
                 NUM2ND: 48,
                 nmcust: '*',
                 CODE02: 28,
@@ -486,7 +485,6 @@
                 CODE04: 24,
                 DESC05: 55,
                 GENUS: 55,
-                NO_WA: 48,
                 STCUST: 24,
             },
             printCustomize: function (win) {

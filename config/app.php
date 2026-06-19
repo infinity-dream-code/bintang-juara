@@ -16,12 +16,13 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
-    'nama_instansi' => env('APP_NAMA_INSTANSI', 'YAYASAN PENDIDIKAN ISLAM SABILUL'),
-    'alamat' => env('APP_ALAMAT', 'SIKEU'),
+    'name' => env('APP_NAME', 'Bintang Juara'),
+    'nama_instansi' => env('APP_NAMA_INSTANSI', 'Sekolah Islam Bintang Juara'),
+    'alamat' => env('APP_ALAMAT', 'Kota Semarang, Prov. Jawa Tengah'),
+    'logo' => env('APP_LOGO', 'logo-bijur.jpeg'),
     'email' => env('APP_EMAIL', 'ypisabkho@gmail.com'),
     'telepon' => env('APP_TELEPON', 'SIKEU'),
-    'domisili' => env('APP_DOMISILI', 'SALATIGA'),
+    'domisili' => env('APP_DOMISILI', 'Semarang'),
     'nova' => env('APP_NOVA', 123456),
     'biaya_admin' => env('BIAYA_ADMIN', 0),
     'dummy_seeder' => env('DUMMY_SEEDER',false),

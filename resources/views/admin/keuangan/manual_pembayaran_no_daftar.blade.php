@@ -797,7 +797,7 @@
                     website: "{{ config('app.website') }}"
                 }
             };
-            const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
+            const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
             const tandaTangan = @json($tanda_tangan);
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
@@ -822,7 +822,7 @@
             }
 
             async function getLogoUnit(unit = false) {
-                const fallbackLogo = 'data:image/png;base64,' + "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
+                const fallbackLogo = 'data:image/jpeg;base64,' + "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
                 try {
                     if (!unit) {
                         throw 'error';
@@ -883,7 +883,7 @@
 
             async function generatePdf(title, bodyContent, unit_logo = false) {
                 try {
-                    let logo = 'data:image/png;base64,' + headerLogo;
+                    let logo = 'data:image/jpeg;base64,' + headerLogo;
 
                     if (unit_logo) {
                         logo = await getLogoUnit(unit_logo);

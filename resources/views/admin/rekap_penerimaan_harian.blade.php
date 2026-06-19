@@ -265,7 +265,7 @@
                 website: "{{ config('app.website') ?? ''}}"
             }
         };
-        const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
+        const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
         const userName = "KASIR";
         const domisili = "{{ config('app.domisili') }}";
         const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
@@ -445,7 +445,7 @@
             };
 
             function generatePdfRekapTagihanPdfMake(data) {
-                const logo = headerLogo ? {image: 'data:image/png;base64,' + headerLogo, width: 60} : '';
+                const logo = headerLogo ? {image: 'data:image/jpeg;base64,' + headerLogo, width: 60} : '';
                 const tanggalSekarang = new Date().toLocaleDateString('id-ID', {
                     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
                 });

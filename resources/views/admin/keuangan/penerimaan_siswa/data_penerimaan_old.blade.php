@@ -602,7 +602,7 @@
                 website: "{{ config('app.website') }}"
             }
         };
-        const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
+        const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
         const tandaTangan = "{{ Auth::user()->tanda_tangan ? base64_encode(file_get_contents(public_path('storage/photos/tanda_tangan/'.Auth::user()->tanda_tangan))) : '' }}";
         const userName = "{{ Auth::user()->name }}";
         const domisili = "{{ config('app.domisili') }}";
@@ -687,7 +687,7 @@
 
 // Add logo (aligned to the left)
             if (headerLogo) {
-                doc.addImage('data:image/png;base64,' + headerLogo, 'PNG', 15, y, 30, 30);
+                doc.addImage('data:image/jpeg;base64,' + headerLogo, 'JPEG', 15, y, 30, 30);
             }
 
 // Calculate center position (adjust based on page width)

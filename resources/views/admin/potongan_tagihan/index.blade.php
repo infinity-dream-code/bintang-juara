@@ -378,7 +378,7 @@
                     website: "{{ config('app.website') }}"
                 }
             };
-            const headerLogo = "{{ base64_encode(file_get_contents(public_path('icon.png'))) }}";
+            const headerLogo = "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
 
@@ -418,7 +418,7 @@
 
             async function generatePdf(title, bodyContent) {
                 try {
-                    let logo = 'data:image/png;base64,' + headerLogo;
+                    let logo = 'data:image/jpeg;base64,' + headerLogo;
 
                     const orientation = 'portrait';
                     const pageMargins = [20, 20, 20, 20];

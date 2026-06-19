@@ -3,10 +3,10 @@
         <a href="{{route('admin.index')}}" class="app-brand-link">
               <span class="app-brand-logo demo">
                 <span style="color: var(--bs-primary)">
-                  <img width="50" height="50" src="{{asset('icon.png')}}" alt="logo">
+                  <img width="50" height="50" src="{{asset(config('app.logo'))}}" alt="logo">
                 </span>
               </span>
-            <span class="app-brand-text demo menu-text fw-bold ms-2">SIKEU</span>
+            <span class="app-brand-text demo menu-text fw-bold ms-2">{{ config('app.name') }}</span>
         </a>
         <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">

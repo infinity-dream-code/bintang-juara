@@ -21,7 +21,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -88,14 +87,6 @@ class DataTagihanController extends Controller
 
     public function getColumn()
     {
-        $user = Auth::user();
-        Log::info('data-tagihan.getColumn', [
-            'username' => $user->users ?? $user->username ?? null,
-            'urut' => $user->urut ?? $user->id ?? null,
-            'fid' => $user->fid ?? null,
-            'sekolah_scope' => $this->sekolah,
-        ]);
-
         return [
             [
                 'data' => 'detail_trx',
@@ -157,16 +148,6 @@ class DataTagihanController extends Controller
 
     public function index()
     {
-        $user = Auth::user();
-        Log::info('data-tagihan.index', [
-            'username' => $user->users ?? $user->username ?? null,
-            'urut' => $user->urut ?? $user->id ?? null,
-            'fid' => $user->fid ?? null,
-            'sekolah_scope' => $this->sekolah,
-            'columns_url' => $this->columnsUrl(),
-            'datas_url' => $this->datasUrl(),
-        ]);
-
         $data['title'] = $this->title;
         $data['mainTitle'] = $this->mainTitle;
         $data['dataTitle'] = $this->dataTitle;
@@ -440,25 +421,9 @@ class DataTagihanController extends Controller
 
     public function getData(Request $request)
     {
-        $authUser = Auth::user();
-        Log::info('data-tagihan.getData.start', [
-            'username' => $authUser->users ?? $authUser->username ?? null,
-            'urut' => $authUser->urut ?? $authUser->id ?? null,
-            'fid' => $authUser->fid ?? null,
-            'sekolah_scope' => $this->sekolah,
-            'filter' => $request->input('filter', []),
-            'search' => $request->input('search.value'),
-        ]);
-
         try {
             return $this->buildGetDataResponse($request);
         } catch (\Throwable $e) {
-            Log::error('data-tagihan.getData.error', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
-
             return response()->json([
                 'draw' => intval($request->get('draw')),
                 'recordsTotal' => 0,
@@ -590,19 +555,6 @@ class DataTagihanController extends Controller
             now()->addMinutes(10),
             fn() => (clone $query)->count()
         );
-
-        $authUser = Auth::user();
-        Log::info('data-tagihan.getData', [
-            'username' => $authUser->users ?? $authUser->username ?? null,
-            'urut' => $authUser->urut ?? $authUser->id ?? null,
-            'fid' => $authUser->fid ?? null,
-            'sekolah_scope' => $this->sekolah,
-            'scope_applied' => !blank($this->sekolah),
-            'filter' => $filter,
-            'search' => $searchValue,
-            'records_total' => $totalRecords,
-            'records_filtered' => $totalRecordswithFilter,
-        ]);
 
         $cacheKey = CacheHandler::cacheKey($this->cacheKey, 'sum_tagihan', $cacheFilter, $searchValue);
 

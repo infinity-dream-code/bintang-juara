@@ -28,7 +28,7 @@ class ManualPaymentBuilder
         $hostname = Str::limit((string) ($request->ip() ?? ''), 250, '');
 
         if ($fidBank === self::SALDO_FIDBANK) {
-            $this->callBuilderPaymentBill($custId, $aa, $billCd, $nominal, $userId, $hostname);
+            $this->callBuilderPaymentBill($aa, $nominal);
             return;
         }
 
@@ -75,33 +75,18 @@ class ManualPaymentBuilder
         ]);
     }
 
-    /** BuilderPaymentBill — sama 7 param, fidbank = 1140002 */
-    private function callBuilderPaymentBill(
-        string $custId,
-        string $aa,
-        string $billCd,
-        int $nominal,
-        string $userId,
-        string $hostname
-    ): void {
+    /** BuilderPaymentBill(aa, nominal) — 2 param sesuai definition DB */
+    private function callBuilderPaymentBill(string $aa, int $nominal): void
+    {
         Log::info('manual-payment.builder.call', [
             'function' => 'BuilderPaymentBill',
-            'custid' => $custId,
             'aa' => $aa,
-            'billcd' => $billCd,
             'nominal' => $nominal,
-            'users' => $userId,
-            'hostname' => $hostname,
         ]);
 
         $this->invokeStoredFunction('BuilderPaymentBill', [
-            $custId,
             $aa,
-            $billCd,
             $nominal,
-            self::SALDO_FIDBANK,
-            $userId,
-            $hostname,
         ]);
     }
 

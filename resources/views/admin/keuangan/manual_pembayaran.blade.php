@@ -777,13 +777,14 @@
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
             const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
-            const APP_NOVA = {{ (int) config('app.nova', 751023) }};
-            const showVA = (nis, unit) => {
-                if (!nis) return '';
-                const code = String(unit ?? '').trim().toLowerCase();
-                const prefix = (code === '63' || code.includes('ma')) ? '797763' : String(APP_NOVA).substring(0, 6);
-                return prefix + String(nis).padStart(10, '0');
-            };
+            const APP_VA_PREFIX = @json((string) (config('app.nova') ?: '797783'));
+            const showVA = (nis) => typeof formatNoVA === 'function'
+                ? formatNoVA(nis, APP_VA_PREFIX)
+                : (() => {
+                    const digits = String(nis ?? '').replace(/\D/g, '');
+                    if (!digits) return '';
+                    return APP_VA_PREFIX + digits.padStart(16 - APP_VA_PREFIX.length, '0');
+                })();
             const modalEditNova = new bootstrap.Modal(document.getElementById('modal-edit-nova'));
 
             function getContentWidth(pageSize = 'A4', orientation = 'portrait', margins = [30, 30, 30, 30]) {

@@ -422,6 +422,7 @@
 
     <script src="{{asset('main/libs/select2/select2.js')}}"></script>
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
+    <script src="{{asset('js/va-format.js')}}?v=20260619"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260619-data-tagihan"></script>
     <script>
         window.DATA_TAGIHAN_BOOT = {
@@ -1148,8 +1149,15 @@
             const userName = @json(Auth::user()?->name ?? Auth::user()?->users ?? '');
             const domisili = "{{ config('app.domisili') }}";
             const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
-            const APP_NOVA = @json((string) (config('app.nova') ?: '123456'));
-            const showVA = (nis) => APP_NOVA + String(nis).padStart(10, '0');
+            const APP_VA_PREFIX = @json((string) (config('app.nova') ?: '797783'));
+            const showVA = (nis) => typeof formatNoVA === 'function'
+                ? formatNoVA(nis, APP_VA_PREFIX)
+                : (() => {
+                    const digits = String(nis ?? '').replace(/\D/g, '');
+                    if (!digits) return '';
+                    const padLen = 16 - APP_VA_PREFIX.length;
+                    return APP_VA_PREFIX + digits.padStart(padLen, '0');
+                })();
 
             async function generatePdf(title, bodyContent, unit_logo = false) {
                 try {

@@ -800,8 +800,14 @@
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
             const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
-            const APP_NOVA = {{config('app.nova')}};
-            const showVA = (nis) => APP_NOVA + String(nis).padStart(10, '0');
+            const APP_VA_PREFIX = @json((string) (config('app.nova') ?: '797783'));
+            const showVA = (nis) => typeof formatNoVA === 'function'
+                ? formatNoVA(nis, APP_VA_PREFIX)
+                : (() => {
+                    const digits = String(nis ?? '').replace(/\D/g, '');
+                    if (!digits) return '';
+                    return APP_VA_PREFIX + digits.padStart(16 - APP_VA_PREFIX.length, '0');
+                })();
 
             function getContentWidth(pageSize = 'A4', orientation = 'portrait', margins = [30, 30, 30, 30]) {
                 const sizes = {

@@ -133,10 +133,10 @@ class DataPenerimaanController extends Controller
                 'className' => 'text-center exclude-selection',
                 'excludeFromSelection' => true,
                 'button' => 'action',
-                'buttonText' => 'Batal',
-                'buttonClass' => 'btn btn-sm btn-danger btn-batal-bayar',
+                'buttonText' => 'Reversal',
+                'buttonClass' => 'btn btn-sm btn-warning btn-reversal',
                 'buttonLink' => '#modal-delete',
-                'buttonIcon' => 'ri-delete-bin-line me-2',
+                'buttonIcon' => 'ri-arrow-go-back-line me-2',
                 'exportable' => false,
                 'duplicate' => false,
             ],
@@ -499,7 +499,7 @@ class DataPenerimaanController extends Controller
                 'custid' => $custId,
             ]);
 
-            return response()->json(['message' => 'Pembayaran tagihan dibatalkan!'], 200);
+            return response()->json(['message' => 'Reversal berhasil!'], 200);
         } catch (\Throwable $e) {
             Log::error('data-penerimaan.destroy.failed', [
                 'aa' => $aa,

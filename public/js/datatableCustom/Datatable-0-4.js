@@ -1232,8 +1232,11 @@ async function getDT(options) {
                                     } = column;
 
                                     const iconStyle = buttonIcon ? `<i class="${buttonIcon}"></i>` : buttonIconSVG || '';
-                                    const title = buttonText || '';
-                                    const buttonTextContent = noCaption ? '' : buttonText;
+                                    const resolvedButtonText = column.buttonTextField && row[column.buttonTextField]
+                                        ? row[column.buttonTextField]
+                                        : buttonText;
+                                    const title = resolvedButtonText || '';
+                                    const buttonTextContent = noCaption ? '' : resolvedButtonText;
                                     const rowDataJson = dataVal ? JSON.stringify(row).replace(/'/g, "&#39;").replace(/"/g, "&quot;") : null;
 
                                     const createButton = (attributes, content) => `<button type="button" class="${buttonClass}" title="${title}" ${attributes}>${content}</button>`;

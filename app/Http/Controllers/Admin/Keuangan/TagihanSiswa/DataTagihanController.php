@@ -98,22 +98,6 @@ class DataTagihanController extends Controller
                 'duplicate' => false,
             ],
             [
-                'data' => 'reverse',
-                'name' => '',
-                'orderable' => false,
-                'dataVal' => false,
-                'columnType' => 'button',
-                'className' => 'text-center exclude-selection',
-                'excludeFromSelection' => true,
-                'button' => 'action',
-                'buttonText' => 'Batal Bayar',
-                'buttonClass' => 'btn btn-sm btn-warning btn-batal-bayar',
-                'buttonLink' => '#modal-reverse',
-                'buttonIcon' => 'ri-arrow-go-back-line me-2',
-                'exportable' => false,
-                'duplicate' => false,
-            ],
-            [
                 'data' => 'delete',
                 'name' => '',
                 'orderable' => false,
@@ -122,10 +106,11 @@ class DataTagihanController extends Controller
                 'className' => 'text-center exclude-selection',
                 'excludeFromSelection' => true,
                 'button' => 'action',
-                'buttonText' => 'Hapus',
-                'buttonClass' => 'btn btn-sm btn-danger btn-hapus',
+                'buttonText' => 'Reversal',
+                'buttonTextField' => 'delete_label',
+                'buttonClass' => 'btn btn-sm btn-warning btn-reversal',
                 'buttonLink' => '#modal-delete',
-                'buttonIcon' => 'ri-delete-bin-line me-2',
+                'buttonIcon' => 'ri-arrow-go-back-line me-2',
                 'exportable' => false,
                 'duplicate' => false,
             ],
@@ -268,43 +253,23 @@ class DataTagihanController extends Controller
         }
 
         try {
-            app(TagihanPaymentReversal::class)->deleteUnpaidTagihan($tagihan, $request);
+            $reversal = app(TagihanPaymentReversal::class);
+            $hasPayments = $reversal->hasBillPayments($tagihan);
+
+            if ($hasPayments) {
+                $reversal->reverseLastPayment($tagihan, $request);
+                $message = 'Reversal berhasil!';
+            } else {
+                $tagihan->update(['FSTSBolehBayar' => 0]);
+                $message = 'Tagihan dihapus!';
+            }
+
             Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
 
-            return response()->json(['message' => 'Tagihan dihapus!'], 200);
+            return response()->json(['message' => $message], 200);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Gagal Menghapus Tagihan!',
-                'error' => $e->getMessage(),
-            ], 422);
-        }
-    }
-
-    public function reversePayment($id, Request $request)
-    {
-        $custId = $request->input('user_id') ?? $request->input('custid');
-
-        $tagihan = scctbill::where('AA', $id)
-            ->where('FSTSBolehBayar', '=', 1)
-            ->when($custId, fn ($q) => $q->where('CUSTID', $custId))
-            ->first();
-
-        if (!$tagihan) {
-            return response()->json(['message' => 'Tagihan tidak ditemukan!'], 422);
-        }
-
-        if ((int) ($tagihan->BILLPAID ?? 0) <= 0) {
-            return response()->json(['message' => 'Tagihan belum memiliki pembayaran!'], 422);
-        }
-
-        try {
-            app(TagihanPaymentReversal::class)->reverseLastPayment($tagihan, $request);
-            Cache::increment(Str::slug($this->cacheKey) . '_cache_version');
-
-            return response()->json(['message' => 'Pembayaran terakhir berhasil dibatalkan!'], 200);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Pembatalan pembayaran gagal!',
+                'message' => 'Gagal memproses tagihan!',
                 'error' => $e->getMessage(),
             ], 422);
         }
@@ -432,7 +397,7 @@ class DataTagihanController extends Controller
         $columnName = 'scctbill.FUrutan';
         $columnSortOrder = 'asc';
         $userOrdered = false;
-        $nonSortableData = ['AA', 'naik', 'turun', 'reverse', 'delete', 'print', 'NOVA', 'detail_trx'];
+        $nonSortableData = ['AA', 'naik', 'turun', 'delete', 'print', 'NOVA', 'detail_trx'];
 
         if (!empty($order_arr)) {
             $columnIndex = $columnIndex_arr[0]['column'] ?? null;
@@ -625,8 +590,8 @@ class DataTagihanController extends Controller
                     'TRX_LOGS' => [],
                     'BILL_TRANSNO' => $get('BILL_TRANSNO'),
                     'print' => true,
-                    'reverse' => (int) ($get('BILLPAID') ?? 0) > 0,
                     'delete' => true,
+                    'delete_label' => ((int) ($get('BILLPAID') ?? 0)) > 0 ? 'Reversal' : 'Hapus',
                 ];
             })
             ->values()

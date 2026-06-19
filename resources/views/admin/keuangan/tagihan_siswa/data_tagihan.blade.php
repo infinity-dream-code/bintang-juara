@@ -277,16 +277,16 @@
                 <div class="modal-content">
                     <div class="modal-status bg-danger"></div>
                     <div class="modal-header ">
-                        <div class="modal-title">
-                            Hapus Data
+                        <div class="modal-title" id="delete-modal-header">
+                            Reversal
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body text-capitalize text-center py-4">
-                        <span class="ri-delete-bin-line ri-3x"></span>
-                        <h4>Hapus Tagihan Siswa?</h4>
-                        <div class="">
-                            anda yakin akan menghapus data tagihan Siswa?
+                        <span class="ri-arrow-go-back-line ri-3x"></span>
+                        <h4 id="delete-modal-title">Reversal Pembayaran?</h4>
+                        <div id="delete-modal-desc">
+                            Anda yakin akan melakukan reversal pembayaran terakhir?
                         </div>
                     </div>
                     <div class="modal-body py-4">
@@ -331,78 +331,7 @@
                                            data-bs-dismiss="modal">
                                 </div>
                                 <div class="col">
-                                    <input type="submit" value="Hapus" class="btn btn-danger w-100">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </form>
-
-    <form id="form-reverse" class="mainForm">
-        <div class="modal modal-blur fade" id="modal-reverse" tabindex="-1" role="dialog" aria-hidden="true"
-             data-bs-backdrop="static">
-            <div class="modal-dialog modal-dialog-centered" role="document">
-                <div class="modal-content">
-                    <div class="modal-status bg-warning"></div>
-                    <div class="modal-header ">
-                        <div class="modal-title">
-                            Batal Pembayaran
-                        </div>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body text-capitalize text-center py-4">
-                        <span class="ri-arrow-go-back-line ri-3x"></span>
-                        <h4>Batalkan Pembayaran Terakhir?</h4>
-                        <div class="">
-                            Hanya pembayaran terakhir yang dibatalkan. Tagihan cicilan tetap tampil di Data Tagihan.
-                        </div>
-                    </div>
-                    <div class="modal-body py-4">
-                        <fieldset class="form-fieldset">
-                            <div class="mb-3 row">
-                                <label for="reverse_nocust" class="col-sm-4 col-form-label form-label-sm">NIS</label>
-                                <div class="col">
-                                    <input type="text" readonly class="form-control form-control-sm" id="reverse_nocust"
-                                           name="nocust">
-                                </div>
-                            </div>
-                            <div class="mb-3 row">
-                                <label for="reverse_nmcust" class="col-sm-4 col-form-label form-label-sm">Nama Siswa</label>
-                                <div class="col-sm-8">
-                                    <input type="text" readonly class="form-control form-control-sm" id="reverse_nmcust"
-                                           name="nmcust">
-                                </div>
-                            </div>
-                            <div class="mb-3 row">
-                                <label for="reverse_billnm" class="col-sm-4 col-form-label form-label-sm">Nama Tagihan</label>
-                                <div class="col-sm-8">
-                                    <input type="text" readonly class="form-control form-control-sm" id="reverse_billnm"
-                                           name="billnm">
-                                </div>
-                            </div>
-                            <div class="mb-3 row">
-                                <label for="reverse_billpaid" class="col-sm-4 col-form-label form-label-sm">Terbayar</label>
-                                <div class="col-sm-8">
-                                    <input type="text" readonly class="form-control form-control-sm" id="reverse_billpaid"
-                                           name="billpaid">
-                                </div>
-                            </div>
-                        </fieldset>
-                        <input type="hidden" id="reverse_id" name="item_id" value="">
-                        <input type="hidden" id="user_reverse_id" name="custid" value="">
-                    </div>
-                    <div class="modal-footer ">
-                        <div class="w-100">
-                            <div class="row">
-                                <div class="col">
-                                    <input type="reset" class="btn btn-outline-secondary w-100" value="Tutup"
-                                           data-bs-dismiss="modal">
-                                </div>
-                                <div class="col">
-                                    <input type="submit" value="Batal Bayar" class="btn btn-warning w-100">
+                                    <input type="submit" value="Reversal" id="delete-submit-btn" class="btn btn-warning w-100">
                                 </div>
                             </div>
                         </div>
@@ -549,19 +478,11 @@
         const modalDeleteElement = document.getElementById('modal-delete');
         const modalDelete = new bootstrap.Modal(document.getElementById('modal-delete'));
 
-        const modalReverseElement = document.getElementById('modal-reverse');
-        const modalReverse = new bootstrap.Modal(document.getElementById('modal-reverse'));
-
         const modalUrutElement = document.getElementById('modal-ubah-urutan');
         const modalUrut = new bootstrap.Modal(document.getElementById('modal-ubah-urutan'));
 
         modalDeleteElement.addEventListener('hide.bs.modal', function () {
             const form = document.getElementById('form-delete');
-            form.reset();
-        });
-
-        modalReverseElement.addEventListener('hide.bs.modal', function () {
-            const form = document.getElementById('form-reverse');
             form.reset();
         });
 
@@ -581,17 +502,37 @@
                 if (custId) custId.value = rowData.CUSTID ?? '';
                 if (furutan) furutan.value = rowData.FUrutan ?? rowData.furutan ?? '0';
             }
-            if (id === 'form-reverse') {
-                const reverseId = document.getElementById('reverse_id');
-                const custId = document.getElementById('user_reverse_id');
-                if (reverseId) reverseId.value = rowData.item_id ?? rowData.AA ?? '';
-                if (custId) custId.value = rowData.CUSTID ?? '';
-            }
             if (id === 'form-delete') {
                 const deleteId = document.getElementById('delete_id');
                 const custId = document.getElementById('user_delete_id');
+                const billPaid = parseInt(rowData.BILLPAID ?? rowData.billpaid ?? '0', 10) || 0;
+                const titleEl = document.getElementById('delete-modal-title');
+                const descEl = document.getElementById('delete-modal-desc');
+                const headerEl = document.getElementById('delete-modal-header');
+                const submitBtn = document.getElementById('delete-submit-btn');
+
                 if (deleteId) deleteId.value = rowData.item_id ?? rowData.AA ?? '';
                 if (custId) custId.value = rowData.CUSTID ?? '';
+
+                if (billPaid > 0) {
+                    if (headerEl) headerEl.textContent = 'Reversal';
+                    if (titleEl) titleEl.textContent = 'Reversal Pembayaran Terakhir?';
+                    if (descEl) descEl.textContent = 'Pembayaran terakhir akan di-reversal. Tagihan cicilan tetap tampil di Data Tagihan.';
+                    if (submitBtn) {
+                        submitBtn.value = 'Reversal';
+                        submitBtn.classList.remove('btn-danger');
+                        submitBtn.classList.add('btn-warning');
+                    }
+                } else {
+                    if (headerEl) headerEl.textContent = 'Hapus Data';
+                    if (titleEl) titleEl.textContent = 'Hapus Tagihan Siswa?';
+                    if (descEl) descEl.textContent = 'Anda yakin akan menghapus data tagihan siswa?';
+                    if (submitBtn) {
+                        submitBtn.value = 'Hapus';
+                        submitBtn.classList.remove('btn-warning');
+                        submitBtn.classList.add('btn-danger');
+                    }
+                }
             }
         }
 
@@ -735,15 +676,7 @@
         }
 
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
-            if (e.target.closest('.btn-batal-bayar')) {
-                const rowEl = e.target.closest('tr');
-                if (rowEl) {
-                    fillFormValue('form-reverse', rowEl);
-                    modalReverse.show();
-                }
-                return;
-            }
-            if (e.target.closest('.btn-hapus')) {
+            if (e.target.closest('.btn-reversal')) {
                 const rowEl = e.target.closest('tr');
                 if (rowEl) {
                     fillFormValue('form-delete', rowEl);
@@ -911,11 +844,6 @@
             submitForm('delete');
         })
 
-        document.getElementById('form-reverse').addEventListener('submit', function (e) {
-            e.preventDefault();
-            submitForm('reverse');
-        })
-
         document.getElementById('form-ubah-urutan').addEventListener('submit', function (e) {
             e.preventDefault();
             submitForm('ubah-urutan');
@@ -927,7 +855,7 @@
             let request, item_id, user_id, url = null;
             switch (form) {
                 case 'delete':
-                    loadingAlert('Menghapus tagihan....');
+                    loadingAlert('Memproses data....');
                     item_id = document.getElementById('delete_id').value;
                     user_id = document.getElementById('user_delete_id').value;
                     url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.destroy',':id')}}'
@@ -936,24 +864,6 @@
                     request = new Request(
                         url, {
                             method: "DELETE",
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                            }, body: JSON.stringify({
-                                user_id: user_id
-                            })
-                        });
-                    break;
-                case 'reverse':
-                    loadingAlert('Membatalkan pembayaran terakhir....');
-                    item_id = document.getElementById('reverse_id').value;
-                    user_id = document.getElementById('user_reverse_id').value;
-                    url = '{{route('admin.keuangan.tagihan-siswa.data-tagihan.reverse-payment',':id')}}';
-                    url = url.replace(':id', item_id);
-
-                    request = new Request(
-                        url, {
-                            method: "POST",
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': csrfToken,
@@ -995,7 +905,6 @@
                     dataReload(dtOptions.tableId);
                     successAlert(data.message);
                     modalDelete.hide();
-                    modalReverse.hide();
                     modalUrut.hide();
                 })
                 .catch(error => {

@@ -123,7 +123,6 @@ Route::prefix("admin")
                         Route::get("get-trans-log/{id}", "getTransLog")->name("get-trans-log");
                         Route::get("cetak-rekap", "cetak")->name("cetak-rekap");
                         Route::post("ubah-urutan/{id}", "ubahUrutan")->name("ubah-urutan");
-                        Route::post("reverse-payment/{id}", "reversePayment")->name("reverse-payment");
                         Route::get("cetak-kartu-siswa", "cetakKartuSiswa")->name("cetak-kartu-siswa");
                         Route::resource("", \App\Http\Controllers\Admin\Keuangan\TagihanSiswa\DataTagihanController::class)->parameters(["" => "id"]);
                     });

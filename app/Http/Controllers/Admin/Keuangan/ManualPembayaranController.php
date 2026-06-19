@@ -10,6 +10,7 @@ use App\Models\scctcust;
 use App\Models\sccttran;
 use App\Models\User;
 use App\Models\ValidationMessage;
+use App\Support\ManualPaymentBuilder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Database\QueryException;
@@ -369,11 +370,11 @@ class ManualPembayaranController extends Controller
                 $transno = date('Ym') . substr(config('app.nova'), 5, 2) . substr($request->input('bank'), -2) . date('d') . $lastNumber;
             }
 
+            $paymentBuilder = app(ManualPaymentBuilder::class);
+
             foreach ($tagihans as $item) {
                 $keyForSearch = array_search($item->AA, $posts);
                 $nominal = (int) $nominalBayar[$keyForSearch];
-                $billAm = (int) $item->BILLAM;
-                $billPaid = (int) ($item->BILLPAID ?? 0);
                 $paymentLeft = $this->resolvePaymentLeft($item);
 
                 if ($nominal <= 0 && $paymentLeft > 0) {
@@ -396,6 +397,21 @@ class ManualPembayaranController extends Controller
                     ], 422);
                 }
 
+                $paymentBuilder->payBill(
+                    $item,
+                    $nominal,
+                    (string) $request->input('bank'),
+                    $formattedDate,
+                    $transno,
+                    $request
+                );
+
+                $tagihanForPrint[] = $item->AA;
+
+                /*
+                // Legacy: update scctbill + insert sccttran langsung dari PHP (nonaktif — pakai BuilderPaymentCash / BuilderPaymentBill)
+                $billAm = (int) $item->BILLAM;
+                $billPaid = (int) ($item->BILLPAID ?? 0);
                 $newBillPaid = $billPaid + $nominal;
                 $newPaymentLeft = max(0, $billAm - $newBillPaid);
                 $existingInstal = (int) sccttran::where('BILLID', $item->AA)->max('INSTALLMENT');
@@ -414,8 +430,6 @@ class ManualPembayaranController extends Controller
                     'TRANSNO' => $transno,
                 ]);
 
-                $tagihanForPrint[] = $item->AA;
-
                 $bank = (string) $request->input('bank');
                 sccttran::create([
                     'CUSTID' => $siswa->CUSTID,
@@ -430,6 +444,7 @@ class ManualPembayaranController extends Controller
                     'INSTALLMENT' => $newInstallment,
                     'TRANSNO' => $transno ?? Auth::user()->username,
                 ]);
+                */
             }
             if ($transno) {
                 DB::table('ref_invoicedate')

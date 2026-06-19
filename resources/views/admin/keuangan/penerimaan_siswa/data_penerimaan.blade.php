@@ -382,18 +382,18 @@
              data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered" role="document">
                 <div class="modal-content">
-                    <div class="modal-status bg-danger"></div>
+                    <div class="modal-status bg-warning"></div>
                     <div class="modal-header ">
                         <div class="modal-title">
-                            Batalkan Pembayaran
+                            Reversal
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body text-capitalize text-center py-4">
-                        <span class="ri-delete-bin-line ri-3x"></span>
-                        <h4>Batalkan pembayaran tagihan?</h4>
+                        <span class="ri-arrow-go-back-line ri-3x"></span>
+                        <h4>Reversal Pembayaran Tagihan?</h4>
                         <div class="">
-                            anda yakin akan Batalkan pembayaran tagihan?
+                            Anda yakin akan melakukan reversal pembayaran tagihan?
                         </div>
                     </div>
                     <div class="modal-body py-4">
@@ -438,7 +438,7 @@
                                            data-bs-dismiss="modal">
                                 </div>
                                 <div class="col">
-                                    <input type="submit" value="Hapus" class="btn btn-danger w-100">
+                                    <input type="submit" value="Reversal" class="btn btn-warning w-100">
                                 </div>
                             </div>
                         </div>
@@ -483,7 +483,7 @@
         });
 
         document.querySelector('#main_table tbody').addEventListener('click', function (e) {
-            if (e.target.closest('.btn-batal-bayar')) {
+            if (e.target.closest('.btn-reversal')) {
                 const rowEl = e.target.closest('tr');
 
                 if (rowEl) {
@@ -672,7 +672,7 @@
             let request = null;
             switch (form) {
                 case 'delete':
-                    loadingAlert('Menghapus tagihan....');
+                    loadingAlert('Memproses reversal....');
                     const item_id = document.getElementById('delete_id').value;
                     const user_id = document.getElementById('user_delete_id').value;
                     let url = '{{route('admin.keuangan.penerimaan-siswa.data-penerimaan.destroy',':id')}}'

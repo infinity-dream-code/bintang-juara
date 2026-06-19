@@ -234,11 +234,11 @@
                                 <span class="ri-file-pdf-2-line me-2"></span>
                                 Cetak Rekap
                             </button>
-                            <button type="reset" class="btn btn-secondary" disabled>
+                            <button type="reset" class="btn btn-secondary">
                                 <span class="ri-reset-left-line me-2"></span>
                                 Reset
                             </button>
-                            <button type="submit" class="btn btn-primary" disabled>
+                            <button type="submit" class="btn btn-primary">
                                 <span class="ri-search-line me-2"></span>
                                 Cari
                             </button>

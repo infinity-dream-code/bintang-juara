@@ -1493,6 +1493,15 @@ async function getDT(options) {
                     prepareTableFoot(options.tableId);
                 }
                 dataTableCreate(options)
+            },
+            error: function (xhr) {
+                const descriptions = {
+                    401: 'Sesi anda telah habis, silahkan login kembali!',
+                    403: 'Anda tidak memiliki izin untuk mengakses kolom data.',
+                    404: 'Endpoint kolom data tidak ditemukan.',
+                    500: 'Gagal memuat definisi kolom tabel.',
+                };
+                errorAlert(descriptions[xhr.status] || 'Gagal memuat kolom tabel. Silahkan muat ulang halaman.');
             }
         });
     } else {

@@ -67,6 +67,11 @@ class DataTagihanController extends Controller
         $query->where($table . '.CODE01', $unit);
     }
 
+    private function cacheScopeSuffix(): string
+    {
+        return blank($this->sekolah) ? 'all-units' : 'unit-' . Str::slug((string) $this->sekolah);
+    }
+
     public function getColumn()
     {
         return [
@@ -404,6 +409,37 @@ class DataTagihanController extends Controller
 
     public function getData(Request $request)
     {
+        $authUser = Auth::user();
+        Log::info('data-tagihan.getData.start', [
+            'username' => $authUser->users ?? $authUser->username ?? null,
+            'urut' => $authUser->urut ?? $authUser->id ?? null,
+            'fid' => $authUser->fid ?? null,
+            'sekolah_scope' => $this->sekolah,
+            'filter' => $request->input('filter', []),
+            'search' => $request->input('search.value'),
+        ]);
+
+        try {
+            return $this->buildGetDataResponse($request);
+        } catch (\Throwable $e) {
+            Log::error('data-tagihan.getData.error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            return response()->json([
+                'draw' => intval($request->get('draw')),
+                'recordsTotal' => 0,
+                'recordsFiltered' => 0,
+                'data' => [],
+                'error' => 'Gagal memuat data tagihan',
+            ], 500);
+        }
+    }
+
+    private function buildGetDataResponse(Request $request)
+    {
         $draw = $request->get('draw');
         $start = $request->get("start");
         $rowperpage = $request->get("length");
@@ -444,9 +480,9 @@ class DataTagihanController extends Controller
             'BILLAC' => 'scctbill.BILLAC',
             'FUrutan' => 'scctbill.FUrutan',
             'PAIDDT' => 'scctbill.PAIDDT',
-            'NOCUST' => 'scctcust.NOCUST',
+            'NOCUST' => 'scctcust.nocust',
             'NUM2ND' => 'scctcust.NUM2ND',
-            'NMCUST' => 'scctcust.NMCUST',
+            'NMCUST' => 'scctcust.nmcust',
             'CODE02' => 'scctcust.CODE02',
             'DESC02' => 'scctcust.DESC02',
             'DESC03' => 'scctcust.DESC03',
@@ -461,15 +497,21 @@ class DataTagihanController extends Controller
         $filter = $request->input('filter', []);
 
         $whereAny = [
-            'scctcust.NMCUST',
-            'scctcust.NOCUST',
+            'scctcust.nmcust',
+            'scctcust.nocust',
             'scctcust.NUM2ND',
             'scctcust.DESC02',
             'scctcust.DESC03',
             'scctbill.BILLNM',
         ];
 
-        $select = array_unique(array_merge($whereAny, [
+        $select = array_unique([
+            'scctcust.nocust as NOCUST',
+            'scctcust.nmcust as NMCUST',
+            'scctcust.NUM2ND',
+            'scctcust.CODE02',
+            'scctcust.DESC02',
+            'scctcust.DESC03',
             'scctbill.AA',
             'scctbill.BILLNM',
             'scctbill.BILLAC',
@@ -481,11 +523,8 @@ class DataTagihanController extends Controller
             'scctbill.TRANSNO as BILL_TRANSNO',
             'scctbill.BTA',
             'scctbill.FIDBANK',
-            'scctcust.CODE02',
-            'scctcust.NUM2ND',
             'scctbill.CUSTID',
-
-        ]));
+        ]);
 
         $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
             ->select($select)
@@ -514,8 +553,10 @@ class DataTagihanController extends Controller
 
         $totalRecords = $this->total();
 
+        $cacheFilter = array_merge($filter, ['_scope' => $this->cacheScopeSuffix()]);
+
         $totalRecordswithFilter = Cache::remember(
-            CacheHandler::cacheKey($this->cacheKey, 'total_records_with_filter', $filter, $searchValue),
+            CacheHandler::cacheKey($this->cacheKey, 'total_records_with_filter', $cacheFilter, $searchValue),
             now()->addMinutes(10),
             fn() => (clone $query)->count()
         );
@@ -533,7 +574,7 @@ class DataTagihanController extends Controller
             'records_filtered' => $totalRecordswithFilter,
         ]);
 
-        $cacheKey = CacheHandler::cacheKey($this->cacheKey, 'sum_tagihan', $filter, $searchValue);
+        $cacheKey = CacheHandler::cacheKey($this->cacheKey, 'sum_tagihan', $cacheFilter, $searchValue);
 
         $totalTagihan =
             Cache::remember(
@@ -559,7 +600,7 @@ class DataTagihanController extends Controller
                 $recordsQuery->orderBy($columnName, $columnSortOrder);
             }
             $recordsQuery
-                ->orderBy('scctcust.NOCUST', 'asc')
+                ->orderBy('scctcust.nocust', 'asc')
                 ->orderBy('scctbill.AA', 'asc');
         } else {
             $recordsQuery
@@ -582,7 +623,7 @@ class DataTagihanController extends Controller
                     END
                 ")
                 ->orderByRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) ASC')
-                ->orderBy('scctcust.NOCUST', 'asc');
+                ->orderBy('scctcust.nocust', 'asc');
         }
 
         $records = $recordsQuery
@@ -746,8 +787,10 @@ class DataTagihanController extends Controller
 
     public function total(): int
     {
+        $scopeKey = $this->cacheScopeSuffix();
+
         return Cache::remember(
-            "{$this->cacheKey}:total_all_data",
+            "{$this->cacheKey}:total_all_data:{$scopeKey}",
             now()->addMinutes(10),
             function () {
                 $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
@@ -820,22 +863,22 @@ class DataTagihanController extends Controller
                         break;
                     }
                     if (is_numeric($rawVal)) {
-                        $filters[] = ['scctcust.nocust', 'like', '%' . $rawVal . '%'];
+                        $filters[] = ['whereRaw', '(scctcust.nocust LIKE ? OR scctcust.NUM2ND LIKE ? OR CAST(scctcust.CUSTID AS CHAR) LIKE ?)', ['%' . $rawVal . '%', '%' . $rawVal . '%', '%' . $rawVal . '%']];
                     } else {
                         $sanitized = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $rawVal);
-                        $filters[] = ['scctcust.nmcust', 'like', '%' . $sanitized . '%'];
+                        $filters[] = ['whereRaw', '(scctcust.nmcust LIKE ? OR scctcust.nocust LIKE ?)', ['%' . $sanitized . '%', '%' . $sanitized . '%']];
                     }
                     break;
                 case 'scctbill.BILLNM':
                     if (is_array($val)) {
                         $billNames = array_values(array_filter($val, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
                         if (!empty($billNames)) {
-                            $filters[] = ['scctbill.BILLNM', 'like_any', $billNames];
+                            $filters[] = ['scctbill.BILLNM', 'in', $billNames];
                         }
                     } else {
                         $name = trim((string) $val);
                         if ($name !== '') {
-                            $filters[] = ['scctbill.BILLNM', 'like', '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $name) . '%'];
+                            $filters[] = ['scctbill.BILLNM', '=', $name];
                         }
                     }
                     break;

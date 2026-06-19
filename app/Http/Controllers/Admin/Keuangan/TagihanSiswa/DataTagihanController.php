@@ -56,6 +56,20 @@ class DataTagihanController extends Controller
         });
     }
 
+    private function applyUnitScope($query, string $table = 'scctcust'): void
+    {
+        if (blank($this->sekolah)) {
+            return;
+        }
+
+        $unit = trim((string) $this->sekolah);
+        $query->where(function ($q) use ($table, $unit) {
+            $q->where($table . '.CODE01', $unit)
+                ->orWhere($table . '.CODE02', $unit)
+                ->orWhereRaw('UPPER(TRIM(' . $table . '.DESC01)) = UPPER(?)', [$unit]);
+        });
+    }
+
     public function getColumn()
     {
         return [
@@ -288,7 +302,12 @@ class DataTagihanController extends Controller
                 ->orderBy('urut');
 
             if (!empty($selectedBillNames)) {
-                $mstTagihanQuery->whereIn('tagihan', $selectedBillNames);
+                $mstTagihanQuery->where(function ($q) use ($selectedBillNames) {
+                    foreach ($selectedBillNames as $name) {
+                        $sanitized = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], (string) $name);
+                        $q->orWhere('tagihan', 'like', '%' . $sanitized . '%');
+                    }
+                });
             }
 
             $mstTagihan = $mstTagihanQuery->get();
@@ -321,7 +340,11 @@ class DataTagihanController extends Controller
                 ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
                 ->when($filterQuery, function ($query) use ($filterQuery) {
                     $filterQuery($query);
-                })
+                });
+
+            $this->applyUnitScope($records);
+
+            $records = $records
                 ->orderBy('scctbill.CUSTID', 'desc')
                 ->orderBy('scctbill.BILLAC', 'desc')
                 ->orderBy('scctbill.PAIDDT', 'desc')
@@ -443,8 +466,10 @@ class DataTagihanController extends Controller
         $whereAny = [
             'scctcust.NMCUST',
             'scctcust.NOCUST',
+            'scctcust.NUM2ND',
             'scctcust.DESC02',
             'scctcust.DESC03',
+            'scctbill.BILLNM',
         ];
 
         $select = array_unique(array_merge($whereAny, [
@@ -487,6 +512,8 @@ class DataTagihanController extends Controller
                     $filterQuery($query);
                 }
             });
+
+        $this->applyUnitScope($query);
 
         $totalRecords = $this->total();
 
@@ -712,14 +739,19 @@ class DataTagihanController extends Controller
         return Cache::remember(
             "{$this->cacheKey}:total_all_data",
             now()->addMinutes(10),
-            fn() => scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
-                ->where(function ($q) {
-                    $q->whereNull('scctbill.PAIDST')
-                        ->orWhere('scctbill.PAIDST', '<>', 1);
-                })
-                ->where('scctbill.FSTSBolehBayar', 1)
-                ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
-                ->count()
+            function () {
+                $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
+                    ->where(function ($q) {
+                        $q->whereNull('scctbill.PAIDST')
+                            ->orWhere('scctbill.PAIDST', '<>', 1);
+                    })
+                    ->where('scctbill.FSTSBolehBayar', 1)
+                    ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1');
+
+                $this->applyUnitScope($query);
+
+                return $query->count();
+            }
         );
     }
 
@@ -754,12 +786,6 @@ class DataTagihanController extends Controller
             $filter['scctbill.BILLNM'] = $postValues;
         }
 
-        if ($this->sekolah !== null) {
-            $filter = array_merge($filter, [
-                'scctcust.CODE02' => $this->sekolah,
-            ]);
-        }
-
         if (!$filter) {
             return null;
         }
@@ -779,18 +805,28 @@ class DataTagihanController extends Controller
                     }
                     break;
                 case 'scctcust.nmcust':
-                    $val = is_numeric($val) ? $val : '%' . $val . '%';
-                    $colName = is_numeric($val) ? 'scctcust.nocust' : $key;
-                    ($colName) && $filters[] = [$colName, 'like', $val];
+                    $rawVal = trim((string) $val);
+                    if ($rawVal === '') {
+                        break;
+                    }
+                    if (is_numeric($rawVal)) {
+                        $filters[] = ['scctcust.nocust', 'like', '%' . $rawVal . '%'];
+                    } else {
+                        $sanitized = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $rawVal);
+                        $filters[] = ['scctcust.nmcust', 'like', '%' . $sanitized . '%'];
+                    }
                     break;
                 case 'scctbill.BILLNM':
                     if (is_array($val)) {
                         $billNames = array_values(array_filter($val, fn($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'));
                         if (!empty($billNames)) {
-                            $filters[] = ['scctbill.BILLNM', 'in', $billNames];
+                            $filters[] = ['scctbill.BILLNM', 'like_any', $billNames];
                         }
                     } else {
-                        ($key) && $filters[] = [$key, '=', $val];
+                        $name = trim((string) $val);
+                        if ($name !== '') {
+                            $filters[] = ['scctbill.BILLNM', 'like', '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $name) . '%'];
+                        }
                     }
                     break;
                 case 'scctbill.BILLAC':
@@ -808,7 +844,8 @@ class DataTagihanController extends Controller
                     }
                     break;
                 case 'scctcust.CODE02':
-                    $filters[] = ['scctcust.CODE02', '=', $val];
+                    $unit = trim((string) $val);
+                    $filters[] = ['scctcust.CODE02', 'unit_any', $unit];
                     break;
                 case 'scctcust.DESC04':
                     $filters[] = ['scctcust.DESC04', '=', $val];
@@ -827,6 +864,26 @@ class DataTagihanController extends Controller
             foreach ($filters as $filter) {
                 if (($filter[0] ?? null) === 'whereRaw') {
                     $query->whereRaw($filter[1], $filter[2] ?? []);
+                    continue;
+                }
+                if (count($filter) === 3 && ($filter[1] ?? null) === 'like_any' && is_array($filter[2] ?? null)) {
+                    $query->where(function ($q) use ($filter) {
+                        foreach ($filter[2] as $name) {
+                            $sanitized = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], (string) $name);
+                            $q->orWhere($filter[0], 'like', '%' . $sanitized . '%');
+                        }
+                    });
+                    continue;
+                }
+                if (count($filter) === 3 && ($filter[1] ?? null) === 'unit_any') {
+                    $unit = trim((string) ($filter[2] ?? ''));
+                    if ($unit !== '') {
+                        $query->where(function ($q) use ($unit) {
+                            $q->where('scctcust.CODE01', $unit)
+                                ->orWhere('scctcust.CODE02', $unit)
+                                ->orWhereRaw('UPPER(TRIM(scctcust.DESC01)) = UPPER(?)', [$unit]);
+                        });
+                    }
                     continue;
                 }
                 if (count($filter) === 3) {

@@ -1090,7 +1090,8 @@ function dataReFilter(id = null, formId = null) {
 }
 
 async function getDT(options) {
-    if (options.columnUrl && options.dataColumns) {
+    if (options.columnUrl) {
+        options.dataColumns = Array.isArray(options.dataColumns) ? options.dataColumns : [];
         $.ajax({
             url: options.columnUrl,
             success: function (data) {

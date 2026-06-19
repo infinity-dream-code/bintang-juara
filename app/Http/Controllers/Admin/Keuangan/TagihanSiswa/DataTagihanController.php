@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -36,7 +37,7 @@ class DataTagihanController extends Controller
         'periode' => 'scctbill.BILLAC',
         'post' => 'scctbill.BILLNM',
         'kelas' => 'scctcust.DESC02',
-        'sekolah' => 'scctcust.CODE02',
+        'sekolah' => 'scctcust.CODE01',
         'angkatan' => 'scctcust.DESC04',
         'siswa' => 'scctcust.nmcust',
         'custid' => 'scctcust.CUSTID',
@@ -50,7 +51,7 @@ class DataTagihanController extends Controller
         $this->middleware(function ($request, $next) {
             if (Auth::check()) {
                 $user = Auth::user();
-                $this->sekolah = $user->sekolah;
+                $this->sekolah = $user->sekolah ?? $user->unit ?? null;
             }
             return $next($request);
         });
@@ -63,11 +64,7 @@ class DataTagihanController extends Controller
         }
 
         $unit = trim((string) $this->sekolah);
-        $query->where(function ($q) use ($table, $unit) {
-            $q->where($table . '.CODE01', $unit)
-                ->orWhere($table . '.CODE02', $unit)
-                ->orWhereRaw('UPPER(TRIM(' . $table . '.DESC01)) = UPPER(?)', [$unit]);
-        });
+        $query->where($table . '.CODE01', $unit);
     }
 
     public function getColumn()
@@ -523,6 +520,19 @@ class DataTagihanController extends Controller
             fn() => (clone $query)->count()
         );
 
+        $authUser = Auth::user();
+        Log::info('data-tagihan.getData', [
+            'username' => $authUser->users ?? $authUser->username ?? null,
+            'urut' => $authUser->urut ?? $authUser->id ?? null,
+            'fid' => $authUser->fid ?? null,
+            'sekolah_scope' => $this->sekolah,
+            'scope_applied' => !blank($this->sekolah),
+            'filter' => $filter,
+            'search' => $searchValue,
+            'records_total' => $totalRecords,
+            'records_filtered' => $totalRecordswithFilter,
+        ]);
+
         $cacheKey = CacheHandler::cacheKey($this->cacheKey, 'sum_tagihan', $filter, $searchValue);
 
         $totalTagihan =
@@ -844,8 +854,11 @@ class DataTagihanController extends Controller
                     }
                     break;
                 case 'scctcust.CODE02':
+                case 'scctcust.CODE01':
                     $unit = trim((string) $val);
-                    $filters[] = ['scctcust.CODE02', 'unit_any', $unit];
+                    if ($unit !== '') {
+                        $filters[] = ['scctcust.CODE01', '=', $unit];
+                    }
                     break;
                 case 'scctcust.DESC04':
                     $filters[] = ['scctcust.DESC04', '=', $val];
@@ -876,14 +889,6 @@ class DataTagihanController extends Controller
                     continue;
                 }
                 if (count($filter) === 3 && ($filter[1] ?? null) === 'unit_any') {
-                    $unit = trim((string) ($filter[2] ?? ''));
-                    if ($unit !== '') {
-                        $query->where(function ($q) use ($unit) {
-                            $q->where('scctcust.CODE01', $unit)
-                                ->orWhere('scctcust.CODE02', $unit)
-                                ->orWhereRaw('UPPER(TRIM(scctcust.DESC01)) = UPPER(?)', [$unit]);
-                        });
-                    }
                     continue;
                 }
                 if (count($filter) === 3) {

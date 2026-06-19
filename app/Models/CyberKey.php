@@ -50,6 +50,22 @@ class CyberKey extends Model implements AuthenticatableContract
         return $this->ket ?: (string) $this->users;
     }
 
+    /**
+     * Unit scope dari cyber_key.fid (CODE01).
+     * fid kosong/null = akses semua unit.
+     */
+    public function getUnitAttribute(): ?string
+    {
+        $fid = trim((string) ($this->attributes['fid'] ?? ''));
+
+        return $fid !== '' ? $fid : null;
+    }
+
+    public function getSekolahAttribute(): ?string
+    {
+        return $this->unit;
+    }
+
     public function hasRole(string $role): bool
     {
         if ($role === "siswa") {

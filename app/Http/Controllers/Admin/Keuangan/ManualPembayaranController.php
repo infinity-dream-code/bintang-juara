@@ -407,6 +407,18 @@ class ManualPembayaranController extends Controller
                     $request
                 );
 
+                $freshBill = scctbill::where('AA', $item->AA)->first();
+                Log::info('manual-pembayaran.store.bill_state', [
+                    'aa' => $item->AA,
+                    'custid' => $item->CUSTID,
+                    'billnm' => $freshBill->BILLNM ?? null,
+                    'billam' => (int) ($freshBill->BILLAM ?? 0),
+                    'billpaid' => (int) ($freshBill->BILLPAID ?? 0),
+                    'paymentleft' => (int) ($freshBill->PAYMENTLEFT ?? 0),
+                    'paidst' => $freshBill->PAIDST ?? null,
+                    'nominal_bayar' => $nominal,
+                ]);
+
                 $tagihanForPrint[] = $item->AA;
 
                 /*

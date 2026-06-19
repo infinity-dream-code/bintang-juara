@@ -422,7 +422,7 @@
 
     <script src="{{asset('main/libs/select2/select2.js')}}"></script>
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260618-excel-bold-header"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260619-data-tagihan"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-daterangepicker/bootstrap-daterangepicker.js')}}"></script>
 
@@ -947,8 +947,21 @@
         });
 
         document.addEventListener("DOMContentLoaded", function () {
-            if (dtOptions.dataUrl && dtOptions.columnUrl) {
-                getDT(dtOptions);
+            if (!dtOptions.columnUrl || !dtOptions.dataUrl) {
+                console.error('Data Tagihan: URL tabel tidak lengkap', dtOptions);
+                if (typeof errorAlert === 'function') {
+                    errorAlert('Konfigurasi tabel tidak lengkap (columnUrl/dataUrl). Silahkan hubungi admin.');
+                }
+                return;
+            }
+            if (typeof getDT !== 'function') {
+                console.error('Data Tagihan: fungsi getDT tidak ditemukan — script Datatable gagal dimuat');
+                if (typeof errorAlert === 'function') {
+                    errorAlert('Script tabel gagal dimuat. Tekan Ctrl+F5 untuk muat ulang halaman.');
+                }
+                return;
+            }
+            getDT(dtOptions);
                 setTimeout(ensureUrutanToolbarButtons, 300);
                 $(`#${dtOptions.tableId}`).on('init.dt draw.dt select.dt deselect.dt', function () {
                     ensureUrutanToolbarButtons();
@@ -977,7 +990,6 @@
                         }, 0)
                     });
                 }
-            }
             document.addEventListener('click', function (e) {
                 if (e.target.closest('.paginate_button, .buttons-excel, .buttons-pdf, .buttons-print')) {
                     setTimeout(ensureUrutanToolbarButtons, 120);

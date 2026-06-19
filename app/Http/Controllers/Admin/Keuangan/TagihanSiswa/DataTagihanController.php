@@ -72,8 +72,30 @@ class DataTagihanController extends Controller
         return blank($this->sekolah) ? 'all-units' : 'unit-' . Str::slug((string) $this->sekolah);
     }
 
+    /**
+     * Tagihan belum lunas — termasuk cicilan (sudah terbayar sebagian, PAIDST masih 0).
+     */
+    private function applyBelumLunasScope($query, string $billTable = 'scctbill'): void
+    {
+        $sisaExpr = "CAST(COALESCE({$billTable}.PAYMENTLEFT, {$billTable}.BILLAM - COALESCE({$billTable}.BILLPAID, 0), 0) AS SIGNED)";
+
+        $query->where(function ($q) use ($billTable, $sisaExpr) {
+            $q->where("{$billTable}.PAIDST", 0)
+                ->orWhereNull("{$billTable}.PAIDST")
+                ->orWhereRaw("{$sisaExpr} > 0");
+        });
+    }
+
     public function getColumn()
     {
+        $user = Auth::user();
+        Log::info('data-tagihan.getColumn', [
+            'username' => $user->users ?? $user->username ?? null,
+            'urut' => $user->urut ?? $user->id ?? null,
+            'fid' => $user->fid ?? null,
+            'sekolah_scope' => $this->sekolah,
+        ]);
+
         return [
             [
                 'data' => 'detail_trx',
@@ -135,6 +157,16 @@ class DataTagihanController extends Controller
 
     public function index()
     {
+        $user = Auth::user();
+        Log::info('data-tagihan.index', [
+            'username' => $user->users ?? $user->username ?? null,
+            'urut' => $user->urut ?? $user->id ?? null,
+            'fid' => $user->fid ?? null,
+            'sekolah_scope' => $this->sekolah,
+            'columns_url' => $this->columnsUrl(),
+            'datas_url' => $this->datasUrl(),
+        ]);
+
         $data['title'] = $this->title;
         $data['mainTitle'] = $this->mainTitle;
         $data['dataTitle'] = $this->dataTitle;
@@ -335,8 +367,7 @@ class DataTagihanController extends Controller
                 ])
                 ->whereIn('scctbill.BILLNM', $mstTagihan->pluck('tagihan'))
                 ->where(function ($q) {
-                    $q->whereNull('scctbill.PAIDST')
-                        ->orWhere('scctbill.PAIDST', '<>', 1);
+                    $this->applyBelumLunasScope($q);
                 })
                 ->where('scctbill.FSTSBolehBayar', 1)
                 ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
@@ -528,11 +559,10 @@ class DataTagihanController extends Controller
 
         $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
             ->select($select)
-            ->selectRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) AS FUrutan')
-            ->where(function ($q) {
-                $q->whereNull('scctbill.PAIDST')
-                    ->orWhere('scctbill.PAIDST', '<>', 1);
-            })
+            ->selectRaw('CAST(COALESCE(scctbill.FUrutan, 0) AS SIGNED) AS FUrutan');
+
+        $this->applyBelumLunasScope($query);
+        $query
             ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1')
             ->where('scctbill.FSTSBolehBayar', 1)
             ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
@@ -793,11 +823,10 @@ class DataTagihanController extends Controller
             "{$this->cacheKey}:total_all_data:{$scopeKey}",
             now()->addMinutes(10),
             function () {
-                $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
-                    ->where(function ($q) {
-                        $q->whereNull('scctbill.PAIDST')
-                            ->orWhere('scctbill.PAIDST', '<>', 1);
-                    })
+                $query = scctbill::join('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID');
+
+                $this->applyBelumLunasScope($query);
+                $query
                     ->where('scctbill.FSTSBolehBayar', 1)
                     ->whereRaw('CAST(COALESCE(scctcust.STCUST, 0) AS SIGNED) = 1');
 

@@ -142,6 +142,24 @@
                                 </div>
                             </div>
 
+                            <div class="mb-3 row">
+                                <label class="col-sm-4 col-form-label form-label" for="filter[metode]">
+                                    Metode
+                                </label>
+                                <div class="col">
+                                    <select class="form-select" id="filter[metode]" name="filter[metode]"
+                                            data-control="select2" data-placeholder="Pilih Metode"
+                                            data-allow-clear="true">
+                                        <option value="all">Semua</option>
+                                        @isset($metodes)
+                                            @foreach($metodes as $metode)
+                                                <option value="{{ $metode }}">{{ $metode }}</option>
+                                            @endforeach
+                                        @endif
+                                    </select>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                     <div class="row pt-4">

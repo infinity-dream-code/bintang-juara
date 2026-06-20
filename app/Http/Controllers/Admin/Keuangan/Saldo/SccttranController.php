@@ -70,6 +70,12 @@ class SccttranController extends Controller
             ->get();
         $data['sekolah'] = mst_sekolah::select(['CODE01', 'DESC01'])->orderBy('DESC01')->get();
         $data['kelas'] = mst_kelas::get();
+        $data['metodes'] = sccttran::query()
+            ->whereNotNull('METODE')
+            ->where('METODE', '!=', '')
+            ->distinct()
+            ->orderBy('METODE')
+            ->pluck('METODE');
 
         return view('admin.keuangan.saldo.sccttran.index', $data);
     }
@@ -139,6 +145,7 @@ class SccttranController extends Controller
                         'nis' => 'scctcust.NOCUST',
                         'sekolah' => 'scctcust.CODE02',
                         'angkatan' => 'scctcust.DESC04',
+                        'metode' => 'sccttran.METODE',
                         default => null
                     };
                     if (in_array($key, ['dari_tanggal', 'sampai_tanggal']) && preg_match('/^\d{2}-\d{2}-\d{4}$/', $val)) {
@@ -152,7 +159,7 @@ class SccttranController extends Controller
                             $operator = $key === 'dari_tanggal' ? '>=' : '<=';
                             $filters[] = [$colName, $operator, $date];
                         }
-                    } elseif (in_array($key, ['nama', 'nis'])) {
+                    } elseif (in_array($key, ['nama', 'nis', 'metode'])) {
                         ($colName) && $filters[] = [$colName, 'like', '%' . $val . '%'];
                     } else if ($key === 'sekolah') {
                         ($colName) && $filters[] = [$colName, '=', $val];

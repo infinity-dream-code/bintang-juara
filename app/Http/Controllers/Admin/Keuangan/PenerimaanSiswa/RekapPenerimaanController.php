@@ -116,15 +116,43 @@ class RekapPenerimaanController extends Controller
     private function paymentBaseQuery()
     {
         return sccttran::query()
-            ->join('scctbill', function ($join) {
+            ->leftJoin('scctbill', function ($join) {
                 $join->on('scctbill.AA', '=', 'sccttran.BILLID')
                     ->on('scctbill.CUSTID', '=', 'sccttran.CUSTID');
             })
-            ->join('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
-            ->where('sccttran.DEBET', '>', 0)
-            ->whereNotNull('sccttran.BILLID')
-            ->where('scctbill.FSTSBolehBayar', 1)
-            ->where('scctcust.STCUST', 1);
+            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
+            ->where(function ($q) {
+                $q->whereNull('sccttran.isreversal')
+                    ->orWhere('sccttran.isreversal', 0)
+                    ->orWhere('sccttran.isreversal', '0');
+            });
+    }
+
+    private function resolveMetodeLabel(object $item, array $metodeBayarMap): string
+    {
+        $metode = trim((string) ($item->METODE ?? ''));
+
+        if ($metode !== '') {
+            return $metode;
+        }
+
+        $fidBank = $item->FIDBANK ?? null;
+
+        if ($fidBank !== null && $fidBank !== '' && isset($metodeBayarMap[$fidBank])) {
+            return $metodeBayarMap[$fidBank];
+        }
+
+        return $metodeBayarMap[$fidBank] ?? $metodeBayarMap[''] ?? 'Nomor VA';
+    }
+
+    private function resolveNominalAmount(object $item): int
+    {
+        $debet = (int) ($item->DEBET ?? 0);
+        if ($debet > 0) {
+            return $debet;
+        }
+
+        return (int) ($item->KREDIT ?? 0);
     }
 
     private function resolveOrderColumn(string $column): string
@@ -134,6 +162,7 @@ class RekapPenerimaanController extends Controller
             'BILLAM', 'DEBET' => 'sccttran.DEBET',
             'PAIDDT', 'TRXDATE' => 'sccttran.TRXDATE',
             'METODE_BAYAR', 'FIDBANK' => 'sccttran.FIDBANK',
+            'METODE' => 'sccttran.METODE',
             'NMCUST' => 'scctcust.NMCUST',
             'NOCUST' => 'scctcust.NOCUST',
             'CODE02', 'DESC02', 'DESC03', 'DESC04' => "scctcust.{$column}",
@@ -427,15 +456,20 @@ class RekapPenerimaanController extends Controller
             $whereAny = [
                 'scctcust.NMCUST',
                 'scctcust.NOCUST',
+                'sccttran.METODE',
+                'sccttran.BILLTARGET',
+                'sccttran.TRANSNO',
             ];
 
             $select = array_merge(
                 array_unique([
                     'sccttran.urut',
                     'sccttran.CUSTID',
+                    'sccttran.METODE',
                     'sccttran.TRXDATE',
                     'sccttran.FIDBANK',
                     'sccttran.DEBET',
+                    'sccttran.KREDIT',
                     'sccttran.INSTALLMENT',
                     'sccttran.BILLTARGET',
                     'scctbill.AA',
@@ -483,7 +517,7 @@ class RekapPenerimaanController extends Controller
 
             $unitCache = blank($this->sekolah) ? 'all' : md5((string) $this->sekolah);
             $totalRecords = Cache::remember(
-                "{$this->cacheKey}:total_all_data:v3:{$unitCache}",
+                "{$this->cacheKey}:total_all_data:v4:{$unitCache}",
                 now()->addMinutes(10),
                 function () {
                     $baseQuery = $this->paymentBaseQuery();
@@ -508,14 +542,14 @@ class RekapPenerimaanController extends Controller
                 ->get();
 
             if ($request->get("length") != "poll") {
-                $records = $records->map(function ($item, $index) use ($metodeBayarMap) {
+                $records = $records->map(function ($item) use ($metodeBayarMap) {
                     $item->item_id = $item->urut;
                     $item->CUSTID = $item->CUSTID;
                     $item->PAIDDT = $item->TRXDATE;
-                    $item->BILLAM = (int) ($item->DEBET ?? 0);
-                    $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET;
+                    $item->BILLAM = $this->resolveNominalAmount($item);
+                    $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
                     $item->NamaAkun = $item->BILLNM;
-                    $item->METODE_BAYAR = $metodeBayarMap[$item->FIDBANK] ?? ($item->FIDBANK ?? '-');
+                    $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);
                     $item->NOVA = ($item->NOCUST && $item->NOCUST != '-') ? scctcust::showVA($item->NOCUST) : null;
                     if (!$item->NOCUST || $item->NOCUST == '-') $item->NOCUST = null;
                     if (!$item->NUM2ND || $item->NUM2ND == '-') $item->NUM2ND = null;
@@ -524,10 +558,10 @@ class RekapPenerimaanController extends Controller
             } else {
                 $records = $records->map(function ($item) use ($metodeBayarMap) {
                     $item->PAIDDT = $item->TRXDATE;
-                    $item->BILLAM = (int) ($item->DEBET ?? 0);
-                    $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET;
+                    $item->BILLAM = $this->resolveNominalAmount($item);
+                    $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
                     $item->NamaAkun = $item->BILLNM;
-                    $item->METODE_BAYAR = $metodeBayarMap[$item->FIDBANK] ?? ($item->FIDBANK ?? '-');
+                    $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);
                     return $item;
                 });
             }

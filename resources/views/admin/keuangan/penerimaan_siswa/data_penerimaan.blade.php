@@ -1194,10 +1194,14 @@
 
             async function generateKuitansiAsync(biayaLayanan = false) {
                 let data = DT[`${dtOptions.tableId}`].rows({selected: true}).data().toArray();
-                data = data.filter(item => Number(item.PAIDST) === 1 && item.PAIDDT);
+                data = data.filter(item => {
+                    const tanggal = item.PAIDDT ?? item.TRXDATE;
+                    const nominal = Number(item.BILLAM ?? item.DEBET ?? 0);
+                    return tanggal && nominal > 0;
+                });
 
                 if (!data[0]) {
-                    warningAlert('silahkan pilih data pembayaran yang sudah lunas!');
+                    warningAlert('Silahkan pilih data pembayaran yang belum di-reversal!');
                     return;
                 }
 
@@ -1278,7 +1282,7 @@
                 let totalBayar = 0;
 
                 data.forEach((item, index) => {
-                    let tanggalBayar = item.PAIDDT;
+                    let tanggalBayar = item.PAIDDT ?? item.TRXDATE;
                     if (tanggalBayar && tanggalBayar !== '' && tanggalBayar !== '0000-00-00 00:00:00') {
                         tanggalBayar = new Date(tanggalBayar).toLocaleDateString('id-ID', {
                             weekday: 'long',
@@ -1288,8 +1292,8 @@
                         });
                     }
 
-                    const billAm = Number(item.BILLAM ?? 0);
-                    const billPaid = Number(item.BILLPAID ?? item.BILLAM ?? 0);
+                    const billAm = Number(item.BILLAM_TOTAL ?? item.BILLAM ?? 0);
+                    const billPaid = Number(item.BILLAM ?? item.DEBET ?? 0);
                     totalTagihan += billAm;
                     totalBayar += billPaid;
 

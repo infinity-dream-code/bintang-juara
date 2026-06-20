@@ -121,7 +121,10 @@ class PindahKelasController extends Controller
 
         $dariKelas = mst_kelas::where('id', '=', $request->dari_kelas)->first();
         $keKelas = mst_kelas::where('id', '=', $request->ke_kelas)->first();
-        if (!$keKelas && $dariKelas) return response()->json(['message' => 'Kelas tidak ditemukan, silahkan muat ulang halaman!'], 422);
+
+        if (!$dariKelas || !$keKelas) {
+            return response()->json(['message' => 'Kelas tidak ditemukan, silahkan muat ulang halaman!'], 422);
+        }
 
         switch ($request->pindah) {
             case 'all':
@@ -149,10 +152,22 @@ class PindahKelasController extends Controller
                     'DESC03' => $keKelas->kelas,
                     ]);
             DB::commit();
-            return response()->json(['message' => 'Siswa telah dipindahkan dari kelas ' . $dariKelas->kelas . ' ' . $dariKelas->jenjang . ' ke kelas ' . $keKelas->kelas . ' ' . $keKelas->kelompok], 200);
+            $dariLabel = $this->formatKelasLabel($dariKelas);
+            $keLabel = $this->formatKelasLabel($keKelas);
+            $jumlah = $siswas->count();
+            $subjek = $jumlah === 1 ? 'Siswa' : "{$jumlah} siswa";
+
+            return response()->json([
+                'message' => "{$subjek} telah dipindahkan dari kelas {$dariLabel} ke kelas {$keLabel}",
+            ], 200);
         } catch (\Throwable $e) {
             DB::rollback();
             return response()->json(['message' => 'Pindah kelas gagal dilakukan', 'error' => $e->getMessage()], 422);
         }
+    }
+
+    private function formatKelasLabel(mst_kelas $kelas): string
+    {
+        return trim($kelas->unit . ' - ' . $kelas->jenjang . ' ' . $kelas->kelas);
     }
 }

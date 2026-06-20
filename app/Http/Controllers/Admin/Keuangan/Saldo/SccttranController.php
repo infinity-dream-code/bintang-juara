@@ -10,34 +10,16 @@ use App\Models\scctcust;
 use App\Models\sccttran;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\DB;
 
 class SccttranController extends Controller
 {
-    /** Metode pembayaran manual / jurnal internal — bukan transfer online VA. */
-    private const MANUAL_METODE = ['FROM TELLER', 'JURNAL SALDO', 'REVERSAL'];
-
-    /** Channel H2H VA BMI (online). */
-    private const H2H_CHANNELS = ['1', '2', '3', '4', '5', '6'];
-
-    private function onlineMetodeScope($query, string $tablePrefix = 'sccttran.')
+    private function topUpVaScope($query, string $tablePrefix = 'sccttran.')
     {
         $metodeColumn = $tablePrefix . 'METODE';
-        $kdChannelColumn = $tablePrefix . 'KDCHANNEL';
         $isReversalColumn = $tablePrefix . 'isreversal';
 
         return $query
-            ->where(function ($q) use ($metodeColumn, $kdChannelColumn) {
-                $q->whereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) = 'ONLINE'")
-                    ->orWhereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) = 'TRANSFER'")
-                    ->orWhereIn(DB::raw("TRIM(CAST({$kdChannelColumn} AS CHAR))"), self::H2H_CHANNELS);
-            })
-            ->where(function ($q) use ($metodeColumn) {
-                foreach (self::MANUAL_METODE as $manualMetode) {
-                    $q->whereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) != ?", [$manualMetode]);
-                }
-            })
+            ->whereRaw("UPPER(TRIM(COALESCE({$metodeColumn}, ''))) = 'TOP UP'")
             ->where(function ($q) use ($isReversalColumn) {
                 $q->whereNull($isReversalColumn)
                     ->orWhere($isReversalColumn, 0)
@@ -70,12 +52,7 @@ class SccttranController extends Controller
             ->get();
         $data['sekolah'] = mst_sekolah::select(['CODE01', 'DESC01'])->orderBy('DESC01')->get();
         $data['kelas'] = mst_kelas::get();
-        $data['metodes'] = sccttran::query()
-            ->whereNotNull('METODE')
-            ->where('METODE', '!=', '')
-            ->distinct()
-            ->orderBy('METODE')
-            ->pluck('METODE');
+        $data['metodes'] = collect(['TOP UP']);
 
         return view('admin.keuangan.saldo.sccttran.index', $data);
     }
@@ -143,7 +120,7 @@ class SccttranController extends Controller
                         'kelas' => 'scctcust.CODE03',
                         'nama' => 'scctcust.NMCUST',
                         'nis' => 'scctcust.NOCUST',
-                        'sekolah' => 'scctcust.CODE02',
+                        'sekolah' => 'scctcust.CODE01',
                         'angkatan' => 'scctcust.DESC04',
                         'metode' => 'sccttran.METODE',
                         default => null
@@ -203,7 +180,7 @@ class SccttranController extends Controller
             'sccttran.TRANSNO',
         ]);
 
-        $query = $this->onlineMetodeScope(
+        $query = $this->topUpVaScope(
             sccttran::query()
                 ->leftJoin('scctcust', 'scctcust.CUSTID', 'sccttran.CUSTID')
         );
@@ -224,11 +201,11 @@ class SccttranController extends Controller
         });
 
         if ($custid) {
-            $custQuery = $this->onlineMetodeScope(sccttran::query())->where('CUSTID', $custid);
+            $custQuery = $this->topUpVaScope(sccttran::query())->where('CUSTID', $custid);
             $totalNominal = (clone $custQuery)->sum('KREDIT');
         }
 
-        $totalRecords = $this->onlineMetodeScope(sccttran::query())->count();
+        $totalRecords = $this->topUpVaScope(sccttran::query())->count();
         $totalRecordswithFilter = (clone $query)->count();
 
         $records = (clone $query)->orderBy($columnName, $columnSortOrder)

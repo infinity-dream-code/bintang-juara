@@ -133,7 +133,7 @@
                                             @foreach($kelas as $item)
                                                 <option
                                                     value="{{$item->id}}">{{$item->unit}}
-                                                    - {{$item->kelas}} {{$item->jenjang}}</option>
+                                                    - {{$item->jenjang}} {{$item->kelas}}</option>
                                             @endforeach
                                         @else
                                             <option>data kosong</option>

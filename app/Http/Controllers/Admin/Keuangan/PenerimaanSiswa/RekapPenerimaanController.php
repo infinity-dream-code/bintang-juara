@@ -130,19 +130,27 @@ class RekapPenerimaanController extends Controller
 
     private function resolveMetodeLabel(object $item, array $metodeBayarMap): string
     {
-        $metode = trim((string) ($item->METODE ?? ''));
-
-        if ($metode !== '') {
-            return $metode;
-        }
-
         $fidBank = $item->FIDBANK ?? null;
 
-        if ($fidBank !== null && $fidBank !== '' && isset($metodeBayarMap[$fidBank])) {
-            return $metodeBayarMap[$fidBank];
+        return $metodeBayarMap[$fidBank] ?? ($fidBank ?? '-');
+    }
+
+    private function resolvePeriode(object $item): ?string
+    {
+        $billac = trim((string) ($item->BILLAC ?? ''));
+        if ($billac !== '' && $billac !== '-') {
+            return $billac;
         }
 
-        return $metodeBayarMap[$fidBank] ?? $metodeBayarMap[''] ?? 'Nomor VA';
+        if (blank($item->TRXDATE ?? null)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($item->TRXDATE)->format('Ym');
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function resolveNominalAmount(object $item): int
@@ -547,6 +555,7 @@ class RekapPenerimaanController extends Controller
                     $item->CUSTID = $item->CUSTID;
                     $item->PAIDDT = $item->TRXDATE;
                     $item->BILLAM = $this->resolveNominalAmount($item);
+                    $item->BILLAC = $this->resolvePeriode($item);
                     $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
                     $item->NamaAkun = $item->BILLNM;
                     $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);
@@ -559,6 +568,7 @@ class RekapPenerimaanController extends Controller
                 $records = $records->map(function ($item) use ($metodeBayarMap) {
                     $item->PAIDDT = $item->TRXDATE;
                     $item->BILLAM = $this->resolveNominalAmount($item);
+                    $item->BILLAC = $this->resolvePeriode($item);
                     $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
                     $item->NamaAkun = $item->BILLNM;
                     $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);

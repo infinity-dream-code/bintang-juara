@@ -1,9 +1,13 @@
 @extends('layouts.admin_new')
 @section('style')
-    <link rel="stylesheet" href="{{asset('main/libs/select2/select2.min.css')}}">
+    <link rel="stylesheet" href="{{asset('main/libs/select2/select2.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
+    <style>
+        .siswa-search-wrap .select2-container { width: 100% !important; }
+        .select2-container--open .select2-dropdown { z-index: 9999; }
+    </style>
 @endsection
 @section('content')
     <h3 class="page-heading d-flex text-gray-900 fw-bold flex-column justify-content-center my-0">
@@ -32,15 +36,13 @@
 
     <form class="mainForm" id="bayar-form" action="#">
         <div class="card mb-6">
-            <meta name="csrf-token" content="{{ csrf_token() }}" xmlns="http://www.w3.org/1999/html">
-
             <div class="card-header header-elements">
                 <h5 class="mb-0 me-2">{{$mainTitle}}</h5>
             </div>
-            <div class="card-body py-0" style="overflow: visible;">
+            <div class="card-body py-0">
                 <div class="row">
                     <div class="col-12">
-                        <div class="mb-5">
+                        <div class="mb-5 siswa-search-wrap">
                             <label class="required form-label" for="siswa">
                                 Siswa
                             </label>
@@ -202,7 +204,8 @@
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
     <script src="{{asset('js/helper/formattedNumber.min.js')}}"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
-    <script src="{{asset('main/libs/select2/select2.min.js')}}"></script>
+    <script src="{{asset('main/libs/select2/select2.js')}}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"
             integrity="sha512-axXaF5grZBaYl7qiM6OMHgsgVXdSLxqq0w7F4CQxuFyrcPmn0JfnqsOtYHUun80g6mRRdvJDrTCyL8LQqBOt/Q=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -224,7 +227,66 @@
 
             function resetSiswaSearch() {
                 selectedSiswaData = null;
-                $('#siswa').val(null).trigger('change');
+                $('[data-control="select2-ajax-siswa"]').val(null).trigger('change');
+            }
+
+            function initSiswaSelect2Ajax() {
+                const $siswaAjax = $('[data-control="select2-ajax-siswa"]');
+                if (!$siswaAjax.length || typeof $.fn.select2 !== 'function') {
+                    return;
+                }
+
+                if ($siswaAjax.hasClass('select2-hidden-accessible')) {
+                    $siswaAjax.select2('destroy');
+                }
+
+                if (!$siswaAjax.parent().hasClass('siswa-select2-parent')) {
+                    $siswaAjax.wrap('<div class="position-relative siswa-select2-parent w-100"></div>');
+                }
+
+                $siswaAjax.select2({
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $(document.body),
+                    placeholder: $siswaAjax.data('placeholder'),
+                    ajax: {
+                        url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
+                        dataType: 'json',
+                        delay: 300,
+                        data: function (params) {
+                            select2Param = params.term;
+                            return {term: params.term};
+                        },
+                        processResults: function (data) {
+                            return {results: Array.isArray(data) ? data : []};
+                        },
+                        cache: true
+                    },
+                    language: {
+                        inputTooShort: function () {
+                            return "Masukkan NIS atau No. Pendaftaran atau Nama Siswa";
+                        },
+                        noResults: function () {
+                            let w = $.isNumeric(select2Param) ? 'NIS' : 'Nama';
+                            return "Siswa dengan " + w + ": <span class='bg-label-danger'><b>" + select2Param + "</b></span> tidak ditemukan!";
+                        },
+                        searching: function () {
+                            return "Mencari Siswa ......";
+                        }
+                    },
+                    escapeMarkup: function (markup) {
+                        return markup;
+                    },
+                    minimumInputLength: 4,
+                }).on('select2:selecting', function (e) {
+                    if (e.params.args.data.id === '') {
+                        e.preventDefault();
+                    }
+                }).on('select2:select', function (e) {
+                    selectedSiswaData = e.params.data || null;
+                }).on('select2:clear', function () {
+                    selectedSiswaData = null;
+                });
             }
 
             let dtOptions = {
@@ -266,9 +328,9 @@
             if (select2.length && typeof $.fn.select2 === 'function') {
                 select2.each(function () {
                     let $this = $(this);
-                    $this.select2({
-                        allowClear: true,
+                    $this.wrap('<div class="position-relative"></div>').select2({
                         placeholder: $this.data('placeholder') || 'Pilih',
+                        dropdownParent: $this.parent(),
                         language: {
                             noResults: function () {
                                 return "Tidak ditemukan data yang sesuai!";
@@ -277,52 +339,6 @@
                     });
                 });
             }
-
-            $('[data-control="select2-ajax-siswa"]').select2({
-                allowClear: true,
-                placeholder: $('#siswa').data('placeholder'),
-                ajax: {
-                    url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
-                    dataType: 'json',
-                    delay: 300,
-                    data: function (params) {
-                        select2Param = params.term;
-                        return {
-                            term: params.term,
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: data
-                        };
-                    },
-                    cache: true
-                },
-                language: {
-                    inputTooShort: function () {
-                        return "Masukkan NIS atau No. Pendaftaran atau Nama Siswa";
-                    },
-                    noResults: function () {
-                        let w = $.isNumeric(select2Param) ? 'NIS' : 'Nama';
-                        return "Siswa dengan " + w + ": <span class='bg-label-danger'><b>" + select2Param + "</b></span> tidak ditemukan!";
-                    },
-                    searching: function () {
-                        return "Mencari Siswa ......";
-                    }
-                },
-                escapeMarkup: function (markup) {
-                    return markup;
-                },
-                minimumInputLength: 4,
-            }).on('select2:selecting', function (e) {
-                if (e.params.args.data.id === '') {
-                    e.preventDefault();
-                }
-            }).on('select2:select', function (e) {
-                selectedSiswaData = e.params.data || null;
-            }).on('select2:clear', function () {
-                selectedSiswaData = null;
-            });
 
             formClass.on('submit', function (e) {
                 e.preventDefault()
@@ -422,6 +438,8 @@
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
             }
+
+            initSiswaSelect2Ajax();
 
             const getNominalInput = (rowNode) => $(rowNode).find('input.nominal-bayar-input');
 

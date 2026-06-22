@@ -205,7 +205,6 @@
     <script src="{{asset('js/helper/formattedNumber.min.js')}}"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
     <script src="{{asset('main/libs/select2/select2.js')}}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"
             integrity="sha512-axXaF5grZBaYl7qiM6OMHgsgVXdSLxqq0w7F4CQxuFyrcPmn0JfnqsOtYHUun80g6mRRdvJDrTCyL8LQqBOt/Q=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -214,80 +213,12 @@
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <script type="text/javascript">
-        document.addEventListener("DOMContentLoaded", function () {
-            let dataColumns = [];
-            let formId = '';
+        $(function () {
             let formClass = $('.mainForm');
-            let tableId = 'main_table';
-            const select2 = $(`[data-control='select2']`);
+            const select2Els = $(`[data-control='select2']`);
             const csrfToken = $('meta[name="csrf-token"]').attr('content');
-            let maxBayar = 0;
             let selectedSiswaData = null;
             let select2Param = '';
-
-            function resetSiswaSearch() {
-                selectedSiswaData = null;
-                $('[data-control="select2-ajax-siswa"]').val(null).trigger('change');
-            }
-
-            function initSiswaSelect2Ajax() {
-                const $siswaAjax = $('[data-control="select2-ajax-siswa"]');
-                if (!$siswaAjax.length || typeof $.fn.select2 !== 'function') {
-                    return;
-                }
-
-                if ($siswaAjax.hasClass('select2-hidden-accessible')) {
-                    $siswaAjax.select2('destroy');
-                }
-
-                if (!$siswaAjax.parent().hasClass('siswa-select2-parent')) {
-                    $siswaAjax.wrap('<div class="position-relative siswa-select2-parent w-100"></div>');
-                }
-
-                $siswaAjax.select2({
-                    allowClear: true,
-                    width: '100%',
-                    dropdownParent: $(document.body),
-                    placeholder: $siswaAjax.data('placeholder'),
-                    ajax: {
-                        url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
-                        dataType: 'json',
-                        delay: 300,
-                        data: function (params) {
-                            select2Param = params.term;
-                            return {term: params.term};
-                        },
-                        processResults: function (data) {
-                            return {results: Array.isArray(data) ? data : []};
-                        },
-                        cache: true
-                    },
-                    language: {
-                        inputTooShort: function () {
-                            return "Masukkan NIS atau No. Pendaftaran atau Nama Siswa";
-                        },
-                        noResults: function () {
-                            let w = $.isNumeric(select2Param) ? 'NIS' : 'Nama';
-                            return "Siswa dengan " + w + ": <span class='bg-label-danger'><b>" + select2Param + "</b></span> tidak ditemukan!";
-                        },
-                        searching: function () {
-                            return "Mencari Siswa ......";
-                        }
-                    },
-                    escapeMarkup: function (markup) {
-                        return markup;
-                    },
-                    minimumInputLength: 4,
-                }).on('select2:selecting', function (e) {
-                    if (e.params.args.data.id === '') {
-                        e.preventDefault();
-                    }
-                }).on('select2:select', function (e) {
-                    selectedSiswaData = e.params.data || null;
-                }).on('select2:clear', function () {
-                    selectedSiswaData = null;
-                });
-            }
 
             let dtOptions = {
                 tableId: 'main_table_2',
@@ -316,101 +247,155 @@
             let year = currentDate.getFullYear();
             let formattedDate = day + '-' + month + '-' + year;
 
-            function clearErrorMessages(formId) {
-                const form = document.querySelector(`#${formId}`);
-                const errorElements = form.querySelectorAll('.invalid-feedback');
-                const errorClass = form.querySelectorAll('.is-invalid');
-
-                errorElements.forEach(element => element.textContent = '');
-                errorClass.forEach(element => element.classList.remove('is-invalid'));
+            function resetSiswaSearch() {
+                selectedSiswaData = null;
+                $('[data-control="select2-ajax-siswa"]').val(null).trigger('change');
             }
 
-            if (select2.length && typeof $.fn.select2 === 'function') {
-                select2.each(function () {
+            function initSiswaSelect2Ajax() {
+                const $siswaAjax = $('[data-control="select2-ajax-siswa"]');
+
+                if (!$siswaAjax.length || typeof $.fn.select2 !== 'function') {
+                    setTimeout(initSiswaSelect2Ajax, 200);
+                    return;
+                }
+
+                if ($siswaAjax.hasClass('select2-hidden-accessible')) {
+                    $siswaAjax.select2('destroy');
+                }
+
+                $siswaAjax.select2({
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $(document.body),
+                    placeholder: $siswaAjax.data('placeholder') || 'Masukkan NIS / No. Pendaftaran / Nama Siswa',
+                    ajax: {
+                        url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
+                        dataType: 'json',
+                        delay: 300,
+                        data: function (params) {
+                            select2Param = params.term;
+                            return { term: params.term };
+                        },
+                        processResults: function (data) {
+                            return { results: Array.isArray(data) ? data : [] };
+                        },
+                        cache: true
+                    },
+                    language: {
+                        inputTooShort: function () {
+                            return 'Masukkan NIS atau No. Pendaftaran atau Nama Siswa';
+                        },
+                        noResults: function () {
+                            let w = $.isNumeric(select2Param) ? 'NIS' : 'Nama';
+                            return 'Siswa dengan ' + w + ': <span class="bg-label-danger"><b>' + select2Param + '</b></span> tidak ditemukan!';
+                        },
+                        searching: function () {
+                            return 'Mencari Siswa ......';
+                        }
+                    },
+                    escapeMarkup: function (markup) {
+                        return markup;
+                    },
+                    minimumInputLength: 3,
+                }).on('select2:selecting', function (e) {
+                    if (e.params.args.data.id === '') {
+                        e.preventDefault();
+                    }
+                }).on('select2:select', function (e) {
+                    selectedSiswaData = e.params.data || null;
+                }).on('select2:clear', function () {
+                    selectedSiswaData = null;
+                });
+            }
+
+            if (select2Els.length && typeof $.fn.select2 === 'function') {
+                select2Els.each(function () {
                     let $this = $(this);
                     $this.wrap('<div class="position-relative"></div>').select2({
                         placeholder: $this.data('placeholder') || 'Pilih',
                         dropdownParent: $this.parent(),
                         language: {
                             noResults: function () {
-                                return "Tidak ditemukan data yang sesuai!";
+                                return 'Tidak ditemukan data yang sesuai!';
                             }
                         }
                     });
                 });
             }
 
+            initSiswaSelect2Ajax();
+
+            $("#tanggal").datepicker({
+                format: 'dd-mm-yyyy',
+                autoclose: true,
+            }).datepicker('update', formattedDate);
+
+            function clearErrorMessages(formId) {
+                const form = document.querySelector('#' + formId);
+                form.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+                form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+            }
+
             formClass.on('submit', function (e) {
-                e.preventDefault()
+                e.preventDefault();
                 loadingAlert();
-                let url = '{{route('admin.keuangan.manual-pembayaran.store')}}';
-                let tipe = 'POST';
                 const formId = $(this).attr('id');
+                let url = '{{route('admin.keuangan.manual-pembayaran.store')}}';
                 let data = $(this).serialize();
 
-                // console.log(url);
-                let ajaxOptions = {
-                    url: url,
-                    type: tipe,
-                    data: data,
-                    datatype: 'json',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                }
-
-                // console.log(ajaxOptions)
                 try {
                     const table = $(`#${dtOptions.tableId}`).DataTable();
-
-                    const selectedIndexes = table.rows({selected: true}).indexes().toArray();
+                    const selectedIndexes = table.rows({ selected: true }).indexes().toArray();
                     let Siswa = $('#siswa').val();
+
                     if (!Siswa) {
                         warningAlert('Silahkan pilih siswa');
                         return;
                     }
+
                     const checkedTagihan = $(`#${dtOptions.tableId} input[name="tagihan[post][]"]:checked`).length;
                     if (selectedIndexes.length < 1 && checkedTagihan < 1) {
                         warningAlert('Silahkan pilih tagihan yang akan dibayar');
                         return;
                     }
-                    clearErrorMessages(formId)
-                    $.ajax(ajaxOptions).done(function (responses) {
+
+                    clearErrorMessages(formId);
+
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        data: data,
+                        datatype: 'json',
+                        headers: { 'X-CSRF-TOKEN': csrfToken },
+                    }).done(function (responses) {
                         const thisForm = document.getElementById(formId);
                         thisForm.reset();
                         resetSiswaSearch();
-                        select2.each(function () {
-                            $(this).trigger('change');
-                        })
+                        select2Els.each(function () { $(this).trigger('change'); });
                         $("#tanggal").datepicker('update', formattedDate);
                         $(`#${dtOptions.tableId}`).DataTable().clear().draw();
                         AlertPrint(responses.message);
                     }).fail(function (xhr) {
-                        if (xhr.status === 422) {
-                            const errMessage = xhr.responseJSON.message
-                            errorAlert(errMessage)
-                            const errors = JSON.parse(xhr.responseText).error
-                            if (errors) {
-                                processErros(errors)
-                            }
-                        } else if (xhr.status === 419) {
-                            errorAlert('Sesi anda telah habis, Silahkan Login Kembali')
-                        } else if (xhr.status === 500) {
-                            errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda')
-                        } else if (xhr.status === 403) {
-                            errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini')
-                        } else if (xhr.status === 404) {
-                            errorAlert('Halaman tidak ditemukan')
-                        } else {
-                            errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')
-                        }
-                    })
+                        const msgs = {
+                            422: function() {
+                                errorAlert(xhr.responseJSON.message);
+                                const errors = JSON.parse(xhr.responseText).error;
+                                if (errors) processErros(errors);
+                            },
+                            419: () => errorAlert('Sesi anda telah habis, Silahkan Login Kembali'),
+                            500: () => errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda'),
+                            403: () => errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini'),
+                            404: () => errorAlert('Halaman tidak ditemukan'),
+                        };
+                        (msgs[xhr.status] || (() => errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')))();
+                    });
                 } catch (e) {
                     errorAlert('terjadi error pada halaman, silahkan muat ulang');
                 }
-            })
+            });
 
-            $('.cari-tagihan').on('click', function (e) {
+            $('.cari-tagihan').on('click', function () {
                 let Siswa = $('#siswa').val();
                 if (Siswa) {
                     getSaldoSiswa('tarik-siswa', Siswa);
@@ -421,25 +406,12 @@
                 }
             });
 
-            $("#tanggal").datepicker({
-                format: "dd-mm-yyyy",
-                autoclose: true,
-            }).datepicker('update', formattedDate);
-
-
-            $(document).on('click', '.cetak-tagihan', function (e) {
-                printTagihan()
-            });
-
-            $(document).on('click', '.test-tagihan', function (e) {
-                AlertPrint()
-            });
+            $(document).on('click', '.cetak-tagihan', function () { printTagihan(); });
+            $(document).on('click', '.test-tagihan', function () { AlertPrint(); });
 
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
             }
-
-            initSiswaSelect2Ajax();
 
             const getNominalInput = (rowNode) => $(rowNode).find('input.nominal-bayar-input');
 
@@ -460,9 +432,7 @@
                 input.prop('disabled', false).prop('readonly', false).attr('required', true);
                 input.removeAttr('max min');
                 input.attr('data-sisa-bayar', sisaBayar);
-                input.attr('title', canCicil
-                    ? 'Tagihan ini dapat dicicil'
-                    : 'Tagihan ini tidak dapat dicicil, pembayaran harus lunas');
+                input.attr('title', canCicil ? 'Tagihan ini dapat dicicil' : 'Tagihan ini tidak dapat dicicil, pembayaran harus lunas');
 
                 const current = parseNominal(input.val());
                 if (fillDefault && current <= 0 && sisaBayar > 0) {
@@ -486,9 +456,7 @@
                 $('input[name=total_tagihan]').val(totalTagihan ? totalTagihan.toLocaleString('id-ID') : '');
             };
 
-            const isRowSelected = (rowNode, checkbox) => {
-                return checkbox.prop('checked') || $(rowNode).hasClass('selected');
-            };
+            const isRowSelected = (rowNode, checkbox) => checkbox.prop('checked') || $(rowNode).hasClass('selected');
 
             const syncNominalBayarInputs = () => {
                 const table = $(`#${dtOptions.tableId}`).DataTable();
@@ -500,14 +468,10 @@
                     const input = getNominalInput(rowNode);
                     const isSelected = isRowSelected(rowNode, checkbox);
 
-                    if (!input.length) {
-                        return;
-                    }
+                    if (!input.length) return;
 
                     if (isSelected) {
-                        if (!checkbox.prop('checked')) {
-                            checkbox.prop('checked', true);
-                        }
+                        if (!checkbox.prop('checked')) checkbox.prop('checked', true);
                         configureNominalInput(input, rowData, true);
                     } else {
                         checkbox.prop('checked', false);
@@ -525,9 +489,7 @@
                 const rowData = table.row(rowNode).data();
 
                 checkbox.prop('checked', true);
-                if (!rowNode.hasClass('selected')) {
-                    table.row(rowNode).select();
-                }
+                if (!rowNode.hasClass('selected')) table.row(rowNode).select();
 
                 configureNominalInput($(inputEl), rowData, fillDefault);
                 updateTotalTagihan();
@@ -551,11 +513,7 @@
                 .on('change', 'input[name="tagihan[post][]"]', function () {
                     const table = $(`#${dtOptions.tableId}`).DataTable();
                     const row = table.row($(this).closest('tr'));
-                    if (this.checked) {
-                        row.select();
-                    } else {
-                        row.deselect();
-                    }
+                    if (this.checked) { row.select(); } else { row.deselect(); }
                     syncNominalBayarInputs();
                 })
                 .on('select.dt', function (e, dt, type, indexes) {
@@ -587,24 +545,21 @@
                     updateTotalTagihan();
                 });
 
-
             function AlertPrint(Message = null) {
                 Message = Message ?? 'Tagihan sukses dibayar, apakah anda ingin mencetak tagihan?';
                 Swal.fire({
                     html: Message,
-                    icon: "success",
+                    icon: 'success',
                     buttonsStyling: false,
                     showCancelButton: true,
                     confirmButtonText: 'Cetak Bukti Bayar',
                     cancelButtonText: 'Tutup',
                     customClass: {
-                        confirmButton: "btn btn-outline-success",
-                        cancelButton: "btn btn-outline-secondary"
+                        confirmButton: 'btn btn-outline-success',
+                        cancelButton: 'btn btn-outline-secondary'
                     },
                 }).then(function (result) {
-                    if (result.value) {
-                        printPaidTagihan();
-                    }
+                    if (result.value) printPaidTagihan();
                 });
             }
 
@@ -612,50 +567,37 @@
                 loadingAlert('Membuat Kartu Siswa');
                 let url = '{{route('admin.keuangan.manual-pembayaran.cetak-tagihan-dibayar')}}';
 
-                const request = new Request(
-                    url, {
-                        method: "GET",
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Accept': 'application/json'
-                        }
-                    });
+                const request = new Request(url, {
+                    method: 'GET',
+                    headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+                });
 
                 try {
                     const response = await fetch(request);
-
-                    if (!response.ok) {
-                        throw await buildHttpError(response);
-                    }
+                    if (!response.ok) throw await buildHttpError(response);
 
                     const result = await response.json();
+                    if (!result?.tagihans?.length) throw createError('Data Tagihan Kosong', 422);
 
-                    if (!result?.tagihans?.length) {
-                        throw createError("Data Tagihan Kosong", 422);
-                    }
                     Swal.close();
                     const data = await generateKuitansi(result);
-                    if (!data?.data) {
-                        throw createError('Gagal membuat kuitansi', 422);
-                    }
+                    if (!data?.data) throw createError('Gagal membuat kuitansi', 422);
+
                     await generatePdf('KUITANSI', data.data, data.unit ?? false);
                 } catch (error) {
                     if (error.status === 422) {
-                        const errors = error.error || error.errors;
                         errorAlert(error.message);
-                        if (errors) {
-                            processErrors(errors)
-                        }
+                        if (error.error || error.errors) processErros(error.error || error.errors);
                     } else {
                         const errorMessages = {
-                            401: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan! <br> jika masalah masih terjadi silahkan login kembali!',
+                            401: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan!',
                             403: 'Anda tidak memiliki izin untuk mengakses halaman ini 😖',
                             404: 'Halaman yang dituju tidak ditemukan 🧐',
                             405: 'Metode tidak valid 🧐 <br>silahkan muat ulang halaman dan coba lagi!',
-                            419: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan! <br> jika masalah masih terjadi silahkan login kembali!',
+                            419: 'Sesi anda sudah habis 🙏 <br>Silahkan muat ulang halaman untuk melanjutkan!',
                             429: 'Terlalu banyak permintaan akses <br>silahkan tunggu beberapa saat 🙏',
                         };
-                        errorAlert(errorMessages[error.status] || "Terjadi kesalahan, silahkan coba memuat ulang halaman");
+                        errorAlert(errorMessages[error.status] || 'Terjadi kesalahan, silahkan coba memuat ulang halaman');
                     }
                 }
             }
@@ -663,70 +605,46 @@
             async function printTagihan() {
                 loadingAlert();
                 const table = $(`#${dtOptions.tableId}`).DataTable();
-                const selectedRows = table.rows({selected: true}).data().toArray();
+                const selectedRows = table.rows({ selected: true }).data().toArray();
                 let Siswa = $('#siswa').val();
                 const selectedSiswa = selectedSiswaData || $('#siswa').select2('data')[0];
-                if (!Siswa) {
-                    warningAlert('Silahkan pilih siswa');
-                    return;
-                }
-                if (selectedRows.length < 1) {
-                    warningAlert('Silahkan pilih tagihan yang akan dicetak');
-                    return;
-                }
+
+                if (!Siswa) { warningAlert('Silahkan pilih siswa'); return; }
+                if (selectedRows.length < 1) { warningAlert('Silahkan pilih tagihan yang akan dicetak'); return; }
 
                 const data = [];
                 data['siswa'] = selectedSiswa;
                 data['tagihans'] = selectedRows;
 
                 const generatedBody = await generatePDFTagihan(data);
-                const pdf = await generatePdf('Tagihan Siswa', generatedBody, selectedSiswa.CODE02 ?? false)
+                const pdf = await generatePdf('Tagihan Siswa', generatedBody, selectedSiswa.CODE02 ?? false);
 
-                if (pdf) {
-                    successAlert('Sukses, Rekap telah dicetak');
-                } else {
-                    Swal.close();
-                }
+                if (pdf) { successAlert('Sukses, Rekap telah dicetak'); } else { Swal.close(); }
             }
 
             function getSaldoSiswa(target, siswa) {
                 loadingAlert();
-                let url = '{{route('admin.keuangan.saldo.saldo-virtual-account.get-saldo')}}';
-                let ajaxOptions = {
-                    url: url,
+                $.ajax({
+                    url: '{{route('admin.keuangan.saldo.saldo-virtual-account.get-saldo')}}',
                     type: 'get',
                     datatype: 'json',
-                    data: {
-                        'siswa': siswa,
-                    },
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                    },
-                }
-                $.ajax(ajaxOptions).done(function (response) {
-                    const raw = typeof response === 'object' && response !== null
-                        ? (response.saldo ?? 0)
-                        : response;
+                    data: { 'siswa': siswa },
+                    headers: { 'X-CSRF-TOKEN': csrfToken },
+                }).done(function (response) {
+                    const raw = typeof response === 'object' && response !== null ? (response.saldo ?? 0) : response;
                     let saldo = parseInt(String(raw).replace(/\./g, ''), 10) || 0;
-                    saldo = saldo.toLocaleString('id-ID');
-
-                    $('#saldo').val(saldo);
+                    $('#saldo').val(saldo.toLocaleString('id-ID'));
                     Swal.close();
                 }).fail(function (xhr) {
-                    if (xhr.status === 422) {
-                        errorAlert('Data tidak ditemukan')
-                    } else if (xhr.status === 419) {
-                        errorAlert('Sesi anda telah habis, Silahkan Login Kembali')
-                    } else if (xhr.status === 500) {
-                        errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda')
-                    } else if (xhr.status === 403) {
-                        errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini')
-                    } else if (xhr.status === 404) {
-                        errorAlert('Halaman tidak ditemukan')
-                    } else {
-                        errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')
-                    }
-                })
+                    const msgs = {
+                        422: () => errorAlert('Data tidak ditemukan'),
+                        419: () => errorAlert('Sesi anda telah habis, Silahkan Login Kembali'),
+                        500: () => errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda'),
+                        403: () => errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini'),
+                        404: () => errorAlert('Halaman tidak ditemukan'),
+                    };
+                    (msgs[xhr.status] || (() => errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')))();
+                });
             }
 
             function processErros(errors) {
@@ -738,21 +656,15 @@
                         element.addClass('is-invalid');
                         container.addClass('is-invalid');
                         let errorFeedback = container.siblings('.invalid-feedback');
-
                         if (errorFeedback.length === 0) {
-                            $('<div>', {
-                                class: 'invalid-feedback',
-                                role: 'alert',
-                                text: errorMessage
-                            }).insertAfter(container);
+                            $('<div>', { class: 'invalid-feedback', role: 'alert', text: errorMessage }).insertAfter(container);
                         } else {
                             errorFeedback.html(errorMessage);
                         }
                     }
 
                     if (field.hasClass('select2-hidden-accessible')) {
-                        let nextField = field.siblings('.select2-container');
-                        applyInvalidClasses(field, nextField);
+                        applyInvalidClasses(field, field.siblings('.select2-container'));
                     } else {
                         if (field.parent().hasClass('input-group')) {
                             applyInvalidClasses(field, field.parent());
@@ -774,7 +686,8 @@
                     bold: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman-bold@1.0.4/Times New Roman Bold.ttf',
                     italics: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman-italic@1.0.4/Times New Roman Italic.ttf',
                     bolditalics: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/times-new-roman-bold@1.0.4/Times New Roman Bold.ttf'
-                }, Roboto: {
+                },
+                Roboto: {
                     normal: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf',
                     bold: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Medium.ttf',
                     italics: 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Italic.ttf',
@@ -810,52 +723,29 @@
             const modalEditNova = new bootstrap.Modal(document.getElementById('modal-edit-nova'));
 
             function getContentWidth(pageSize = 'A4', orientation = 'portrait', margins = [30, 30, 30, 30]) {
-                const sizes = {
-                    A4: [595.28, 841.89],
-                    A3: [841.89, 1190.55],
-                    LETTER: [612, 792],
-                    LEGAL: [612, 1008]
-                };
-                const key = String(pageSize).toUpperCase();
-                const size = sizes[key] || sizes.A4;
-
-                // swap width/height for landscape
+                const sizes = { A4: [595.28, 841.89], A3: [841.89, 1190.55], LETTER: [612, 792], LEGAL: [612, 1008] };
+                const size = sizes[String(pageSize).toUpperCase()] || sizes.A4;
                 const pageW = orientation === 'landscape' ? size[1] : size[0];
-                const [ml, , mr] = margins;
-                return pageW - ml - mr;
+                return pageW - margins[0] - margins[2];
             }
 
             async function getLogoUnit(unit = false) {
                 const fallbackLogo = 'data:image/jpeg;base64,' + "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
                 try {
-                    if (!unit) {
-                        throw 'error';
-                    }
+                    if (!unit) throw 'error';
                     const cacheKey = `logo_unit_${unit}`;
                     const cachedLogo = localStorage.getItem(cacheKey);
-                    if (cachedLogo) {
-                        return cachedLogo;
-                    }
+                    if (cachedLogo) return cachedLogo;
+
                     const params = new URLSearchParams();
                     params.append('unit', unit);
-                    const request = new Request(
-                        `{{ route('admin.master-data.get-logo') }}?${params.toString()}`,
-                        {
-                            method: "GET",
-                            headers: {
-                                'X-CSRF-TOKEN': csrfToken,
-                                'Accept': 'application/json'
-                            }
-                        }
-                    );
-                    const response = await fetch(request);
-                    if (!response.ok) {
-                        throw 'error';
-                    }
+                    const response = await fetch(`{{ route('admin.master-data.get-logo') }}?${params.toString()}`, {
+                        method: 'GET',
+                        headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) throw 'error';
                     const result = await response.json();
-                    if (!result.data) {
-                        throw 'error';
-                    }
+                    if (!result.data) throw 'error';
                     localStorage.setItem(cacheKey, result.data);
                     return result.data;
                 } catch {
@@ -865,22 +755,12 @@
 
             function formatMetodePembayaran(data) {
                 const descriptions = {
-                    '1140000': 'Manual Cash',
-                    '1140001': 'Manual BMI',
-                    '1140002': 'Manual SALDO',
-                    '1140003': 'Transfer Bank Lain',
-                    '1140004': 'INFAQ',
-                    '1140005': 'Transfer Bank BRI',
-                    '1200001': 'Loket Manual - Beasiswa',
-                    '1200002': 'Loket Manual - Potongan',
-                    '1': 'H2H VA BMI - ATM',
-                    '2': 'H2H VA BMI - Teller',
-                    '3': 'H2H VA BMI - IBANK',
-                    '4': 'H2H VA BMI - EDC',
-                    '5': 'H2H VA BMI - MOBILE',
-                    '6': 'ANDROID',
-                    null: 'Nomor VA',
-                    '': 'Nomor VA'
+                    '1140000': 'Manual Cash', '1140001': 'Manual BMI', '1140002': 'Manual SALDO',
+                    '1140003': 'Transfer Bank Lain', '1140004': 'INFAQ', '1140005': 'Transfer Bank BRI',
+                    '1200001': 'Loket Manual - Beasiswa', '1200002': 'Loket Manual - Potongan',
+                    '1': 'H2H VA BMI - ATM', '2': 'H2H VA BMI - Teller', '3': 'H2H VA BMI - IBANK',
+                    '4': 'H2H VA BMI - EDC', '5': 'H2H VA BMI - MOBILE', '6': 'ANDROID',
+                    null: 'Nomor VA', '': 'Nomor VA'
                 };
                 return descriptions[data] || data;
             }
@@ -888,14 +768,11 @@
             async function generatePdf(title, bodyContent, unit_logo = false) {
                 try {
                     let logo = 'data:image/jpeg;base64,' + headerLogo;
-
-                    if (unit_logo) {
-                        logo = await getLogoUnit(unit_logo);
-                    }
+                    if (unit_logo) logo = await getLogoUnit(unit_logo);
 
                     const orientation = 'portrait';
                     const pageMargins = [20, 20, 20, 20];
-                    const tanggalSekarang = new Date().toLocaleDateString('id-ID', {
+                    const tanggalNow = new Date().toLocaleDateString('id-ID', {
                         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
                     });
                     const availableWidth = getContentWidth('A4', orientation, pageMargins);
@@ -905,28 +782,15 @@
                         table: {
                             widths: [60, '*'],
                             body: [[
-                                logo ? {
-                                    image: logo,
-                                    width: 60,
-                                    alignment: 'center'
-                                } : '',
+                                logo ? { image: logo, width: 60, alignment: 'center' } : '',
                                 {
                                     stack: [
-                                        instansi.nama_sub_1 ? {
-                                            text: instansi.nama_sub_1.toUpperCase(),
-                                            style: 'headerSmall'
-                                        } : '',
-                                        instansi.nama_sub_2 ? {
-                                            text: instansi.nama_sub_2.toUpperCase(),
-                                            style: 'headerSmall'
-                                        } : '',
-                                        {text: instansi.nama_instansi.toUpperCase(), style: 'headerBig'},
-                                        instansi.akreditasi ? {text: instansi.akreditasi, style: 'headerSmall'} : '',
-                                        instansi.alamat ? {text: instansi.alamat, style: 'headerSmall'} : '',
-                                        {
-                                            text: `Telp: ${instansi.kontak.telepon || '-'} | Email: ${instansi.kontak.email || '-'} | Web: ${instansi.kontak.website || '-'}`,
-                                            style: 'headerSmall'
-                                        }
+                                        instansi.nama_sub_1 ? { text: instansi.nama_sub_1.toUpperCase(), style: 'headerSmall' } : '',
+                                        instansi.nama_sub_2 ? { text: instansi.nama_sub_2.toUpperCase(), style: 'headerSmall' } : '',
+                                        { text: instansi.nama_instansi.toUpperCase(), style: 'headerBig' },
+                                        instansi.akreditasi ? { text: instansi.akreditasi, style: 'headerSmall' } : '',
+                                        instansi.alamat ? { text: instansi.alamat, style: 'headerSmall' } : '',
+                                        { text: `Telp: ${instansi.kontak.telepon || '-'} | Email: ${instansi.kontak.email || '-'} | Web: ${instansi.kontak.website || '-'}`, style: 'headerSmall' }
                                     ],
                                     alignment: 'center'
                                 }
@@ -935,74 +799,53 @@
                         layout: 'noBorders'
                     };
 
-                    // Footer (shared)
                     const footer = {
                         columns: [
-                            {text: '', width: '*'},
+                            { text: '', width: '*' },
                             {
                                 stack: [
-                                    {
-                                        text: `${domisili}, ${tanggalSekarang}`,
-                                        margin: [0, 10, 0, 0],
-                                        alignment: 'center'
-                                    },
-                                    tandaTangan ? {
-                                        image: tandaTangan,
-                                        width: 100,
-                                        alignment: 'center'
-                                    } : {},
-                                    {text: userName, alignment: 'center'}
+                                    { text: `${domisili}, ${tanggalNow}`, margin: [0, 10, 0, 0], alignment: 'center' },
+                                    tandaTangan ? { image: tandaTangan, width: 100, alignment: 'center' } : {},
+                                    { text: userName, alignment: 'center' }
                                 ],
                                 width: 'auto'
                             }
                         ]
                     };
 
-                    // Combine all content
                     const content = [
                         headerTable,
                         {
                             margin: [0, 5, 0, 5],
                             canvas: [
-                                {type: 'line', x1: 0, y1: 0, x2: availableWidth, y2: 0, lineWidth: 2},
-                                {
-                                    type: 'line',
-                                    x1: 0,
-                                    y1: 3,
-                                    x2: availableWidth,
-                                    y2: 3,
-                                    lineWidth: 0.5,
-                                    lineColor: '#888'
-                                }
+                                { type: 'line', x1: 0, y1: 0, x2: availableWidth, y2: 0, lineWidth: 2 },
+                                { type: 'line', x1: 0, y1: 3, x2: availableWidth, y2: 3, lineWidth: 0.5, lineColor: '#888' }
                             ]
                         },
-                        {text: title, style: 'title', margin: [0, 5, 0, 5]},
+                        { text: title, style: 'title', margin: [0, 5, 0, 5] },
                         ...bodyContent,
                         footer
                     ];
 
-                    // PDF definition
                     const docDefinition = {
                         pageSize: 'A4',
                         pageOrientation: orientation,
                         pageMargins: pageMargins,
                         content: content,
                         styles: {
-                            headerBig: {fontSize: 16, bold: true, alignment: 'center'},
-                            headerSmall: {fontSize: 12, alignment: 'center'},
-                            title: {fontSize: 14, bold: true, alignment: 'center'},
-                            subTitle: {fontSize: 12, bold: true},
-                            tableHeader: {bold: true, fillColor: '#ededed', alignment: 'center'},
-                            small: {fontSize: 9, alignment: 'center'},
-                            tableFont: {fontSize: 5}
+                            headerBig: { fontSize: 16, bold: true, alignment: 'center' },
+                            headerSmall: { fontSize: 12, alignment: 'center' },
+                            title: { fontSize: 14, bold: true, alignment: 'center' },
+                            subTitle: { fontSize: 12, bold: true },
+                            tableHeader: { bold: true, fillColor: '#ededed', alignment: 'center' },
+                            small: { fontSize: 9, alignment: 'center' },
+                            tableFont: { fontSize: 5 }
                         },
-                        defaultStyle: {font: 'Times'}
+                        defaultStyle: { font: 'Times' }
                     };
 
                     pdfMake.createPdf(docDefinition).open();
-
-                    successAlert('File telah didownload <br>' +
-                        '<p><span class="badge badge-dot bg-danger me-1"></span> Cek pada menu unduhan browser anda untuk memeriksa!</p>');
+                    successAlert('File telah didownload <br><p><span class="badge badge-dot bg-danger me-1"></span> Cek pada menu unduhan browser anda untuk memeriksa!</p>');
                 } catch (e) {
                     console.error('Error generating PDF:', e);
                     errorAlert(e.message);
@@ -1010,25 +853,15 @@
             }
 
             function formatTanggalBayar(value) {
-                if (!value || value === '' || value === '0000-00-00 00:00:00') {
-                    return '-';
-                }
+                if (!value || value === '' || value === '0000-00-00 00:00:00') return '-';
                 const parsed = new Date(value);
-                if (Number.isNaN(parsed.getTime())) {
-                    return '-';
-                }
-                return parsed.toLocaleDateString('id-ID', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric'
-                });
+                if (Number.isNaN(parsed.getTime())) return '-';
+                return parsed.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             }
 
             async function generateKuitansi(data) {
                 try {
                     const bodyContent = [];
-
                     let siswa = data.siswa;
                     const namaSiswa = siswa.NMCUST ?? siswa.nmcust ?? '-';
                     const paymentBank = data.bank ?? '';
@@ -1040,92 +873,61 @@
                     const uniqueMetode = [...new Set(data.tagihans.map(item => String(item.FIDBANK ?? paymentBank ?? '')))].filter(Boolean);
                     const metodeLabel = paymentBank
                         ? formatMetodePembayaran(paymentBank)
-                        : (uniqueMetode.length > 1
-                            ? 'Beragam'
-                            : formatMetodePembayaran(fidBank));
-
+                        : (uniqueMetode.length > 1 ? 'Beragam' : formatMetodePembayaran(fidBank));
                     const ortu = siswa.GENUS ?? siswa.genus ?? '-';
+
                     const mainTable = [
                         [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : (siswa.NUM2ND ?? '-')), 'Unit', ': ' + (siswa.CODE02 ?? '-')],
                         [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust, siswa.CODE02) : '-'), 'Kelas', ': ' + (siswa.DESC02 ?? '') + ' ' + (siswa.DESC03 ?? '')],
                         ['Nama ', ': ' + namaSiswa, 'Orang Tua', ': ' + ortu],
                         ['Metode Bayar', ': ' + metodeLabel, '', ''],
-                    ]
+                    ];
 
-                    bodyContent.push({
-                            table: {
-                                widths: ['15%', '35%', '15%', '35%'],
-                                body: mainTable
-                            },
-                            layout: 'noBorders'
-                        },
-                        {
-                            text: '',
-                            margin: [0, 5, 0, 5]
-                        }
+                    bodyContent.push(
+                        { table: { widths: ['15%', '35%', '15%', '35%'], body: mainTable }, layout: 'noBorders' },
+                        { text: '', margin: [0, 5, 0, 5] }
                     );
 
                     const tableBody = [];
-                    tableBody.push(
-                        ['#', 'Nama Tagihan', 'Periode', 'Tagihan', 'Bayar', 'Metode', 'Tanggal Bayar']
-                            .map(h => ({text: h, style: 'tableHeader'})),
-                    );
+                    tableBody.push(['#', 'Nama Tagihan', 'Periode', 'Tagihan', 'Bayar', 'Metode', 'Tanggal Bayar'].map(h => ({ text: h, style: 'tableHeader' })));
 
                     let totalBayar = 0;
-
-                    let tagihans = data.tagihans;
-                    tagihans.forEach((item, index) => {
+                    data.tagihans.forEach((item, index) => {
                         const billAm = Number(item.BILLAM ?? 0);
                         const nominalBayar = Number(item.NOMINAL_BAYAR ?? item.BILLAM ?? 0);
                         const itemFidBank = item.FIDBANK ?? paymentBank ?? '';
                         const tanggalBayar = formatTanggalBayar(item.PAIDDT);
-
                         totalBayar += nominalBayar;
-
                         tableBody.push([
-                            {text: index + 1, alignment: 'center'},
-                            {text: item.BILLNM, alignment: 'left'},
-                            {text: item.BTA, alignment: 'left'},
-                            {text: formatRupiah(billAm), alignment: 'right'},
-                            {text: formatRupiah(nominalBayar), alignment: 'right'},
-                            {text: formatMetodePembayaran(itemFidBank), alignment: 'left'},
-                            {text: tanggalBayar, alignment: 'left'},
+                            { text: index + 1, alignment: 'center' },
+                            { text: item.BILLNM, alignment: 'left' },
+                            { text: item.BTA, alignment: 'left' },
+                            { text: formatRupiah(billAm), alignment: 'right' },
+                            { text: formatRupiah(nominalBayar), alignment: 'right' },
+                            { text: formatMetodePembayaran(itemFidBank), alignment: 'left' },
+                            { text: tanggalBayar, alignment: 'left' },
                         ]);
-                    })
+                    });
 
                     if (biayaLayanan > 0) {
                         tableBody.push([
-                            {colSpan: 4, text: 'Total Tagihan', alignment: 'right', style: 'tableHeader'},
-                            {}, {}, {},
-                            {text: formatRupiah(totalBayar), alignment: 'right'},
-                            {}, {}
-                        ])
-
+                            { colSpan: 4, text: 'Total Tagihan', alignment: 'right', style: 'tableHeader' }, {}, {}, {},
+                            { text: formatRupiah(totalBayar), alignment: 'right' }, {}, {}
+                        ]);
                         tableBody.push([
-                            {colSpan: 4, text: 'Biaya Layanan', alignment: 'right', style: 'tableHeader'},
-                            {}, {}, {},
-                            {text: formatRupiah(biayaLayanan), alignment: 'right'},
-                            {}, {}
-                        ])
+                            { colSpan: 4, text: 'Biaya Layanan', alignment: 'right', style: 'tableHeader' }, {}, {}, {},
+                            { text: formatRupiah(biayaLayanan), alignment: 'right' }, {}, {}
+                        ]);
                     }
 
                     tableBody.push([
-                        {colSpan: 4, text: 'Total', alignment: 'right', style: 'tableHeader'},
-                        {}, {}, {},
-                        {text: formatRupiah(totalBayar + biayaLayanan), alignment: 'right'},
-                        {}, {}
-                    ])
+                        { colSpan: 4, text: 'Total', alignment: 'right', style: 'tableHeader' }, {}, {}, {},
+                        { text: formatRupiah(totalBayar + biayaLayanan), alignment: 'right' }, {}, {}
+                    ]);
 
                     bodyContent.push({
-                        table: {
-                            widths: ['3%', '22%', '11%', '14%', '14%', '16%', '20%'],
-                            body: tableBody,
-                        },
-                        layout: {
-                            fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
-                            hLineWidth: () => 0.5,
-                            vLineWidth: () => 0.5
-                        },
+                        table: { widths: ['3%', '22%', '11%', '14%', '14%', '16%', '20%'], body: tableBody },
+                        layout: { fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null, hLineWidth: () => 0.5, vLineWidth: () => 0.5 },
                         margin: [0, 0, 0, 10],
                         fontSize: 12
                     });
@@ -1135,87 +937,64 @@
                     forPdf['data'] = bodyContent;
                     return forPdf;
                 } catch (e) {
-                    console.log(e)
+                    console.log(e);
                 }
             }
 
             async function generatePDFTagihan(data) {
                 try {
                     const bodyContent = [];
-
                     let siswa = data.siswa;
                     let nocust = siswa.NOCUST === null || siswa.NOCUST === '' || siswa.NOCUST === '-' || !siswa.NOCUST ? false : siswa.NOCUST;
-
                     const ortu = siswa.GENUS ?? siswa.genus ?? '-';
+
                     const mainTable = [
                         [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : (siswa.NUM2ND ?? '-')), 'Unit', ': ' + (siswa.CODE02 ?? '-')],
                         [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust, siswa.CODE02) : '-'), 'Kelas', ': ' + (siswa.DESC02 ?? '') + ' ' + (siswa.DESC03 ?? '')],
                         ['Nama ', ': ' + (siswa.NMCUST ?? '-'), 'Orang Tua', ': ' + ortu],
                         ['', '', '', ''],
-                    ]
+                    ];
 
-                    bodyContent.push({
-                            table: {
-                                widths: ['15%', '35%', '15%', '35%'],
-                                body: mainTable
-                            },
-                            layout: 'noBorders'
-                        },
-                        {
-                            text: '',
-                            margin: [0, 5, 0, 5]
-                        }
+                    bodyContent.push(
+                        { table: { widths: ['15%', '35%', '15%', '35%'], body: mainTable }, layout: 'noBorders' },
+                        { text: '', margin: [0, 5, 0, 5] }
                     );
 
                     const tableBody = [];
-                    tableBody.push(
-                        ['#', 'Nama Tagihan', 'Peridoe', 'Tagihan']
-                            .map(h => ({text: h, style: 'tableHeader'})),
-                    );
+                    tableBody.push(['#', 'Nama Tagihan', 'Peridoe', 'Tagihan'].map(h => ({ text: h, style: 'tableHeader' })));
 
                     let totalTagihan = 0;
-
-                    let tagihan = data.tagihans;
-                    tagihan.forEach((item, index) => {
+                    data.tagihans.forEach((item, index) => {
                         totalTagihan += item.BILLAM;
-
                         tableBody.push([
-                            {text: index + 1, alignment: 'center'},
-                            {text: item.BILLNM, alignment: 'left'},
-                            {text: item.BTA, alignment: 'left'},
-                            {text: formatRupiah(item.BILLAM), alignment: 'right'}
+                            { text: index + 1, alignment: 'center' },
+                            { text: item.BILLNM, alignment: 'left' },
+                            { text: item.BTA, alignment: 'left' },
+                            { text: formatRupiah(item.BILLAM), alignment: 'right' }
                         ]);
-                    })
+                    });
 
                     tableBody.push([
-                        {colSpan: 3, text: 'Total Tagihan', alignment: 'right', style: 'tableHeader'},
-                        {}, {},
-                        {text: formatRupiah(totalTagihan), alignment: 'right'},
-                    ])
+                        { colSpan: 3, text: 'Total Tagihan', alignment: 'right', style: 'tableHeader' }, {}, {},
+                        { text: formatRupiah(totalTagihan), alignment: 'right' },
+                    ]);
 
                     bodyContent.push({
-                        table: {
-                            widths: ['3%', '27%', '20%', '50%'],
-                            body: tableBody,
-                        },
-                        layout: {
-                            fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null,
-                            hLineWidth: () => 0.5,
-                            vLineWidth: () => 0.5
-                        },
+                        table: { widths: ['3%', '27%', '20%', '50%'], body: tableBody },
+                        layout: { fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null, hLineWidth: () => 0.5, vLineWidth: () => 0.5 },
                         margin: [0, 0, 0, 10],
                         fontSize: 12
                     });
 
                     return bodyContent;
                 } catch (e) {
-                    console.log(e)
+                    console.log(e);
                 }
             }
 
             function formatRupiah(amount) {
                 if (!amount) return 'Rp 0';
-                return 'Rp. ' + amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                return 'Rp. ' + amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
             }
 
             function createError(message, status, extra = {}) {
@@ -1223,6 +1002,23 @@
                 err.status = status;
                 Object.assign(err, extra);
                 return err;
+            }
+
+            async function buildHttpError(response) {
+                const status = response.status;
+                const contentType = response.headers.get('content-type');
+                let message = `Request failed with status ${status}`;
+                let extra = {};
+                try {
+                    if (contentType?.includes('application/json')) {
+                        const data = await response.json();
+                        message = data.message ?? message;
+                        extra = data;
+                    } else {
+                        message = (await response.text()) || message;
+                    }
+                } catch {}
+                return createError(message, status, extra);
             }
 
             document.getElementById('cetak-kuitansi')?.addEventListener('click', function (e) {
@@ -1253,47 +1049,22 @@
                 formData.append('_token', csrfToken);
                 fetch('{{ route('admin.keuangan.manual-pembayaran.update-nocust') }}', {
                     method: 'POST',
-                    headers: {'X-CSRF-TOKEN': csrfToken},
+                    headers: { 'X-CSRF-TOKEN': csrfToken },
                     body: formData,
-                })
-                    .then(async (res) => {
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw {status: res.status, message: data.message || 'Gagal menyimpan'};
-                        return data;
-                    })
-                    .then((data) => {
-                        Swal.close();
-                        successAlert(data.message);
-                        modalEditNova.hide();
-                        dataReload(dtOptions.tableId);
-                    })
-                    .catch((err) => {
-                        Swal.close();
-                        errorAlert(err.message || 'Gagal menyimpan nomor VA');
-                    });
+                }).then(async (res) => {
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw { status: res.status, message: data.message || 'Gagal menyimpan' };
+                    return data;
+                }).then((data) => {
+                    Swal.close();
+                    successAlert(data.message);
+                    modalEditNova.hide();
+                    dataReload(dtOptions.tableId);
+                }).catch((err) => {
+                    Swal.close();
+                    errorAlert(err.message || 'Gagal menyimpan nomor VA');
+                });
             });
-
-            async function buildHttpError(response) {
-                const status = response.status;
-                const contentType = response.headers.get('content-type');
-
-                let message = `Request failed with status ${status}`;
-                let extra = {};
-
-                try {
-                    if (contentType?.includes('application/json')) {
-                        const data = await response.json();
-                        message = data.message ?? message;
-                        extra = data;
-                    } else {
-                        const text = await response.text();
-                        message = text || message;
-                    }
-                } catch {
-                }
-
-                return createError(message, status, extra);
-            }
         });
     </script>
 

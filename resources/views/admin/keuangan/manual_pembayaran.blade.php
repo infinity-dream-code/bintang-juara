@@ -1,7 +1,6 @@
 @extends('layouts.admin_new')
 @section('style')
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
+    <link rel="stylesheet" href="{{asset('main/libs/select2/select2.min.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
@@ -41,12 +40,13 @@
             <div class="card-body py-0" style="overflow: visible;">
                 <div class="row">
                     <div class="col-12">
-                        <div class="mb-5 siswa-search-wrap" style="overflow: visible;">
+                        <div class="mb-5">
                             <label class="required form-label" for="siswa">
                                 Siswa
                             </label>
-                            <select class="form-control w-100" id="siswa" name="siswa"
-                                    data-placeholder="Ketik NIS / No. Pendaftaran / Nama Siswa">
+                            <select class="form-select" id="siswa" name="siswa"
+                                    data-control="select2-ajax-siswa"
+                                    data-placeholder="Masukkan NIS / No. Pendaftaran / Nama Siswa">
                             </select>
                         </div>
                     </div>
@@ -202,7 +202,7 @@
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
     <script src="{{asset('js/helper/formattedNumber.min.js')}}"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js?v=20260622"></script>
+    <script src="{{asset('main/libs/select2/select2.min.js')}}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"
             integrity="sha512-axXaF5grZBaYl7qiM6OMHgsgVXdSLxqq0w7F4CQxuFyrcPmn0JfnqsOtYHUun80g6mRRdvJDrTCyL8LQqBOt/Q=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -221,150 +221,11 @@
             let maxBayar = 0;
             let selectedSiswaData = null;
             let select2Param = '';
-            const siswaSearchUrl = '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}';
-            const debugLogEndpoint = 'http://127.0.0.1:7555/ingest/bd9ace26-6937-4c62-8e01-91e960f881cf';
-
-            function agentDebugLog(hypothesisId, location, message, data) {
-                fetch(debugLogEndpoint, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-Debug-Session-Id': '1b2d6a'},
-                    body: JSON.stringify({
-                        sessionId: '1b2d6a',
-                        hypothesisId: hypothesisId,
-                        location: location,
-                        message: message,
-                        data: data || {},
-                        timestamp: Date.now()
-                    })
-                }).catch(function () {});
-            }
-
-            window.addEventListener('error', function (event) {
-                agentDebugLog('H1', 'manual_pembayaran:window.error', 'js_error', {
-                    message: event.message || '',
-                    source: event.filename || '',
-                    line: event.lineno || 0
-                });
-            });
 
             function resetSiswaSearch() {
                 selectedSiswaData = null;
-                const $siswa = $('#siswa');
-                if ($siswa.hasClass('select2-hidden-accessible')) {
-                    $siswa.val(null).trigger('change');
-                } else {
-                    $siswa.val('');
-                }
+                $('#siswa').val(null).trigger('change');
             }
-
-            function initSiswaSelect2() {
-                const $siswa = $('#siswa');
-                // #region agent log
-                agentDebugLog('H1', 'manual_pembayaran:initSiswaSelect2:entry', 'init_start', {
-                    hasElement: $siswa.length > 0,
-                    hasSelect2Fn: typeof $.fn.select2 === 'function',
-                    searchUrl: siswaSearchUrl
-                });
-                // #endregion
-                if (!$siswa.length || typeof $.fn.select2 !== 'function') {
-                    console.error('Select2 tidak tersedia');
-                    // #region agent log
-                    agentDebugLog('H1', 'manual_pembayaran:initSiswaSelect2:abort', 'select2_unavailable', {
-                        hasElement: $siswa.length > 0,
-                        hasSelect2Fn: typeof $.fn.select2 === 'function'
-                    });
-                    // #endregion
-                    return;
-                }
-
-                if ($siswa.hasClass('select2-hidden-accessible')) {
-                    $siswa.select2('destroy');
-                }
-
-                $siswa.select2({
-                    theme: 'bootstrap-5',
-                    allowClear: true,
-                    width: '100%',
-                    dropdownParent: $(document.body),
-                    placeholder: $siswa.data('placeholder') || 'Ketik NIS / No. Pendaftaran / Nama Siswa',
-                    minimumInputLength: 2,
-                    ajax: {
-                        url: siswaSearchUrl,
-                        dataType: 'json',
-                        delay: 300,
-                        data: function (params) {
-                            select2Param = params.term || '';
-                            return {term: params.term || ''};
-                        },
-                        transport: function (params, success, failure) {
-                            const request = $.ajax(params);
-                            request.done(function (data) {
-                                // #region agent log
-                                agentDebugLog('H2', 'manual_pembayaran:ajax:success', 'ajax_ok', {
-                                    isArray: Array.isArray(data),
-                                    resultCount: Array.isArray(data) ? data.length : -1,
-                                    term: select2Param
-                                });
-                                // #endregion
-                                success(data);
-                            });
-                            request.fail(function (jqXHR) {
-                                // #region agent log
-                                agentDebugLog('H2', 'manual_pembayaran:ajax:fail', 'ajax_error', {
-                                    status: jqXHR.status || 0,
-                                    statusText: jqXHR.statusText || '',
-                                    term: select2Param
-                                });
-                                // #endregion
-                                failure();
-                            });
-                            return request;
-                        },
-                        processResults: function (data) {
-                            const results = Array.isArray(data) ? data : [];
-                            // #region agent log
-                            agentDebugLog('H4', 'manual_pembayaran:processResults', 'parsed_results', {
-                                resultCount: results.length,
-                                firstHasId: results[0] ? !!results[0].id : false,
-                                firstHasText: results[0] ? !!results[0].text : false
-                            });
-                            // #endregion
-                            return {results: results};
-                        },
-                        cache: true
-                    },
-                    language: {
-                        inputTooShort: function () {
-                            return 'Ketik minimal 2 karakter (NIS / No. Pendaftaran / Nama)';
-                        },
-                        noResults: function () {
-                            return 'Siswa "' + (select2Param || '') + '" tidak ditemukan';
-                        },
-                        searching: function () {
-                            return 'Mencari siswa...';
-                        }
-                    },
-                    escapeMarkup: function (markup) {
-                        return markup;
-                    }
-                }).on('select2:select', function (e) {
-                    selectedSiswaData = e.params.data || null;
-                }).on('select2:clear', function () {
-                    selectedSiswaData = null;
-                }).on('select2:open', function () {
-                    // #region agent log
-                    agentDebugLog('H5', 'manual_pembayaran:select2:open', 'dropdown_opened', {});
-                    // #endregion
-                });
-
-                // #region agent log
-                agentDebugLog('H1', 'manual_pembayaran:initSiswaSelect2:done', 'init_ok', {
-                    initialized: $siswa.hasClass('select2-hidden-accessible')
-                });
-                // #endregion
-            }
-
-            initSiswaSelect2();
 
             let dtOptions = {
                 tableId: 'main_table_2',
@@ -406,10 +267,8 @@
                 select2.each(function () {
                     let $this = $(this);
                     $this.select2({
-                        theme: 'bootstrap-5',
-                        placeholder: 'Pilih',
-                        width: '100%',
-                        dropdownParent: $(document.body),
+                        allowClear: true,
+                        placeholder: $this.data('placeholder') || 'Pilih',
                         language: {
                             noResults: function () {
                                 return "Tidak ditemukan data yang sesuai!";
@@ -418,6 +277,52 @@
                     });
                 });
             }
+
+            $('[data-control="select2-ajax-siswa"]').select2({
+                allowClear: true,
+                placeholder: $('#siswa').data('placeholder'),
+                ajax: {
+                    url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        select2Param = params.term;
+                        return {
+                            term: params.term,
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data
+                        };
+                    },
+                    cache: true
+                },
+                language: {
+                    inputTooShort: function () {
+                        return "Masukkan NIS atau No. Pendaftaran atau Nama Siswa";
+                    },
+                    noResults: function () {
+                        let w = $.isNumeric(select2Param) ? 'NIS' : 'Nama';
+                        return "Siswa dengan " + w + ": <span class='bg-label-danger'><b>" + select2Param + "</b></span> tidak ditemukan!";
+                    },
+                    searching: function () {
+                        return "Mencari Siswa ......";
+                    }
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                },
+                minimumInputLength: 4,
+            }).on('select2:selecting', function (e) {
+                if (e.params.args.data.id === '') {
+                    e.preventDefault();
+                }
+            }).on('select2:select', function (e) {
+                selectedSiswaData = e.params.data || null;
+            }).on('select2:clear', function () {
+                selectedSiswaData = null;
+            });
 
             formClass.on('submit', function (e) {
                 e.preventDefault()

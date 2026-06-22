@@ -85,6 +85,47 @@ class DataTagihanController extends Controller
         });
     }
 
+    private function isBlankPaidDate(mixed $value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+
+        $normalized = trim((string) $value);
+
+        if ($normalized === '' || $normalized === '-' || $normalized === '0') {
+            return true;
+        }
+
+        return preg_match('/^0{4}-0{2}-0{2}/', $normalized) === 1;
+    }
+
+    private function resolvePaidDateDisplay(mixed $paidDtRaw, int $billPaid, ?string $aa = null, array $lastPaymentDates = []): ?string
+    {
+        if ($billPaid <= 0) {
+            return null;
+        }
+
+        if ($this->isBlankPaidDate($paidDtRaw) && $aa !== null && isset($lastPaymentDates[$aa])) {
+            $paidDtRaw = $lastPaymentDates[$aa];
+        }
+
+        if ($this->isBlankPaidDate($paidDtRaw)) {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($paidDtRaw);
+            if ($parsed->year < 1971) {
+                return null;
+            }
+
+            return $parsed->format('Y-m-d H:i:s');
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public function getColumn()
     {
         return [
@@ -445,9 +486,7 @@ class DataTagihanController extends Controller
                 $billPaid = (int) ($row->BILLPAID ?? 0);
                 $billAm = (int) ($row->BILLAM ?? 0);
 
-                if (blank($row->PAIDDT) && $billPaid > 0 && isset($lastPaymentDates[$aa])) {
-                    $row->PAIDDT = $lastPaymentDates[$aa];
-                }
+                $row->PAIDDT = $this->resolvePaidDateDisplay($row->PAIDDT, $billPaid, $aa, $lastPaymentDates);
 
                 if ($row->PAYMENTLEFT === null || $row->PAYMENTLEFT === '') {
                     $row->PAYMENTLEFT = max(0, $billAm - $billPaid);
@@ -721,10 +760,7 @@ class DataTagihanController extends Controller
                 $aa = (string) ($get('AA') ?? '');
                 $billPaid = (int) ($get('BILLPAID') ?? 0);
                 $paidDtRaw = $get('PAIDDT');
-
-                if (blank($paidDtRaw) && $billPaid > 0 && isset($lastPaymentDates[$aa])) {
-                    $paidDtRaw = $lastPaymentDates[$aa];
-                }
+                $paidDtDisplay = $this->resolvePaidDateDisplay($paidDtRaw, $billPaid, $aa, $lastPaymentDates);
 
                 $canHapus = $this->canHapusTagihan($item);
 
@@ -748,12 +784,8 @@ class DataTagihanController extends Controller
                     'BTA' => $get('BTA'),
                     'PAIDST' => $get('PAIDST'),
                     'INSTALLMENT' => (int) ($get('INSTALLMENT') ?? 0),
-                    'PAIDDT' => $paidDtRaw
-                        ? Carbon::parse($paidDtRaw)->format('Y-m-d H:i:s')
-                        : null,
-                    'PAIDDT_ISO' => $paidDtRaw
-                        ? Carbon::parse($paidDtRaw)->format('Y-m-d H:i:s')
-                        : null,
+                    'PAIDDT' => $paidDtDisplay,
+                    'PAIDDT_ISO' => $paidDtDisplay,
                     'FIDBANK' => $get('FIDBANK'),
                     'FUrutan' => ($furutan === null || $furutan === '')
                         ? '0'

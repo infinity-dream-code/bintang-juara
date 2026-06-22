@@ -684,12 +684,21 @@ function dtButtons(options, buttons) {
                                 return date.toLocaleDateString('id-ID', dateOptions);
                             case 'timestamp':
                             case 'datetime':
-                                if (!data) return '';
-                                if (config.extend === 'excel') {
-                                    return dateToExcelSerial(new Date(data));
+                                if (!data || data === '0000-00-00 00:00:00' || data === '0000-00-00') {
+                                    return '';
                                 }
-                                let tsDate = new Date(data);
-                                let tsOptions = {
+                                if (config.extend === 'excel') {
+                                    const excelDate = new Date(data);
+                                    if (Number.isNaN(excelDate.getTime())) {
+                                        return '';
+                                    }
+                                    return dateToExcelSerial(excelDate);
+                                }
+                                const tsDate = new Date(data);
+                                if (Number.isNaN(tsDate.getTime())) {
+                                    return '';
+                                }
+                                const tsOptions = {
                                     weekday: 'long',
                                     day: 'numeric',
                                     month: 'long',
@@ -1197,10 +1206,17 @@ async function getDT(options) {
                                 };
                                 break;
                             case 'timestamp':
+                            case 'datetime':
                                 renderFunc = function (data, type, row) {
                                     if (type === 'display' || type === 'filter') {
-                                        let date = new Date(data);
-                                        let options = {
+                                        if (!data || data === '0000-00-00 00:00:00' || data === '0000-00-00') {
+                                            return '';
+                                        }
+                                        const date = new Date(data);
+                                        if (Number.isNaN(date.getTime())) {
+                                            return '';
+                                        }
+                                        const options = {
                                             weekday: 'long',
                                             day: 'numeric',
                                             month: 'long',

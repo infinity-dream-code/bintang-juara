@@ -64,8 +64,7 @@
                                 <option value="all">Semua</option>
                                 @isset($thn_aka)
                                     @foreach($thn_aka as $item)
-                                        <option
-                                            value="{{$item->thn_aka}}">{{$item->thn_aka}}</option>
+                                        <option value="{{$item->thn_aka}}">{{$item->thn_aka}}</option>
                                     @endforeach
                                 @else
                                     <option>data kosong</option>
@@ -126,7 +125,7 @@
                             <span class="ri-search-line me-2"></span>
                             Reset
                         </button>
-                        <button type="button" class="btn btn-primary cari-tagihan ">
+                        <button type="button" class="btn btn-primary cari-tagihan">
                             <span class="ri-search-line me-2"></span>
                             Cari
                         </button>
@@ -215,7 +214,7 @@
     <script type="text/javascript">
         $(function () {
             let formClass = $('.mainForm');
-            const select2Els = $(`[data-control='select2']`);
+            const select2Els = $("[data-control='select2']");
             const csrfToken = $('meta[name="csrf-token"]').attr('content');
             let selectedSiswaData = null;
             let select2Param = '';
@@ -333,8 +332,8 @@
 
             function clearErrorMessages(formId) {
                 const form = document.querySelector('#' + formId);
-                form.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-                form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+                form.querySelectorAll('.invalid-feedback').forEach(function (el) { el.textContent = ''; });
+                form.querySelectorAll('.is-invalid').forEach(function (el) { el.classList.remove('is-invalid'); });
             }
 
             formClass.on('submit', function (e) {
@@ -345,7 +344,7 @@
                 let data = $(this).serialize();
 
                 try {
-                    const table = $(`#${dtOptions.tableId}`).DataTable();
+                    const table = $('#' + dtOptions.tableId).DataTable();
                     const selectedIndexes = table.rows({ selected: true }).indexes().toArray();
                     let Siswa = $('#siswa').val();
 
@@ -354,7 +353,7 @@
                         return;
                     }
 
-                    const checkedTagihan = $(`#${dtOptions.tableId} input[name="tagihan[post][]"]:checked`).length;
+                    const checkedTagihan = $('#' + dtOptions.tableId + ' input[name="tagihan[post][]"]:checked').length;
                     if (selectedIndexes.length < 1 && checkedTagihan < 1) {
                         warningAlert('Silahkan pilih tagihan yang akan dibayar');
                         return;
@@ -374,21 +373,24 @@
                         resetSiswaSearch();
                         select2Els.each(function () { $(this).trigger('change'); });
                         $("#tanggal").datepicker('update', formattedDate);
-                        $(`#${dtOptions.tableId}`).DataTable().clear().draw();
+                        $('#' + dtOptions.tableId).DataTable().clear().draw();
                         AlertPrint(responses.message);
                     }).fail(function (xhr) {
-                        const msgs = {
-                            422: function() {
-                                errorAlert(xhr.responseJSON.message);
-                                const errors = JSON.parse(xhr.responseText).error;
-                                if (errors) processErros(errors);
-                            },
-                            419: () => errorAlert('Sesi anda telah habis, Silahkan Login Kembali'),
-                            500: () => errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda'),
-                            403: () => errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini'),
-                            404: () => errorAlert('Halaman tidak ditemukan'),
-                        };
-                        (msgs[xhr.status] || (() => errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')))();
+                        if (xhr.status === 422) {
+                            errorAlert(xhr.responseJSON.message);
+                            const errors = JSON.parse(xhr.responseText).error;
+                            if (errors) processErros(errors);
+                        } else if (xhr.status === 419) {
+                            errorAlert('Sesi anda telah habis, Silahkan Login Kembali');
+                        } else if (xhr.status === 500) {
+                            errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda');
+                        } else if (xhr.status === 403) {
+                            errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini');
+                        } else if (xhr.status === 404) {
+                            errorAlert('Halaman tidak ditemukan');
+                        } else {
+                            errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman');
+                        }
                     });
                 } catch (e) {
                     errorAlert('terjadi error pada halaman, silahkan muat ulang');
@@ -413,21 +415,22 @@
                 getDT(dtOptions);
             }
 
-            const getNominalInput = (rowNode) => $(rowNode).find('input.nominal-bayar-input');
+            const getNominalInput = function (rowNode) { return $(rowNode).find('input.nominal-bayar-input'); };
 
-            const parseNominal = (value) => {
+            const parseNominal = function (value) {
                 if (!value) return 0;
                 return parseInt(String(value).replace(/\./g, ''), 10) || 0;
             };
 
-            const formatNominal = (value) => {
+            const formatNominal = function (value) {
                 const amount = parseNominal(value);
                 return amount > 0 ? amount.toLocaleString('id-ID') : '';
             };
 
-            const configureNominalInput = (input, rowData, fillDefault = false) => {
-                const sisaBayar = Number(rowData.sisa_bayar ?? rowData.BILLAM) || 0;
-                const canCicil = Number(rowData.can_cicil ?? 0) === 1;
+            const configureNominalInput = function (input, rowData, fillDefault) {
+                fillDefault = fillDefault || false;
+                const sisaBayar = Number(rowData.sisa_bayar !== undefined ? rowData.sisa_bayar : rowData.BILLAM) || 0;
+                const canCicil = Number(rowData.can_cicil !== undefined ? rowData.can_cicil : 0) === 1;
 
                 input.prop('disabled', false).prop('readonly', false).attr('required', true);
                 input.removeAttr('max min');
@@ -440,8 +443,8 @@
                 }
             };
 
-            const updateTotalTagihan = () => {
-                const table = $(`#${dtOptions.tableId}`).DataTable();
+            const updateTotalTagihan = function () {
+                const table = $('#' + dtOptions.tableId).DataTable();
                 let totalTagihan = 0;
 
                 table.rows().every(function () {
@@ -456,10 +459,12 @@
                 $('input[name=total_tagihan]').val(totalTagihan ? totalTagihan.toLocaleString('id-ID') : '');
             };
 
-            const isRowSelected = (rowNode, checkbox) => checkbox.prop('checked') || $(rowNode).hasClass('selected');
+            const isRowSelected = function (rowNode, checkbox) {
+                return checkbox.prop('checked') || $(rowNode).hasClass('selected');
+            };
 
-            const syncNominalBayarInputs = () => {
-                const table = $(`#${dtOptions.tableId}`).DataTable();
+            const syncNominalBayarInputs = function () {
+                const table = $('#' + dtOptions.tableId).DataTable();
 
                 table.rows().every(function () {
                     const rowNode = this.node();
@@ -482,10 +487,11 @@
                 updateTotalTagihan();
             };
 
-            const activateNominalRow = (inputEl, fillDefault = false) => {
+            const activateNominalRow = function (inputEl, fillDefault) {
+                fillDefault = fillDefault || false;
                 const rowNode = $(inputEl).closest('tr');
                 const checkbox = rowNode.find('input[name="tagihan[post][]"]');
-                const table = $(`#${dtOptions.tableId}`).DataTable();
+                const table = $('#' + dtOptions.tableId).DataTable();
                 const rowData = table.row(rowNode).data();
 
                 checkbox.prop('checked', true);
@@ -495,7 +501,7 @@
                 updateTotalTagihan();
             };
 
-            $(`#${dtOptions.tableId}`)
+            $('#' + dtOptions.tableId)
                 .on('init.dt draw.dt', syncNominalBayarInputs)
                 .on('mousedown click', 'td.exclude-selection, input.nominal-bayar-input', function (e) {
                     e.stopPropagation();
@@ -504,14 +510,14 @@
                         : $(this).find('input.nominal-bayar-input');
                     if (input.length) {
                         activateNominalRow(input[0], true);
-                        setTimeout(() => input.trigger('focus'), 0);
+                        setTimeout(function () { input.trigger('focus'); }, 0);
                     }
                 })
                 .on('focus', 'input.nominal-bayar-input', function () {
                     activateNominalRow(this, false);
                 })
                 .on('change', 'input[name="tagihan[post][]"]', function () {
-                    const table = $(`#${dtOptions.tableId}`).DataTable();
+                    const table = $('#' + dtOptions.tableId).DataTable();
                     const row = table.row($(this).closest('tr'));
                     if (this.checked) { row.select(); } else { row.deselect(); }
                     syncNominalBayarInputs();
@@ -545,8 +551,8 @@
                     updateTotalTagihan();
                 });
 
-            function AlertPrint(Message = null) {
-                Message = Message ?? 'Tagihan sukses dibayar, apakah anda ingin mencetak tagihan?';
+            function AlertPrint(Message) {
+                Message = Message || 'Tagihan sukses dibayar, apakah anda ingin mencetak tagihan?';
                 Swal.fire({
                     html: Message,
                     icon: 'success',
@@ -567,23 +573,22 @@
                 loadingAlert('Membuat Kartu Siswa');
                 let url = '{{route('admin.keuangan.manual-pembayaran.cetak-tagihan-dibayar')}}';
 
-                const request = new Request(url, {
-                    method: 'GET',
-                    headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
-                });
-
                 try {
-                    const response = await fetch(request);
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+                    });
+
                     if (!response.ok) throw await buildHttpError(response);
 
                     const result = await response.json();
-                    if (!result?.tagihans?.length) throw createError('Data Tagihan Kosong', 422);
+                    if (!result || !result.tagihans || !result.tagihans.length) throw createError('Data Tagihan Kosong', 422);
 
                     Swal.close();
                     const data = await generateKuitansi(result);
-                    if (!data?.data) throw createError('Gagal membuat kuitansi', 422);
+                    if (!data || !data.data) throw createError('Gagal membuat kuitansi', 422);
 
-                    await generatePdf('KUITANSI', data.data, data.unit ?? false);
+                    await generatePdf('KUITANSI', data.data, data.unit || false);
                 } catch (error) {
                     if (error.status === 422) {
                         errorAlert(error.message);
@@ -604,7 +609,7 @@
 
             async function printTagihan() {
                 loadingAlert();
-                const table = $(`#${dtOptions.tableId}`).DataTable();
+                const table = $('#' + dtOptions.tableId).DataTable();
                 const selectedRows = table.rows({ selected: true }).data().toArray();
                 let Siswa = $('#siswa').val();
                 const selectedSiswa = selectedSiswaData || $('#siswa').select2('data')[0];
@@ -617,7 +622,7 @@
                 data['tagihans'] = selectedRows;
 
                 const generatedBody = await generatePDFTagihan(data);
-                const pdf = await generatePdf('Tagihan Siswa', generatedBody, selectedSiswa.CODE02 ?? false);
+                const pdf = await generatePdf('Tagihan Siswa', generatedBody, selectedSiswa.CODE02 || false);
 
                 if (pdf) { successAlert('Sukses, Rekap telah dicetak'); } else { Swal.close(); }
             }
@@ -631,25 +636,34 @@
                     data: { 'siswa': siswa },
                     headers: { 'X-CSRF-TOKEN': csrfToken },
                 }).done(function (response) {
-                    const raw = typeof response === 'object' && response !== null ? (response.saldo ?? 0) : response;
+                    const raw = typeof response === 'object' && response !== null
+                        ? (response.saldo !== undefined ? response.saldo : 0)
+                        : response;
                     let saldo = parseInt(String(raw).replace(/\./g, ''), 10) || 0;
                     $('#saldo').val(saldo.toLocaleString('id-ID'));
                     Swal.close();
                 }).fail(function (xhr) {
-                    const msgs = {
-                        422: () => errorAlert('Data tidak ditemukan'),
-                        419: () => errorAlert('Sesi anda telah habis, Silahkan Login Kembali'),
-                        500: () => errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda'),
-                        403: () => errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini'),
-                        404: () => errorAlert('Halaman tidak ditemukan'),
-                    };
-                    (msgs[xhr.status] || (() => errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman')))();
+                    if (xhr.status === 422) {
+                        errorAlert('Data tidak ditemukan');
+                    } else if (xhr.status === 419) {
+                        errorAlert('Sesi anda telah habis, Silahkan Login Kembali');
+                    } else if (xhr.status === 500) {
+                        errorAlert('Tidak dapat terhubung ke server, Silahkan periksa koneksi internet anda');
+                    } else if (xhr.status === 403) {
+                        errorAlert('Anda tidak memiliki izin untuk mengakses halaman ini');
+                    } else if (xhr.status === 404) {
+                        errorAlert('Halaman tidak ditemukan');
+                    } else {
+                        errorAlert('Terjadi kesalahan, silahkan coba memuat ulang halaman');
+                    }
                 });
             }
 
             function processErros(errors) {
-                for (const [key, value] of Object.entries(errors)) {
-                    const field = $(`[name=${key}]`);
+                for (const key in errors) {
+                    if (!errors.hasOwnProperty(key)) continue;
+                    const value = errors[key];
+                    const field = $('[name=' + key + ']');
                     const errorMessage = value[0];
 
                     function applyInvalidClasses(element, container) {
@@ -674,7 +688,7 @@
                     }
 
                     if (key === 'password') {
-                        const confirmField = $(`[name=${key}_confirmation]`);
+                        const confirmField = $('[name=' + key + '_confirmation]');
                         applyInvalidClasses(confirmField, confirmField);
                     }
                 }
@@ -711,35 +725,39 @@
             const tandaTangan = @json($tanda_tangan);
             const userName = "{{ Auth::user()->name }}";
             const domisili = "{{ config('app.domisili') }}";
-            const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
             const APP_VA_PREFIX = @json((string) (config('app.nova') ?: '797783'));
-            const showVA = (nis) => typeof formatNoVA === 'function'
-    ? formatNoVA(nis, APP_VA_PREFIX)
-    : (() => {
-        const digits = String(nis || '').replace(/\D/g, '');
-        if (!digits) return '';
-        return APP_VA_PREFIX + digits.padStart(16 - APP_VA_PREFIX.length, '0');
-    })();
+
+            const showVA = function (nis) {
+                if (typeof formatNoVA === 'function') return formatNoVA(nis, APP_VA_PREFIX);
+                const digits = String(nis || '').replace(/\D/g, '');
+                if (!digits) return '';
+                return APP_VA_PREFIX + digits.padStart(16 - APP_VA_PREFIX.length, '0');
+            };
+
             const modalEditNova = new bootstrap.Modal(document.getElementById('modal-edit-nova'));
 
-            function getContentWidth(pageSize = 'A4', orientation = 'portrait', margins = [30, 30, 30, 30]) {
+            function getContentWidth(pageSize, orientation, margins) {
+                pageSize = pageSize || 'A4';
+                orientation = orientation || 'portrait';
+                margins = margins || [30, 30, 30, 30];
                 const sizes = { A4: [595.28, 841.89], A3: [841.89, 1190.55], LETTER: [612, 792], LEGAL: [612, 1008] };
                 const size = sizes[String(pageSize).toUpperCase()] || sizes.A4;
                 const pageW = orientation === 'landscape' ? size[1] : size[0];
                 return pageW - margins[0] - margins[2];
             }
 
-            async function getLogoUnit(unit = false) {
+            async function getLogoUnit(unit) {
+                unit = unit || false;
                 const fallbackLogo = 'data:image/jpeg;base64,' + "{{ base64_encode(file_get_contents(public_path(config('app.logo')))) }}";
                 try {
                     if (!unit) throw 'error';
-                    const cacheKey = `logo_unit_${unit}`;
+                    const cacheKey = 'logo_unit_' + unit;
                     const cachedLogo = localStorage.getItem(cacheKey);
                     if (cachedLogo) return cachedLogo;
 
                     const params = new URLSearchParams();
                     params.append('unit', unit);
-                    const response = await fetch(`{{ route('admin.master-data.get-logo') }}?${params.toString()}`, {
+                    const response = await fetch('{{ route('admin.master-data.get-logo') }}?' + params.toString(), {
                         method: 'GET',
                         headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
                     });
@@ -748,7 +766,7 @@
                     if (!result.data) throw 'error';
                     localStorage.setItem(cacheKey, result.data);
                     return result.data;
-                } catch {
+                } catch (e) {
                     return fallbackLogo;
                 }
             }
@@ -760,12 +778,13 @@
                     '1200001': 'Loket Manual - Beasiswa', '1200002': 'Loket Manual - Potongan',
                     '1': 'H2H VA BMI - ATM', '2': 'H2H VA BMI - Teller', '3': 'H2H VA BMI - IBANK',
                     '4': 'H2H VA BMI - EDC', '5': 'H2H VA BMI - MOBILE', '6': 'ANDROID',
-                    null: 'Nomor VA', '': 'Nomor VA'
+                    'null': 'Nomor VA', '': 'Nomor VA'
                 };
-                return descriptions[data] || data;
+                return descriptions[String(data)] || data;
             }
 
-            async function generatePdf(title, bodyContent, unit_logo = false) {
+            async function generatePdf(title, bodyContent, unit_logo) {
+                unit_logo = unit_logo || false;
                 try {
                     let logo = 'data:image/jpeg;base64,' + headerLogo;
                     if (unit_logo) logo = await getLogoUnit(unit_logo);
@@ -790,7 +809,7 @@
                                         { text: instansi.nama_instansi.toUpperCase(), style: 'headerBig' },
                                         instansi.akreditasi ? { text: instansi.akreditasi, style: 'headerSmall' } : '',
                                         instansi.alamat ? { text: instansi.alamat, style: 'headerSmall' } : '',
-                                        { text: `Telp: ${instansi.kontak.telepon || '-'} | Email: ${instansi.kontak.email || '-'} | Web: ${instansi.kontak.website || '-'}`, style: 'headerSmall' }
+                                        { text: 'Telp: ' + (instansi.kontak.telepon || '-') + ' | Email: ' + (instansi.kontak.email || '-') + ' | Web: ' + (instansi.kontak.website || '-'), style: 'headerSmall' }
                                     ],
                                     alignment: 'center'
                                 }
@@ -804,7 +823,7 @@
                             { text: '', width: '*' },
                             {
                                 stack: [
-                                    { text: `${domisili}, ${tanggalNow}`, margin: [0, 10, 0, 0], alignment: 'center' },
+                                    { text: domisili + ', ' + tanggalNow, margin: [0, 10, 0, 0], alignment: 'center' },
                                     tandaTangan ? { image: tandaTangan, width: 100, alignment: 'center' } : {},
                                     { text: userName, alignment: 'center' }
                                 ],
@@ -822,10 +841,8 @@
                                 { type: 'line', x1: 0, y1: 3, x2: availableWidth, y2: 3, lineWidth: 0.5, lineColor: '#888' }
                             ]
                         },
-                        { text: title, style: 'title', margin: [0, 5, 0, 5] },
-                        ...bodyContent,
-                        footer
-                    ];
+                        { text: title, style: 'title', margin: [0, 5, 0, 5] }
+                    ].concat(bodyContent).concat([footer]);
 
                     const docDefinition = {
                         pageSize: 'A4',
@@ -863,22 +880,27 @@
                 try {
                     const bodyContent = [];
                     let siswa = data.siswa;
-                    const namaSiswa = siswa.NMCUST ?? siswa.nmcust ?? '-';
-                    const paymentBank = data.bank ?? '';
-                    const fidBank = paymentBank || data.tagihans?.[0]?.FIDBANK ?? '';
+                    const namaSiswa = siswa.NMCUST || siswa.nmcust || '-';
+                    const paymentBank = data.bank || '';
+                    const firstTagihan = data.tagihans && data.tagihans[0] ? data.tagihans[0] : {};
+                    const fidBank = paymentBank || firstTagihan.FIDBANK || '';
                     const biayaLayanan = (data.biaya_layanan !== undefined && data.biaya_layanan !== null)
                         ? Number(data.biaya_layanan)
                         : (fidBank === '1140002' ? 0 : 2000);
-                    let nocust = siswa.NOCUST === null || siswa.NOCUST === '' || siswa.NOCUST === '-' || !siswa.NOCUST ? false : siswa.NOCUST;
-                    const uniqueMetode = [...new Set(data.tagihans.map(item => String(item.FIDBANK ?? paymentBank ?? '')))].filter(Boolean);
+                    let nocust = !siswa.NOCUST || siswa.NOCUST === '' || siswa.NOCUST === '-' ? false : siswa.NOCUST;
+                    const uniqueMetode = [];
+                    data.tagihans.forEach(function (item) {
+                        const m = String(item.FIDBANK || paymentBank || '');
+                        if (m && uniqueMetode.indexOf(m) === -1) uniqueMetode.push(m);
+                    });
                     const metodeLabel = paymentBank
                         ? formatMetodePembayaran(paymentBank)
                         : (uniqueMetode.length > 1 ? 'Beragam' : formatMetodePembayaran(fidBank));
-                    const ortu = siswa.GENUS ?? siswa.genus ?? '-';
+                    const ortu = siswa.GENUS || siswa.genus || '-';
 
                     const mainTable = [
-                        [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : (siswa.NUM2ND ?? '-')), 'Unit', ': ' + (siswa.CODE02 ?? '-')],
-                        [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust, siswa.CODE02) : '-'), 'Kelas', ': ' + (siswa.DESC02 ?? '') + ' ' + (siswa.DESC03 ?? '')],
+                        [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : (siswa.NUM2ND || '-')), 'Unit', ': ' + (siswa.CODE02 || '-')],
+                        [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust) : '-'), 'Kelas', ': ' + (siswa.DESC02 || '') + ' ' + (siswa.DESC03 || '')],
                         ['Nama ', ': ' + namaSiswa, 'Orang Tua', ': ' + ortu],
                         ['Metode Bayar', ': ' + metodeLabel, '', ''],
                     ];
@@ -889,13 +911,13 @@
                     );
 
                     const tableBody = [];
-                    tableBody.push(['#', 'Nama Tagihan', 'Periode', 'Tagihan', 'Bayar', 'Metode', 'Tanggal Bayar'].map(h => ({ text: h, style: 'tableHeader' })));
+                    tableBody.push(['#', 'Nama Tagihan', 'Periode', 'Tagihan', 'Bayar', 'Metode', 'Tanggal Bayar'].map(function (h) { return { text: h, style: 'tableHeader' }; }));
 
                     let totalBayar = 0;
-                    data.tagihans.forEach((item, index) => {
-                        const billAm = Number(item.BILLAM ?? 0);
-                        const nominalBayar = Number(item.NOMINAL_BAYAR ?? item.BILLAM ?? 0);
-                        const itemFidBank = item.FIDBANK ?? paymentBank ?? '';
+                    data.tagihans.forEach(function (item, index) {
+                        const billAm = Number(item.BILLAM || 0);
+                        const nominalBayar = Number(item.NOMINAL_BAYAR !== undefined ? item.NOMINAL_BAYAR : (item.BILLAM || 0));
+                        const itemFidBank = item.FIDBANK || paymentBank || '';
                         const tanggalBayar = formatTanggalBayar(item.PAIDDT);
                         totalBayar += nominalBayar;
                         tableBody.push([
@@ -927,7 +949,11 @@
 
                     bodyContent.push({
                         table: { widths: ['3%', '22%', '11%', '14%', '14%', '16%', '20%'], body: tableBody },
-                        layout: { fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null, hLineWidth: () => 0.5, vLineWidth: () => 0.5 },
+                        layout: {
+                            fillColor: function (rowIndex) { return rowIndex === 0 ? '#ededed' : null; },
+                            hLineWidth: function () { return 0.5; },
+                            vLineWidth: function () { return 0.5; }
+                        },
                         margin: [0, 0, 0, 10],
                         fontSize: 12
                     });
@@ -945,13 +971,13 @@
                 try {
                     const bodyContent = [];
                     let siswa = data.siswa;
-                    let nocust = siswa.NOCUST === null || siswa.NOCUST === '' || siswa.NOCUST === '-' || !siswa.NOCUST ? false : siswa.NOCUST;
-                    const ortu = siswa.GENUS ?? siswa.genus ?? '-';
+                    let nocust = !siswa.NOCUST || siswa.NOCUST === '' || siswa.NOCUST === '-' ? false : siswa.NOCUST;
+                    const ortu = siswa.GENUS || siswa.genus || '-';
 
                     const mainTable = [
-                        [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : (siswa.NUM2ND ?? '-')), 'Unit', ': ' + (siswa.CODE02 ?? '-')],
-                        [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust, siswa.CODE02) : '-'), 'Kelas', ': ' + (siswa.DESC02 ?? '') + ' ' + (siswa.DESC03 ?? '')],
-                        ['Nama ', ': ' + (siswa.NMCUST ?? '-'), 'Orang Tua', ': ' + ortu],
+                        [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : (siswa.NUM2ND || '-')), 'Unit', ': ' + (siswa.CODE02 || '-')],
+                        [(nocust ? 'No. VA ' : '-'), ': ' + (nocust ? showVA(nocust) : '-'), 'Kelas', ': ' + (siswa.DESC02 || '') + ' ' + (siswa.DESC03 || '')],
+                        ['Nama ', ': ' + (siswa.NMCUST || '-'), 'Orang Tua', ': ' + ortu],
                         ['', '', '', ''],
                     ];
 
@@ -961,10 +987,10 @@
                     );
 
                     const tableBody = [];
-                    tableBody.push(['#', 'Nama Tagihan', 'Peridoe', 'Tagihan'].map(h => ({ text: h, style: 'tableHeader' })));
+                    tableBody.push(['#', 'Nama Tagihan', 'Periode', 'Tagihan'].map(function (h) { return { text: h, style: 'tableHeader' }; }));
 
                     let totalTagihan = 0;
-                    data.tagihans.forEach((item, index) => {
+                    data.tagihans.forEach(function (item, index) {
                         totalTagihan += item.BILLAM;
                         tableBody.push([
                             { text: index + 1, alignment: 'center' },
@@ -981,7 +1007,11 @@
 
                     bodyContent.push({
                         table: { widths: ['3%', '27%', '20%', '50%'], body: tableBody },
-                        layout: { fillColor: (rowIndex) => rowIndex === 0 ? '#ededed' : null, hLineWidth: () => 0.5, vLineWidth: () => 0.5 },
+                        layout: {
+                            fillColor: function (rowIndex) { return rowIndex === 0 ? '#ededed' : null; },
+                            hLineWidth: function () { return 0.5; },
+                            vLineWidth: function () { return 0.5; }
+                        },
                         margin: [0, 0, 0, 10],
                         fontSize: 12
                     });
@@ -997,74 +1027,83 @@
                 return 'Rp. ' + amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
             }
 
-            function createError(message, status, extra = {}) {
+            function createError(message, status, extra) {
+                extra = extra || {};
                 const err = new Error(message);
                 err.status = status;
-                Object.assign(err, extra);
+                for (const k in extra) {
+                    if (extra.hasOwnProperty(k)) err[k] = extra[k];
+                }
                 return err;
             }
 
             async function buildHttpError(response) {
                 const status = response.status;
                 const contentType = response.headers.get('content-type');
-                let message = `Request failed with status ${status}`;
+                let message = 'Request failed with status ' + status;
                 let extra = {};
                 try {
                     if (contentType && contentType.includes('application/json')) {
                         const data = await response.json();
-                        message = data.message ?? message;
+                        message = data.message || message;
                         extra = data;
                     } else {
                         message = (await response.text()) || message;
                     }
-                } catch {}
+                } catch (e) {}
                 return createError(message, status, extra);
             }
 
-            document.getElementById('cetak-kuitansi')?.addEventListener('click', function (e) {
-                e.preventDefault();
-                printPaidTagihan();
-            });
+            const cetak = document.getElementById('cetak-kuitansi');
+            if (cetak) {
+                cetak.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    printPaidTagihan();
+                });
+            }
 
             $(document).on('click', '.btn-edit-nova', function () {
                 const btn = $(this);
                 $('#edit_nova_custid').val(btn.data('custid') || '');
                 const nis = String(btn.data('nis') || '').trim();
                 $('#edit_nova_nis').val(nis);
-                const unit = (selectedSiswaData || $('#siswa').select2('data')[0] || {})?.CODE02 ?? '';
-                $('#edit_nova_preview').val(nis ? showVA(nis, unit) : '');
+                const siswaData = selectedSiswaData || $('#siswa').select2('data')[0] || {};
+                const unit = siswaData.CODE02 || '';
+                $('#edit_nova_preview').val(nis ? showVA(nis) : '');
                 modalEditNova.show();
             });
 
             $('#edit_nova_nis').on('input', function () {
-                const unit = (selectedSiswaData || $('#siswa').select2('data')[0] || {})?.CODE02 ?? '';
                 const nis = $(this).val().trim();
-                $('#edit_nova_preview').val(nis ? showVA(nis, unit) : '');
+                $('#edit_nova_preview').val(nis ? showVA(nis) : '');
             });
 
-            document.getElementById('form-edit-nova')?.addEventListener('submit', function (e) {
-                e.preventDefault();
-                loadingAlert('Menyimpan nomor VA...');
-                const formData = new FormData(this);
-                formData.append('_token', csrfToken);
-                fetch('{{ route('admin.keuangan.manual-pembayaran.update-nocust') }}', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': csrfToken },
-                    body: formData,
-                }).then(async (res) => {
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw { status: res.status, message: data.message || 'Gagal menyimpan' };
-                    return data;
-                }).then((data) => {
-                    Swal.close();
-                    successAlert(data.message);
-                    modalEditNova.hide();
-                    dataReload(dtOptions.tableId);
-                }).catch((err) => {
-                    Swal.close();
-                    errorAlert(err.message || 'Gagal menyimpan nomor VA');
+            const formEditNova = document.getElementById('form-edit-nova');
+            if (formEditNova) {
+                formEditNova.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    loadingAlert('Menyimpan nomor VA...');
+                    const formData = new FormData(this);
+                    formData.append('_token', csrfToken);
+                    fetch('{{ route('admin.keuangan.manual-pembayaran.update-nocust') }}', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': csrfToken },
+                        body: formData,
+                    }).then(async function (res) {
+                        const data = await res.json().catch(function () { return {}; });
+                        if (!res.ok) throw { status: res.status, message: data.message || 'Gagal menyimpan' };
+                        return data;
+                    }).then(function (data) {
+                        Swal.close();
+                        successAlert(data.message);
+                        modalEditNova.hide();
+                        dataReload(dtOptions.tableId);
+                    }).catch(function (err) {
+                        Swal.close();
+                        errorAlert(err.message || 'Gagal menyimpan nomor VA');
+                    });
                 });
-            });
+            }
         });
     </script>
 

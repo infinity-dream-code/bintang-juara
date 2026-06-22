@@ -281,22 +281,32 @@ class DataSiswaController extends Controller
             return response()->json([]);
         }
 
-        $query = scctcust::query()->where("STCUST", 1)
-            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope));
+        $sanitized = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $term);
+        $like = '%' . $sanitized . '%';
 
-        if (is_numeric($term)) {
-            $query->where("nocust", "like", "%{$term}%");
-        } else {
-            $query->where("nmcust", "like", "%{$term}%");
-        }
-
-        $siswa = $query->orderBy("nmcust", "asc")
+        $siswa = scctcust::query()
+            ->where("STCUST", 1)
+            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+            ->where(function ($q) use ($like) {
+                $q->where("nocust", "like", $like)
+                    ->orWhere("NUM2ND", "like", $like)
+                    ->orWhere("nmcust", "like", $like);
+            })
+            ->orderBy("nmcust", "asc")
             ->limit(50)
-            ->get(["CUSTID", "nocust", "nmcust", "CODE02", "DESC02", "DESC03", "DESC04"])
+            ->get(["CUSTID", "nocust", "NUM2ND", "nmcust", "CODE02", "DESC02", "DESC03", "DESC04"])
             ->map(function ($item) {
+                $nis = trim((string) ($item->nocust ?? ''));
+                $noDaftar = trim((string) ($item->NUM2ND ?? ''));
+                $identifier = ($nis !== '' && $nis !== '-')
+                    ? "NIS : {$nis}"
+                    : (($noDaftar !== '' && $noDaftar !== '-')
+                        ? "No. Daftar : {$noDaftar}"
+                        : 'Tanpa NIS');
+
                 return [
                     "id" => $item->CUSTID,
-                    "text" => "NIS : {$item->nocust} - {$item->nmcust} | {$item->CODE02} - {$item->DESC02} - {$item->DESC03} - {$item->DESC04}",
+                    "text" => "{$identifier} - {$item->nmcust} | {$item->CODE02} - {$item->DESC02} - {$item->DESC03} - {$item->DESC04}",
                 ];
             });
 

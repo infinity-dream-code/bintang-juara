@@ -41,13 +41,18 @@
                 <div class="row">
                     <div class="col-12">
                         <div class="mb-5">
-                            <label class="required form-label" for="siswa">
+                            <label class="required form-label" for="cari_siswa">
                                 Siswa
                             </label>
-                            <select class="form-select" id="siswa" name="siswa"
-                                    data-control="select2-ajax-siswa"
-                                    data-placeholder="Masukkan NIS / No. Pendaftaran / Nama Siswa">
-                            </select>
+                            <input type="hidden" id="siswa" name="siswa" value="">
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="cari_siswa" autocomplete="off"
+                                       placeholder="Ketik NIS / No. Pendaftaran / Nama (min. 2 karakter)">
+                                <div id="siswa-suggest"
+                                     class="list-group position-absolute w-100 shadow-sm d-none"
+                                     style="z-index: 1055; max-height: 280px; overflow-y: auto;"></div>
+                            </div>
+                            <small class="text-muted d-block mt-2" id="siswa-terpilih-label"></small>
                         </div>
                     </div>
                     <div class="col-12">
@@ -219,7 +224,85 @@
             const select2 = $(`[data-control='select2']`);
             const csrfToken = $('meta[name="csrf-token"]').attr('content');
             let maxBayar = 0;
-            let select2Param = '';
+            let selectedSiswaData = null;
+            let siswaSearchTimer = null;
+            const siswaSearchUrl = '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}';
+            const $siswaHidden = $('#siswa');
+            const $cariSiswa = $('#cari_siswa');
+            const $siswaSuggest = $('#siswa-suggest');
+            const $siswaTerpilihLabel = $('#siswa-terpilih-label');
+
+            function resetSiswaSearch() {
+                selectedSiswaData = null;
+                $siswaHidden.val('');
+                $cariSiswa.val('');
+                $siswaTerpilihLabel.text('');
+                $siswaSuggest.addClass('d-none').empty();
+            }
+
+            function pilihSiswa(item) {
+                selectedSiswaData = item;
+                $siswaHidden.val(item.id ?? item.CUSTID ?? '');
+                $cariSiswa.val(item.text ?? '');
+                $siswaTerpilihLabel.text('Terpilih: ' + (item.text ?? ''));
+                $siswaSuggest.addClass('d-none').empty();
+            }
+
+            $cariSiswa.on('input', function () {
+                const term = $(this).val().trim();
+                selectedSiswaData = null;
+                $siswaHidden.val('');
+                $siswaTerpilihLabel.text('');
+
+                if (term.length < 2) {
+                    $siswaSuggest.addClass('d-none').empty();
+                    return;
+                }
+
+                clearTimeout(siswaSearchTimer);
+                siswaSearchTimer = setTimeout(function () {
+                    $.ajax({
+                        url: siswaSearchUrl,
+                        data: {term: term},
+                        dataType: 'json',
+                    }).done(function (results) {
+                        const items = Array.isArray(results) ? results : [];
+                        if (!items.length) {
+                            $siswaSuggest.html(
+                                '<div class="list-group-item text-muted small">Siswa tidak ditemukan</div>'
+                            ).removeClass('d-none');
+                            return;
+                        }
+
+                        const html = items.map(function (item) {
+                            const encoded = $('<div>').text(item.text ?? '').html();
+                            const payload = encodeURIComponent(JSON.stringify(item));
+                            return `<button type="button" class="list-group-item list-group-item-action text-start siswa-suggest-item" data-item="${payload}">${encoded}</button>`;
+                        }).join('');
+
+                        $siswaSuggest.html(html).removeClass('d-none');
+                    }).fail(function () {
+                        $siswaSuggest.html(
+                            '<div class="list-group-item text-danger small">Gagal mencari siswa</div>'
+                        ).removeClass('d-none');
+                    });
+                }, 300);
+            });
+
+            $siswaSuggest.on('click', '.siswa-suggest-item', function () {
+                try {
+                    const item = JSON.parse(decodeURIComponent($(this).attr('data-item') || ''));
+                    pilihSiswa(item);
+                } catch (e) {
+                    errorAlert('Data siswa tidak valid, silahkan pilih lagi.');
+                }
+            });
+
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('#cari_siswa, #siswa-suggest').length) {
+                    $siswaSuggest.addClass('d-none');
+                }
+            });
 
             let dtOptions = {
                 tableId: 'main_table_2',
@@ -311,7 +394,7 @@
                     $.ajax(ajaxOptions).done(function (responses) {
                         const thisForm = document.getElementById(formId);
                         thisForm.reset();
-                        $('[data-control="select2-ajax-siswa"]').empty().trigger('change');
+                        resetSiswaSearch();
                         select2.each(function () {
                             $(this).trigger('change');
                         })
@@ -367,61 +450,6 @@
             $(document).on('click', '.test-tagihan', function (e) {
                 AlertPrint()
             });
-
-            const $siswaSelect = $('#siswa');
-            if (typeof $.fn.select2 !== 'function') {
-                console.error('Select2 tidak termuat — pencarian siswa tidak dapat digunakan.');
-                errorAlert('Komponen pencarian siswa gagal dimuat. Silahkan muat ulang halaman.');
-            } else {
-                if ($siswaSelect.hasClass('select2-hidden-accessible')) {
-                    $siswaSelect.select2('destroy');
-                }
-                if (!$siswaSelect.parent().hasClass('position-relative')) {
-                    $siswaSelect.wrap('<div class="position-relative"></div>');
-                }
-                $siswaSelect.select2({
-                    allowClear: true,
-                    width: '100%',
-                    dropdownParent: $siswaSelect.parent(),
-                    placeholder: $siswaSelect.data('placeholder') || 'Masukkan NIS / No. Pendaftaran / Nama Siswa',
-                    ajax: {
-                        url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
-                        dataType: 'json',
-                        delay: 300,
-                        data: function (params) {
-                            select2Param = params.term || '';
-                            return {
-                                term: params.term || '',
-                            };
-                        },
-                        processResults: function (data) {
-                            return {
-                                results: Array.isArray(data) ? data : []
-                            };
-                        },
-                        cache: true
-                    },
-                    language: {
-                        inputTooShort: function () {
-                            return "Ketik minimal 2 karakter (NIS / No. Pendaftaran / Nama)";
-                        },
-                        noResults: function () {
-                            return "Siswa dengan kata kunci: <span class='bg-label-danger'><b>" + (select2Param || '') + "</b></span> tidak ditemukan!";
-                        },
-                        searching: function () {
-                            return "Mencari siswa...";
-                        }
-                    },
-                    escapeMarkup: function (markup) {
-                        return markup;
-                    },
-                    minimumInputLength: 2,
-                }).on('select2:selecting', function (e) {
-                    if (e.params.args.data.id === '') {
-                        e.preventDefault();
-                    }
-                });
-            }
 
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
@@ -648,11 +676,10 @@
 
             async function printTagihan() {
                 loadingAlert();
-                const formId = $('#bayar-form');
                 const table = $(`#${dtOptions.tableId}`).DataTable();
                 const selectedRows = table.rows({selected: true}).data().toArray();
                 let Siswa = $('#siswa').val();
-                const selectedSiswa = $('#siswa').select2('data')[0];
+                const selectedSiswa = selectedSiswaData;
                 if (!Siswa) {
                     warningAlert('Silahkan pilih siswa');
                     return;
@@ -1222,15 +1249,13 @@
                 $('#edit_nova_custid').val(btn.data('custid') || '');
                 const nis = String(btn.data('nis') || '').trim();
                 $('#edit_nova_nis').val(nis);
-                const selected = $('#siswa').select2('data')[0];
-                const unit = selected?.CODE02 ?? selected?.code02 ?? '';
+                const unit = selectedSiswaData?.CODE02 ?? selectedSiswaData?.code02 ?? '';
                 $('#edit_nova_preview').val(nis ? showVA(nis, unit) : '');
                 modalEditNova.show();
             });
 
             $('#edit_nova_nis').on('input', function () {
-                const selected = $('#siswa').select2('data')[0];
-                const unit = selected?.CODE02 ?? selected?.code02 ?? '';
+                const unit = selectedSiswaData?.CODE02 ?? selectedSiswaData?.code02 ?? '';
                 const nis = $(this).val().trim();
                 $('#edit_nova_preview').val(nis ? showVA(nis, unit) : '');
             });

@@ -163,18 +163,47 @@ class RekapPenerimaanController extends Controller
         return (int) ($item->KREDIT ?? 0);
     }
 
+    private function mapPaymentRecord(object $item, array $metodeBayarMap, bool $withItemId = true): object
+    {
+        if ($withItemId) {
+            $item->item_id = $item->urut;
+            $item->CUSTID = $item->CUSTID;
+        }
+
+        $item->PAIDDT = $item->TRXDATE;
+        $item->BILLAM = $this->resolveNominalAmount($item);
+        $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
+        $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);
+        $item->REMARK = trim((string) ($item->METODE ?? '')) ?: '-';
+        $item->NOREFF = trim((string) ($item->NOREFF ?? '')) ?: '-';
+        $item->kelas_label = trim(($item->DESC02 ?? '') . ' ' . ($item->DESC03 ?? ''));
+        $item->NOVA = ($item->NOCUST && $item->NOCUST != '-') ? scctcust::showVA($item->NOCUST) : '-';
+
+        if (!$item->NOCUST || $item->NOCUST == '-') {
+            $item->NOCUST = null;
+        }
+        if (!$item->NUM2ND || $item->NUM2ND == '-') {
+            $item->NUM2ND = null;
+        }
+
+        return $item;
+    }
+
     private function resolveOrderColumn(string $column): string
     {
         return match ($column) {
-            'BILLAC', 'BILLNM', 'BTA', 'FUrutan', 'PAIDST', 'BILLCD' => "scctbill.{$column}",
+            'BILLAC', 'BTA', 'FUrutan', 'PAIDST', 'BILLCD' => "scctbill.{$column}",
+            'BILLNM', 'NamaAkun' => 'scctbill.BILLNM',
             'BILLAM', 'DEBET' => 'sccttran.DEBET',
             'PAIDDT', 'TRXDATE' => 'sccttran.TRXDATE',
             'METODE_BAYAR', 'FIDBANK' => 'sccttran.FIDBANK',
-            'METODE' => 'sccttran.METODE',
+            'METODE', 'REMARK' => 'sccttran.METODE',
+            'NOREFF' => 'sccttran.NOREFF',
+            'NOVA' => 'scctcust.NOCUST',
+            'kelas_label' => 'scctcust.DESC02',
             'NMCUST' => 'scctcust.NMCUST',
             'NOCUST' => 'scctcust.NOCUST',
             'CODE02', 'DESC02', 'DESC03', 'DESC04' => "scctcust.{$column}",
-            'NamaAkun' => 'scctbill.BILLNM',
             'INSTALLMENT' => 'sccttran.INSTALLMENT',
             default => str_contains($column, '.') ? $column : 'sccttran.TRXDATE',
         };
@@ -184,22 +213,17 @@ class RekapPenerimaanController extends Controller
     {
         return [
             ['data' => null, 'name' => 'no', 'columnType' => 'row'],
-            ['data' => 'BILLAC', 'name' => 'Periode', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'PAIDDT', 'name' => 'Tanggal', 'columnType' => 'timestamp', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'NOVA', 'name' => 'VANO', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'NMCUST', 'name' => 'Nama', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'kelas_label', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'DESC04', 'name' => 'Angkatan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'KodePost', 'name' => 'Kode', 'searchable' => false, 'orderable' => false, 'exportable' => true, 'visible' => false],
-            ['data' => 'NamaAkun', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'BILLAM', 'name' => 'Tagihan', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'classname' => 'text-end', 'exportable' => true],
-            ['data' => 'METODE_BAYAR', 'name' => 'Metode', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'NOVA', 'name' => 'NO VA', 'exportable' => true],
-            ['data' => 'NMCUST', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'BILLAM', 'name' => 'Nominal', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
             ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'PAIDDT', 'name' => 'Tanggal Transaksi', 'columnType' => 'timestamp', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
-            ['data' => 'FUrutan', 'name' => 'Urutan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'METODE_BAYAR', 'name' => 'Metode Bayar', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'REMARK', 'name' => 'Remark', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'NOREFF', 'name' => 'No Ref', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'NOCUST', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
         ];
     }
 
@@ -464,45 +488,44 @@ class RekapPenerimaanController extends Controller
             $whereAny = [
                 'scctcust.NMCUST',
                 'scctcust.NOCUST',
+                'scctcust.DESC02',
+                'scctcust.DESC03',
                 'sccttran.METODE',
+                'sccttran.NOREFF',
                 'sccttran.BILLTARGET',
                 'sccttran.TRANSNO',
+                'scctbill.BILLNM',
             ];
 
-            $select = array_merge(
-                array_unique([
-                    'sccttran.urut',
-                    'sccttran.CUSTID',
-                    'sccttran.METODE',
-                    'sccttran.TRXDATE',
-                    'sccttran.FIDBANK',
-                    'sccttran.DEBET',
-                    'sccttran.KREDIT',
-                    'sccttran.INSTALLMENT',
-                    'sccttran.BILLTARGET',
-                    'scctbill.AA',
-                    'scctbill.BILLNM',
-                    'scctbill.BILLAC',
-                    'scctbill.BILLAM',
-                    'scctbill.BILLPAID',
-                    'scctbill.PAIDST',
-                    'scctbill.BILLCD',
-                    'scctbill.BTA',
-                    'scctbill.FUrutan',
-                    'scctcust.NMCUST',
-                    'scctcust.NOCUST',
-                    'scctcust.DESC01',
-                    'scctcust.CODE02',
-                    'scctcust.DESC02',
-                    'scctcust.DESC03',
-                    'scctcust.DESC04',
-                    'scctcust.NUM2ND',
-                ]),
-                [
-                    DB::raw("'' as KodePost"),
-                    DB::raw('COALESCE(scctbill.BILLNM, sccttran.BILLTARGET) as NamaAkun'),
-                ]
-            );
+            $select = array_unique([
+                'sccttran.urut',
+                'sccttran.CUSTID',
+                'sccttran.METODE',
+                'sccttran.NOREFF',
+                'sccttran.TRXDATE',
+                'sccttran.FIDBANK',
+                'sccttran.DEBET',
+                'sccttran.KREDIT',
+                'sccttran.INSTALLMENT',
+                'sccttran.BILLTARGET',
+                'scctbill.AA',
+                'scctbill.BILLNM',
+                'scctbill.BILLAC',
+                'scctbill.BILLAM',
+                'scctbill.BILLPAID',
+                'scctbill.PAIDST',
+                'scctbill.BILLCD',
+                'scctbill.BTA',
+                'scctbill.FUrutan',
+                'scctcust.NMCUST',
+                'scctcust.NOCUST',
+                'scctcust.DESC01',
+                'scctcust.CODE02',
+                'scctcust.DESC02',
+                'scctcust.DESC03',
+                'scctcust.DESC04',
+                'scctcust.NUM2ND',
+            ]);
 
             $query = $this->paymentBaseQuery()
                 ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
@@ -551,28 +574,11 @@ class RekapPenerimaanController extends Controller
 
             if ($request->get("length") != "poll") {
                 $records = $records->map(function ($item) use ($metodeBayarMap) {
-                    $item->item_id = $item->urut;
-                    $item->CUSTID = $item->CUSTID;
-                    $item->PAIDDT = $item->TRXDATE;
-                    $item->BILLAM = $this->resolveNominalAmount($item);
-                    $item->BILLAC = $this->resolvePeriode($item);
-                    $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
-                    $item->NamaAkun = $item->BILLNM;
-                    $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);
-                    $item->NOVA = ($item->NOCUST && $item->NOCUST != '-') ? scctcust::showVA($item->NOCUST) : null;
-                    if (!$item->NOCUST || $item->NOCUST == '-') $item->NOCUST = null;
-                    if (!$item->NUM2ND || $item->NUM2ND == '-') $item->NUM2ND = null;
-                    return $item;
+                    return $this->mapPaymentRecord($item, $metodeBayarMap);
                 });
             } else {
                 $records = $records->map(function ($item) use ($metodeBayarMap) {
-                    $item->PAIDDT = $item->TRXDATE;
-                    $item->BILLAM = $this->resolveNominalAmount($item);
-                    $item->BILLAC = $this->resolvePeriode($item);
-                    $item->BILLNM = $item->BILLNM ?? $item->BILLTARGET ?? (strtoupper(trim((string) ($item->METODE ?? ''))) === 'TOP UP' ? 'TOP UP' : '-');
-                    $item->NamaAkun = $item->BILLNM;
-                    $item->METODE_BAYAR = $this->resolveMetodeLabel($item, $metodeBayarMap);
-                    return $item;
+                    return $this->mapPaymentRecord($item, $metodeBayarMap, false);
                 });
             }
 

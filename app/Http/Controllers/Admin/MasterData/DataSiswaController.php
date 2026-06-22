@@ -294,7 +294,7 @@ class DataSiswaController extends Controller
             })
             ->orderBy("nmcust", "asc")
             ->limit(50)
-            ->get(["CUSTID", "nocust", "NUM2ND", "nmcust", "CODE02", "DESC02", "DESC03", "DESC04", "GENUS"])
+            ->get(["CUSTID", "nocust", "NUM2ND", "nmcust", "CODE02", "DESC02", "DESC03", "DESC04"])
             ->map(function ($item) {
                 $nis = trim((string) ($item->nocust ?? ''));
                 $noDaftar = trim((string) ($item->NUM2ND ?? ''));
@@ -315,7 +315,7 @@ class DataSiswaController extends Controller
                     "DESC02" => $item->DESC02,
                     "DESC03" => $item->DESC03,
                     "DESC04" => $item->DESC04,
-                    "GENUS" => $item->GENUS,
+                    "GENUS" => null,
                 ];
             });
 

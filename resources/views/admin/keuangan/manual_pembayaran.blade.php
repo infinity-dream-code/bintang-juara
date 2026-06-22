@@ -1,6 +1,7 @@
 @extends('layouts.admin_new')
 @section('style')
-    <link rel="stylesheet" href="{{asset('main/libs/select2/select2.css')}}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css">
     <link rel="stylesheet" href="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-bs5/datatables.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
@@ -37,22 +38,16 @@
             <div class="card-header header-elements">
                 <h5 class="mb-0 me-2">{{$mainTitle}}</h5>
             </div>
-            <div class="card-body py-0">
+            <div class="card-body py-0" style="overflow: visible;">
                 <div class="row">
                     <div class="col-12">
-                        <div class="mb-5">
-                            <label class="required form-label" for="cari_siswa">
+                        <div class="mb-5 siswa-search-wrap" style="overflow: visible;">
+                            <label class="required form-label" for="siswa">
                                 Siswa
                             </label>
-                            <input type="hidden" id="siswa" name="siswa" value="">
-                            <div class="position-relative">
-                                <input type="text" class="form-control" id="cari_siswa" autocomplete="off"
-                                       placeholder="Ketik NIS / No. Pendaftaran / Nama (min. 2 karakter)">
-                                <div id="siswa-suggest"
-                                     class="list-group position-absolute w-100 shadow-sm d-none"
-                                     style="z-index: 1055; max-height: 280px; overflow-y: auto;"></div>
-                            </div>
-                            <small class="text-muted d-block mt-2" id="siswa-terpilih-label"></small>
+                            <select class="form-control w-100" id="siswa" name="siswa"
+                                    data-placeholder="Ketik NIS / No. Pendaftaran / Nama Siswa">
+                            </select>
                         </div>
                     </div>
                     <div class="col-12">
@@ -207,7 +202,7 @@
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
     <script src="{{asset('js/helper/formattedNumber.min.js')}}"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js?v=20260622"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"
             integrity="sha512-axXaF5grZBaYl7qiM6OMHgsgVXdSLxqq0w7F4CQxuFyrcPmn0JfnqsOtYHUun80g6mRRdvJDrTCyL8LQqBOt/Q=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -225,84 +220,72 @@
             const csrfToken = $('meta[name="csrf-token"]').attr('content');
             let maxBayar = 0;
             let selectedSiswaData = null;
-            let siswaSearchTimer = null;
+            let select2Param = '';
             const siswaSearchUrl = '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}';
-            const $siswaHidden = $('#siswa');
-            const $cariSiswa = $('#cari_siswa');
-            const $siswaSuggest = $('#siswa-suggest');
-            const $siswaTerpilihLabel = $('#siswa-terpilih-label');
 
             function resetSiswaSearch() {
                 selectedSiswaData = null;
-                $siswaHidden.val('');
-                $cariSiswa.val('');
-                $siswaTerpilihLabel.text('');
-                $siswaSuggest.addClass('d-none').empty();
+                const $siswa = $('#siswa');
+                if ($siswa.hasClass('select2-hidden-accessible')) {
+                    $siswa.val(null).trigger('change');
+                } else {
+                    $siswa.val('');
+                }
             }
 
-            function pilihSiswa(item) {
-                selectedSiswaData = item;
-                $siswaHidden.val(item.id ?? item.CUSTID ?? '');
-                $cariSiswa.val(item.text ?? '');
-                $siswaTerpilihLabel.text('Terpilih: ' + (item.text ?? ''));
-                $siswaSuggest.addClass('d-none').empty();
-            }
-
-            $cariSiswa.on('input', function () {
-                const term = $(this).val().trim();
-                selectedSiswaData = null;
-                $siswaHidden.val('');
-                $siswaTerpilihLabel.text('');
-
-                if (term.length < 2) {
-                    $siswaSuggest.addClass('d-none').empty();
+            function initSiswaSelect2() {
+                const $siswa = $('#siswa');
+                if (!$siswa.length || typeof $.fn.select2 !== 'function') {
+                    console.error('Select2 tidak tersedia');
                     return;
                 }
 
-                clearTimeout(siswaSearchTimer);
-                siswaSearchTimer = setTimeout(function () {
-                    $.ajax({
+                if ($siswa.hasClass('select2-hidden-accessible')) {
+                    $siswa.select2('destroy');
+                }
+
+                $siswa.select2({
+                    theme: 'bootstrap-5',
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $(document.body),
+                    placeholder: $siswa.data('placeholder') || 'Ketik NIS / No. Pendaftaran / Nama Siswa',
+                    minimumInputLength: 2,
+                    ajax: {
                         url: siswaSearchUrl,
-                        data: {term: term},
                         dataType: 'json',
-                    }).done(function (results) {
-                        const items = Array.isArray(results) ? results : [];
-                        if (!items.length) {
-                            $siswaSuggest.html(
-                                '<div class="list-group-item text-muted small">Siswa tidak ditemukan</div>'
-                            ).removeClass('d-none');
-                            return;
+                        delay: 300,
+                        data: function (params) {
+                            select2Param = params.term || '';
+                            return {term: params.term || ''};
+                        },
+                        processResults: function (data) {
+                            return {results: Array.isArray(data) ? data : []};
+                        },
+                        cache: true
+                    },
+                    language: {
+                        inputTooShort: function () {
+                            return 'Ketik minimal 2 karakter (NIS / No. Pendaftaran / Nama)';
+                        },
+                        noResults: function () {
+                            return 'Siswa "' + (select2Param || '') + '" tidak ditemukan';
+                        },
+                        searching: function () {
+                            return 'Mencari siswa...';
                         }
+                    },
+                    escapeMarkup: function (markup) {
+                        return markup;
+                    }
+                }).on('select2:select', function (e) {
+                    selectedSiswaData = e.params.data || null;
+                }).on('select2:clear', function () {
+                    selectedSiswaData = null;
+                });
+            }
 
-                        const html = items.map(function (item) {
-                            const encoded = $('<div>').text(item.text ?? '').html();
-                            const payload = encodeURIComponent(JSON.stringify(item));
-                            return `<button type="button" class="list-group-item list-group-item-action text-start siswa-suggest-item" data-item="${payload}">${encoded}</button>`;
-                        }).join('');
-
-                        $siswaSuggest.html(html).removeClass('d-none');
-                    }).fail(function () {
-                        $siswaSuggest.html(
-                            '<div class="list-group-item text-danger small">Gagal mencari siswa</div>'
-                        ).removeClass('d-none');
-                    });
-                }, 300);
-            });
-
-            $siswaSuggest.on('click', '.siswa-suggest-item', function () {
-                try {
-                    const item = JSON.parse(decodeURIComponent($(this).attr('data-item') || ''));
-                    pilihSiswa(item);
-                } catch (e) {
-                    errorAlert('Data siswa tidak valid, silahkan pilih lagi.');
-                }
-            });
-
-            $(document).on('click', function (e) {
-                if (!$(e.target).closest('#cari_siswa, #siswa-suggest').length) {
-                    $siswaSuggest.addClass('d-none');
-                }
-            });
+            initSiswaSelect2();
 
             let dtOptions = {
                 tableId: 'main_table_2',
@@ -340,13 +323,14 @@
                 errorClass.forEach(element => element.classList.remove('is-invalid'));
             }
 
-            if (select2.length) {
+            if (select2.length && typeof $.fn.select2 === 'function') {
                 select2.each(function () {
                     let $this = $(this);
-                    // select2Focus($this);
-                    $this.wrap('<div class="position-relative"></div>').select2({
+                    $this.select2({
+                        theme: 'bootstrap-5',
                         placeholder: 'Pilih',
-                        dropdownParent: $this.parent(),
+                        width: '100%',
+                        dropdownParent: $(document.body),
                         language: {
                             noResults: function () {
                                 return "Tidak ditemukan data yang sesuai!";
@@ -679,7 +663,7 @@
                 const table = $(`#${dtOptions.tableId}`).DataTable();
                 const selectedRows = table.rows({selected: true}).data().toArray();
                 let Siswa = $('#siswa').val();
-                const selectedSiswa = selectedSiswaData;
+                const selectedSiswa = selectedSiswaData || $('#siswa').select2('data')[0];
                 if (!Siswa) {
                     warningAlert('Silahkan pilih siswa');
                     return;
@@ -1249,13 +1233,13 @@
                 $('#edit_nova_custid').val(btn.data('custid') || '');
                 const nis = String(btn.data('nis') || '').trim();
                 $('#edit_nova_nis').val(nis);
-                const unit = selectedSiswaData?.CODE02 ?? selectedSiswaData?.code02 ?? '';
+                const unit = (selectedSiswaData || $('#siswa').select2('data')[0] || {})?.CODE02 ?? '';
                 $('#edit_nova_preview').val(nis ? showVA(nis, unit) : '');
                 modalEditNova.show();
             });
 
             $('#edit_nova_nis').on('input', function () {
-                const unit = selectedSiswaData?.CODE02 ?? selectedSiswaData?.code02 ?? '';
+                const unit = (selectedSiswaData || $('#siswa').select2('data')[0] || {})?.CODE02 ?? '';
                 const nis = $(this).val().trim();
                 $('#edit_nova_preview').val(nis ? showVA(nis, unit) : '');
             });

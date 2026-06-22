@@ -222,6 +222,30 @@
             let selectedSiswaData = null;
             let select2Param = '';
             const siswaSearchUrl = '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}';
+            const debugLogEndpoint = 'http://127.0.0.1:7555/ingest/bd9ace26-6937-4c62-8e01-91e960f881cf';
+
+            function agentDebugLog(hypothesisId, location, message, data) {
+                fetch(debugLogEndpoint, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-Debug-Session-Id': '1b2d6a'},
+                    body: JSON.stringify({
+                        sessionId: '1b2d6a',
+                        hypothesisId: hypothesisId,
+                        location: location,
+                        message: message,
+                        data: data || {},
+                        timestamp: Date.now()
+                    })
+                }).catch(function () {});
+            }
+
+            window.addEventListener('error', function (event) {
+                agentDebugLog('H1', 'manual_pembayaran:window.error', 'js_error', {
+                    message: event.message || '',
+                    source: event.filename || '',
+                    line: event.lineno || 0
+                });
+            });
 
             function resetSiswaSearch() {
                 selectedSiswaData = null;
@@ -235,8 +259,21 @@
 
             function initSiswaSelect2() {
                 const $siswa = $('#siswa');
+                // #region agent log
+                agentDebugLog('H1', 'manual_pembayaran:initSiswaSelect2:entry', 'init_start', {
+                    hasElement: $siswa.length > 0,
+                    hasSelect2Fn: typeof $.fn.select2 === 'function',
+                    searchUrl: siswaSearchUrl
+                });
+                // #endregion
                 if (!$siswa.length || typeof $.fn.select2 !== 'function') {
                     console.error('Select2 tidak tersedia');
+                    // #region agent log
+                    agentDebugLog('H1', 'manual_pembayaran:initSiswaSelect2:abort', 'select2_unavailable', {
+                        hasElement: $siswa.length > 0,
+                        hasSelect2Fn: typeof $.fn.select2 === 'function'
+                    });
+                    // #endregion
                     return;
                 }
 
@@ -259,8 +296,40 @@
                             select2Param = params.term || '';
                             return {term: params.term || ''};
                         },
+                        transport: function (params, success, failure) {
+                            const request = $.ajax(params);
+                            request.done(function (data) {
+                                // #region agent log
+                                agentDebugLog('H2', 'manual_pembayaran:ajax:success', 'ajax_ok', {
+                                    isArray: Array.isArray(data),
+                                    resultCount: Array.isArray(data) ? data.length : -1,
+                                    term: select2Param
+                                });
+                                // #endregion
+                                success(data);
+                            });
+                            request.fail(function (jqXHR) {
+                                // #region agent log
+                                agentDebugLog('H2', 'manual_pembayaran:ajax:fail', 'ajax_error', {
+                                    status: jqXHR.status || 0,
+                                    statusText: jqXHR.statusText || '',
+                                    term: select2Param
+                                });
+                                // #endregion
+                                failure();
+                            });
+                            return request;
+                        },
                         processResults: function (data) {
-                            return {results: Array.isArray(data) ? data : []};
+                            const results = Array.isArray(data) ? data : [];
+                            // #region agent log
+                            agentDebugLog('H4', 'manual_pembayaran:processResults', 'parsed_results', {
+                                resultCount: results.length,
+                                firstHasId: results[0] ? !!results[0].id : false,
+                                firstHasText: results[0] ? !!results[0].text : false
+                            });
+                            // #endregion
+                            return {results: results};
                         },
                         cache: true
                     },
@@ -282,7 +351,17 @@
                     selectedSiswaData = e.params.data || null;
                 }).on('select2:clear', function () {
                     selectedSiswaData = null;
+                }).on('select2:open', function () {
+                    // #region agent log
+                    agentDebugLog('H5', 'manual_pembayaran:select2:open', 'dropdown_opened', {});
+                    // #endregion
                 });
+
+                // #region agent log
+                agentDebugLog('H1', 'manual_pembayaran:initSiswaSelect2:done', 'init_ok', {
+                    initialized: $siswa.hasClass('select2-hidden-accessible')
+                });
+                // #endregion
             }
 
             initSiswaSelect2();

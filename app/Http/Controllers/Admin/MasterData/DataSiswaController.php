@@ -277,6 +277,9 @@ class DataSiswaController extends Controller
     public function getSiswaSelect2(Request $request)
     {
         $term = trim((string) $request->get("term", ""));
+        // #region agent log
+        file_put_contents(base_path('debug-1b2d6a.log'), json_encode(['sessionId' => '1b2d6a', 'hypothesisId' => 'H3', 'location' => 'DataSiswaController.php:getSiswaSelect2:entry', 'message' => 'search_request', 'data' => ['termLen' => strlen($term), 'unitScope' => $this->unitScope], 'timestamp' => round(microtime(true) * 1000)]) . "\n", FILE_APPEND);
+        // #endregion
         if ($term === "") {
             return response()->json([]);
         }
@@ -318,6 +321,10 @@ class DataSiswaController extends Controller
                     "GENUS" => null,
                 ];
             });
+
+        // #region agent log
+        file_put_contents(base_path('debug-1b2d6a.log'), json_encode(['sessionId' => '1b2d6a', 'hypothesisId' => 'H3', 'location' => 'DataSiswaController.php:getSiswaSelect2:exit', 'message' => 'search_result', 'data' => ['resultCount' => $siswa->count(), 'firstHasId' => $siswa->first()['id'] ?? null, 'firstHasText' => isset($siswa->first()['text'])], 'timestamp' => round(microtime(true) * 1000)]) . "\n", FILE_APPEND);
+        // #endregion
 
         return response()->json($siswa);
     }

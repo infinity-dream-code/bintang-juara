@@ -198,11 +198,11 @@
 @endsection
 
 @section('script')
-    <script src="{{asset('main/libs/select2/select2.js')}}"></script>
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
     <script src="{{asset('js/helper/formattedNumber.min.js')}}"></script>
     <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.12/pdfmake.min.js"
             integrity="sha512-axXaF5grZBaYl7qiM6OMHgsgVXdSLxqq0w7F4CQxuFyrcPmn0JfnqsOtYHUun80g6mRRdvJDrTCyL8LQqBOt/Q=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -369,48 +369,59 @@
             });
 
             const $siswaSelect = $('#siswa');
-            $siswaSelect.wrap('<div class="position-relative"></div>').select2({
-                allowClear: true,
-                width: '100%',
-                dropdownParent: $siswaSelect.parent(),
-                placeholder: $siswaSelect.data('placeholder'),
-                ajax: {
-                    url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
-                    dataType: 'json',
-                    delay: 300,
-                    data: function (params) {
-                        select2Param = params.term;
-                        return {
-                            term: params.term,
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: Array.isArray(data) ? data : []
-                        };
-                    },
-                    cache: true
-                },
-                language: {
-                    inputTooShort: function () {
-                        return "Ketik minimal 2 karakter (NIS / No. Pendaftaran / Nama)";
-                    },
-                    noResults: function () {
-                        return "Siswa dengan kata kunci: <span class='bg-label-danger'><b>" + (select2Param || '') + "</b></span> tidak ditemukan!";
-                    },
-                    searching: function () {
-                        return "Mencari siswa...";
-                    }
-                },
-                escapeMarkup: function (markup) {
-                    return markup;
-                },
-                minimumInputLength: 2,
-            }).on('select2:selecting', function (e) {
-                if (e.params.args.data.id === '') {
-                    e.preventDefault();
+            if (typeof $.fn.select2 !== 'function') {
+                console.error('Select2 tidak termuat — pencarian siswa tidak dapat digunakan.');
+                errorAlert('Komponen pencarian siswa gagal dimuat. Silahkan muat ulang halaman.');
+            } else {
+                if ($siswaSelect.hasClass('select2-hidden-accessible')) {
+                    $siswaSelect.select2('destroy');
                 }
-            });
+                if (!$siswaSelect.parent().hasClass('position-relative')) {
+                    $siswaSelect.wrap('<div class="position-relative"></div>');
+                }
+                $siswaSelect.select2({
+                    allowClear: true,
+                    width: '100%',
+                    dropdownParent: $siswaSelect.parent(),
+                    placeholder: $siswaSelect.data('placeholder') || 'Masukkan NIS / No. Pendaftaran / Nama Siswa',
+                    ajax: {
+                        url: '{{ route('admin.master-data.data-siswa.get-siswa-select2') }}',
+                        dataType: 'json',
+                        delay: 300,
+                        data: function (params) {
+                            select2Param = params.term || '';
+                            return {
+                                term: params.term || '',
+                            };
+                        },
+                        processResults: function (data) {
+                            return {
+                                results: Array.isArray(data) ? data : []
+                            };
+                        },
+                        cache: true
+                    },
+                    language: {
+                        inputTooShort: function () {
+                            return "Ketik minimal 2 karakter (NIS / No. Pendaftaran / Nama)";
+                        },
+                        noResults: function () {
+                            return "Siswa dengan kata kunci: <span class='bg-label-danger'><b>" + (select2Param || '') + "</b></span> tidak ditemukan!";
+                        },
+                        searching: function () {
+                            return "Mencari siswa...";
+                        }
+                    },
+                    escapeMarkup: function (markup) {
+                        return markup;
+                    },
+                    minimumInputLength: 2,
+                }).on('select2:selecting', function (e) {
+                    if (e.params.args.data.id === '') {
+                        e.preventDefault();
+                    }
+                });
+            }
 
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);

@@ -714,12 +714,12 @@
             const tanggalSekarang = "{{ \Carbon\Carbon::now()->isoFormat('dddd, D MMMM YYYY') }}";
             const APP_VA_PREFIX = @json((string) (config('app.nova') ?: '797783'));
             const showVA = (nis) => typeof formatNoVA === 'function'
-                ? formatNoVA(nis, APP_VA_PREFIX)
-                : (() => {
-                    const digits = String(nis ?? '').replace(/\D/g, '');
-                    if (!digits) return '';
-                    return APP_VA_PREFIX + digits.padStart(16 - APP_VA_PREFIX.length, '0');
-                })();
+    ? formatNoVA(nis, APP_VA_PREFIX)
+    : (() => {
+        const digits = String(nis || '').replace(/\D/g, '');
+        if (!digits) return '';
+        return APP_VA_PREFIX + digits.padStart(16 - APP_VA_PREFIX.length, '0');
+    })();
             const modalEditNova = new bootstrap.Modal(document.getElementById('modal-edit-nova'));
 
             function getContentWidth(pageSize = 'A4', orientation = 'portrait', margins = [30, 30, 30, 30]) {
@@ -1010,7 +1010,7 @@
                 let message = `Request failed with status ${status}`;
                 let extra = {};
                 try {
-                    if (contentType?.includes('application/json')) {
+                    if (contentType && contentType.includes('application/json')) {
                         const data = await response.json();
                         message = data.message ?? message;
                         extra = data;

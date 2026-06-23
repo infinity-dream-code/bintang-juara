@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\scctbill;
 use App\Models\scctcust;
+use App\Support\SchoolScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,8 @@ class AdminController extends Controller
 {
     public function index(Request $request)
     {
+        $schoolCode = SchoolScope::codeFromUser();
+
         $monthsDaily = [
             'January' => 'Jan',
             'February' => 'Feb',
@@ -30,7 +33,7 @@ class AdminController extends Controller
 
         $today = Carbon::now();
 
-        $taighanDibayar = Scctbill::select(
+        $taighanDibayar = $this->scopedBillQuery($schoolCode)->select(
             [
                 DB::raw('DATE(PAIDDT) as date'),
                 DB::raw('COUNT(*) as count')
@@ -71,7 +74,7 @@ class AdminController extends Controller
             12 => 'Desember',
         ];
 
-        $tahunTersedia = Scctbill::where('PAIDST', 1)
+        $tahunTersedia = $this->scopedBillQuery($schoolCode)->where('PAIDST', 1)
             ->where('FSTSBolehBayar', 1)
             ->whereNotNull('PAIDDT')
             ->selectRaw('YEAR(PAIDDT) as tahun')
@@ -88,7 +91,7 @@ class AdminController extends Controller
             $tahunDipilih = $tahunTersedia[0] ?? Carbon::now()->year;
         }
 
-        $tagihanDibayarBulanan = Scctbill::select([
+        $tagihanDibayarBulanan = $this->scopedBillQuery($schoolCode)->select([
                 DB::raw('MONTH(PAIDDT) as bulan'),
                 DB::raw('COUNT(*) as count'),
             ])
@@ -132,12 +135,25 @@ class AdminController extends Controller
             ])->where('scctbill.PAIDST', 1)
             ->where('scctbill.FSTSBolehBayar', 1)
             ->where('scctcust.STCUST', 1)
+            ->when($schoolCode, fn ($q) => $q->where('scctcust.CODE01', $schoolCode))
             ->orderBy('PAIDDT', 'desc')->take(5)->get();
 
-        $data['jumlah_tagihan_belum_dibayar'] = scctbill::where('PAIDST', 0)->count('AA') ?: 0;
-        $data['jumlah_tagihan_dibayar'] = scctbill::where('PAIDST', 1)->count('AA') ?: 0;
+        $data['jumlah_tagihan_belum_dibayar'] = $this->scopedBillQuery($schoolCode)->where('PAIDST', 0)->count('AA') ?: 0;
+        $data['jumlah_tagihan_dibayar'] = $this->scopedBillQuery($schoolCode)->where('PAIDST', 1)->count('AA') ?: 0;
 
         return view('admin.index', $data);
+    }
+
+    private function scopedBillQuery(?string $schoolCode = null)
+    {
+        return scctbill::query()->when($schoolCode, function ($query) use ($schoolCode) {
+            $query->whereExists(function ($exists) use ($schoolCode) {
+                $exists->select(DB::raw(1))
+                    ->from('scctcust')
+                    ->whereColumn('scctcust.CUSTID', 'scctbill.CUSTID')
+                    ->where('scctcust.CODE01', $schoolCode);
+            });
+        });
     }
 
     function formatDateIndonesian($date, $months)

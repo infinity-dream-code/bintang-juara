@@ -125,7 +125,8 @@ class RekapPenerimaanController extends Controller
                 $q->whereNull('sccttran.isreversal')
                     ->orWhere('sccttran.isreversal', 0)
                     ->orWhere('sccttran.isreversal', '0');
-            });
+            })
+            ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) <> 'TOP UP'");
     }
 
     private function resolveMetodeLabel(object $item, array $metodeBayarMap): string

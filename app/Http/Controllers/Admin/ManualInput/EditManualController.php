@@ -31,7 +31,10 @@ class EditManualController extends Controller
         $data['mainTitle'] = $this->mainTitle;
 
         $data['thn_aka'] = mst_thn_aka::orderBy('thn_aka', 'desc')->get();
-        $data['kelas'] = mst_kelas::orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")->get();
+        $schoolCode = \App\Support\SchoolScope::codeFromUser();
+        $data['kelas'] = mst_kelas::dropdownQuery($schoolCode)
+            ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
+            ->get();
         $data['tagihan'] = mst_tagihan::orderBy('urut', 'asc')->get();
 
         return view('admin.manual_input.edit_manual', $data);

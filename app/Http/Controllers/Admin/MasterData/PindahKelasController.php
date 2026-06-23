@@ -38,8 +38,7 @@ class PindahKelasController extends Controller
         $data['columnsUrl'] = route('admin.master-data.pindah-kelas.get-column');
         $data['datasUrl'] = route('admin.master-data.pindah-kelas.get-data');
         $data['thn_aka'] = mst_thn_aka::where('thn_aka', '!=', null)->orderBy('thn_aka','asc')->get();
-        $data['kelas'] = mst_kelas::query()
-            ->tap(fn ($q) => SchoolScope::applyKelas($q))
+        $data['kelas'] = mst_kelas::dropdownQuery($this->unitScope)
             ->orderBy('unit')
             ->orderBy('jenjang')
             ->orderBy('kelas')

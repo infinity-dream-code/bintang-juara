@@ -64,8 +64,7 @@ class DataSiswaController extends Controller
             });
         })->get();
 
-        $data["kelas"] = \App\Models\mst_kelas::query()
-            ->tap(fn ($q) => SchoolScope::applyKelas($q))
+        $data["kelas"] = mst_kelas::dropdownQuery($this->unitScope)
             ->orderBy("unit")
             ->orderBy("jenjang")
             ->orderBy("kelas")

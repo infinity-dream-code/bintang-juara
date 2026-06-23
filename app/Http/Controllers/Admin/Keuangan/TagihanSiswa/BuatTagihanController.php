@@ -46,8 +46,7 @@ class BuatTagihanController extends Controller
         $data['showTitle'] = $this->showTitle;
 
         $data['thn_aka'] = mst_thn_aka::orderBy('thn_aka', 'desc')->get();
-        $data['kelas'] = mst_kelas::query()
-            ->tap(fn ($q) => SchoolScope::applyKelas($q))
+        $data['kelas'] = mst_kelas::dropdownQuery($this->unitScope)
             ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
             ->get();
         $data['tagihan'] = u_akun::query()

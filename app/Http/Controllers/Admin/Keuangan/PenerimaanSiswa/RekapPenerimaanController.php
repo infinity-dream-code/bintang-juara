@@ -218,10 +218,7 @@ class RekapPenerimaanController extends Controller
         $data['post'] = u_akun::select(['KodeAkun', 'NamaAkun'])->orderBy('KodeAkun')->get();
         $data['nama_tagihan'] = mst_tagihan::select(['tagihan'])->whereNotNull('tagihan')->orderBy('urut')->get();
         $data['thn_aka'] = mst_thn_aka::select(['thn_aka'])->where('thn_aka', '!=', null)->get();
-        $data['kelas'] = mst_kelas::query()
-            ->when(!empty($schoolCodes), function ($query) use ($schoolCodes) {
-                $query->whereIn('kelompok', $schoolCodes);
-            })
+        $data['kelas'] = mst_kelas::dropdownQuery($this->sekolah)
             ->orderByRaw("CASE WHEN jenjang REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, jenjang")
             ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
             ->get();

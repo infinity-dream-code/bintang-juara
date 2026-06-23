@@ -55,7 +55,7 @@ class DataPenerimaanController extends Controller
         $this->middleware(function ($request, $next) {
             if (\Illuminate\Support\Facades\Auth::check()) {
                 $user = Auth::user();
-                $this->sekolah = $user->sekolah;
+                $this->sekolah = $user->sekolah ?? $user->unit ?? null;
             }
             return $next($request);
         });
@@ -69,7 +69,7 @@ class DataPenerimaanController extends Controller
         $data['datasUrl'] = $this->datasUrl();
         $data['post'] = mst_tagihan::select(['tagihan'])->get();
         $data['thn_aka'] = mst_thn_aka::getMstThnAkaAttributes();
-        $data['kelas'] = mst_kelas::getMstKelasAttributes();
+        $data['kelas'] = mst_kelas::getMstKelasAttributes($this->sekolah);
         $data['tanda_tangan'] = User::getTandaTanganBase64();
         $data['sekolah'] = mst_sekolah::when($this->sekolah, function ($query) {
             $query->where(function ($q) {

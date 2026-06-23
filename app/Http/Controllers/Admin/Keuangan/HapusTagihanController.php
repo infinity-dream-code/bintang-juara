@@ -51,7 +51,9 @@ class HapusTagihanController extends Controller
             ->distinct()
             ->orderBy('BILLAC', 'desc')
             ->pluck('BILLAC');
-        $data['kelas'] = mst_kelas::get();
+        $data['kelas'] = mst_kelas::dropdownQuery($this->sekolah)
+            ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
+            ->get();
 
         return view('admin.keuangan.hapus_tagihan', $data);
     }

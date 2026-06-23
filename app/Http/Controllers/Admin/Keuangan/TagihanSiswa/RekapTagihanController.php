@@ -108,10 +108,7 @@ class RekapTagihanController extends Controller
                 ->orderBy('DESC01')
                 ->get();
         }
-        $data['kelas'] = mst_kelas::query()
-            ->when(!empty($schoolCodes), function ($query) use ($schoolCodes) {
-                $query->whereIn('kelompok', $schoolCodes);
-            })
+        $data['kelas'] = mst_kelas::dropdownQuery($this->sekolah)
             ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
             ->get();
         $data['tagihan'] = mst_tagihan::orderBy('urut', 'asc')->get();

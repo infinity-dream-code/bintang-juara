@@ -222,9 +222,11 @@ class DataTagihanController extends Controller
                     ->orWhere("DESC01", $this->sekolah);
             });
         })->get();
-        $data['kelas'] = mst_kelas::when($this->sekolah, function ($query) {
-            $query->where("unit", $this->sekolah);
-        })->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")->get();
+        $data['kelas'] = mst_kelas::dropdownQuery($this->sekolah)
+            ->orderBy('unit')
+            ->orderByRaw("CASE WHEN jenjang REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, jenjang")
+            ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
+            ->get();
         $data['tanda_tangan'] = User::getTandaTanganBase64();
 
         return view('admin.keuangan.tagihan_siswa.data_tagihan', $data);

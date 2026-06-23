@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SchoolScope;
 use Illuminate\Database\Eloquent\Model;
 
 class mst_kelas extends Model
@@ -23,9 +24,10 @@ class mst_kelas extends Model
         "kelompok",
     ];
 
-    public static function getMstKelasAttributes(): array|object
+    public static function getMstKelasAttributes(?string $schoolCode = null): array|object
     {
-        return static::select(["id", "kelas", "jenjang", "unit"])
+        return static::dropdownQuery($schoolCode)
+            ->select(["id", "kelas", "jenjang", "unit"])
             ->orderByRaw("
                     CASE
                         WHEN unit LIKE '%SD%' THEN 1
@@ -37,6 +39,15 @@ class mst_kelas extends Model
             ->orderByRaw("CASE WHEN jenjang REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, jenjang")
             ->orderBy("kelas")
             ->get();
+    }
+
+    /**
+     * Query kelas untuk dropdown form, scoped per fid admin (mst_kelas.kelompok = CODE01).
+     */
+    public static function dropdownQuery(?string $schoolCode = null)
+    {
+        return static::query()
+            ->tap(fn ($q) => SchoolScope::applyKelas($q, $schoolCode));
     }
 
     /**

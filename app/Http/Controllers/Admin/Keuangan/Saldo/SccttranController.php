@@ -66,7 +66,11 @@ class SccttranController extends Controller
             ->when(!empty($schoolCodes), fn ($q) => $q->whereIn('CODE01', $schoolCodes))
             ->orderBy('DESC01')
             ->get();
-        $data['kelas'] = mst_kelas::get();
+        $data['kelas'] = mst_kelas::dropdownQuery($this->sekolah)
+            ->orderBy('unit')
+            ->orderByRaw("CASE WHEN jenjang REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, jenjang")
+            ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
+            ->get();
         $data['metodes'] = collect(['TOP UP']);
 
         return view('admin.keuangan.saldo.sccttran.index', $data);

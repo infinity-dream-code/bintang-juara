@@ -54,8 +54,7 @@ class CopyTagihanController extends Controller
         $data['mainTitle'] = $this->mainTitle;
         $data['dataTitle'] = $this->dataTitle;
         $data['thn_aka'] = mst_thn_aka::getMstThnAkaAttributes();
-        $data['kelas'] = mst_kelas::query()
-            ->tap(fn ($q) => SchoolScope::applyKelas($q))
+        $data['kelas'] = mst_kelas::dropdownQuery($this->unitScope)
             ->orderByRaw("CASE WHEN unit LIKE '%SD%' THEN 1 WHEN unit LIKE '%SMP%' THEN 2 WHEN unit LIKE '%SMA%' THEN 3 ELSE 4 END")
             ->orderByRaw("CASE WHEN jenjang REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, jenjang")
             ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")

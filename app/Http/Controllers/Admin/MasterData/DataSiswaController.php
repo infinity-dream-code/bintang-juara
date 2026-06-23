@@ -8,6 +8,7 @@ use App\Models\scctcust;
 use App\Models\ValidationMessage;
 use App\Support\AndroidLogonFixerProcedure;
 use App\Support\FilterHandler;
+use App\Support\SchoolScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -32,8 +33,7 @@ class DataSiswaController extends Controller
     {
         $this->middleware(function ($request, $next) {
             if (Auth::check()) {
-                $user = Auth::user();
-                $this->unitScope = $user->unit;
+                $this->unitScope = SchoolScope::codeFromUser();
             }
 
             return $next($request);
@@ -65,7 +65,7 @@ class DataSiswaController extends Controller
         })->get();
 
         $data["kelas"] = \App\Models\mst_kelas::query()
-            ->when($this->unitScope, fn ($q) => $q->where("unit", $this->unitScope))
+            ->tap(fn ($q) => SchoolScope::applyKelas($q))
             ->orderBy("unit")
             ->orderBy("jenjang")
             ->orderBy("kelas")
@@ -286,7 +286,7 @@ class DataSiswaController extends Controller
 
         $siswa = scctcust::query()
             ->where("STCUST", 1)
-            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
+            ->tap(fn ($q) => SchoolScope::applyStudent($q))
             ->where(function ($q) use ($like) {
                 $q->where("nocust", "like", $like)
                     ->orWhere("NUM2ND", "like", $like)
@@ -342,7 +342,7 @@ class DataSiswaController extends Controller
         }
 
         $siswa = scctcust::query()
-            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
+            ->tap(fn ($q) => SchoolScope::applyStudent($q))
             ->when($kelas, fn ($q) => $q->where("CODE03", $kelas))
             ->when($thn_aka, fn ($q) => $q->where("DESC04", $thn_aka))
             ->when($nis, fn ($q) => $q->where("nocust", "like", $nis))

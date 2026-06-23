@@ -7,6 +7,7 @@ use App\Models\mst_kelas;
 use App\Models\mst_sekolah;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
+use App\Support\SchoolScope;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -124,9 +125,7 @@ class MasterKelasController extends Controller
             ->orderBy('mst_kelas.jenjang', 'asc')
             ->orderBy('mst_kelas.kelas', 'asc')
             ->whereAny($searchable, 'like', '%' . $searchValue . '%')
-            ->when($this->unit, function ($query) {
-                $query->where("mst_kelas.unit", $this->unit);
-            })
+            ->tap(fn ($q) => SchoolScope::applyKelas($q, $this->unit, 'mst_kelas.kelompok'))
             ->select([
                 'mst_kelas.id',
                 'mst_kelas.unit',

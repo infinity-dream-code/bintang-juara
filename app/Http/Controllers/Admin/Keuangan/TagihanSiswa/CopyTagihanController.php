@@ -9,6 +9,7 @@ use App\Models\mst_thn_aka;
 use App\Models\scctbill;
 use App\Models\scctbill_detail;
 use App\Models\scctcust;
+use App\Support\SchoolScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -54,7 +55,7 @@ class CopyTagihanController extends Controller
         $data['dataTitle'] = $this->dataTitle;
         $data['thn_aka'] = mst_thn_aka::getMstThnAkaAttributes();
         $data['kelas'] = mst_kelas::query()
-            ->when($this->unitScope, fn($q) => $q->where('unit', $this->unitScope))
+            ->tap(fn ($q) => SchoolScope::applyKelas($q))
             ->orderByRaw("CASE WHEN unit LIKE '%SD%' THEN 1 WHEN unit LIKE '%SMP%' THEN 2 WHEN unit LIKE '%SMA%' THEN 3 ELSE 4 END")
             ->orderByRaw("CASE WHEN jenjang REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, jenjang")
             ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")

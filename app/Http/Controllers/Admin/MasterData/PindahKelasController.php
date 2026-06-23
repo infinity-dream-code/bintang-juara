@@ -7,6 +7,7 @@ use App\Models\mst_kelas;
 use App\Models\scctcust;
 use App\Models\mst_thn_aka;
 use App\Models\ValidationMessage;
+use App\Support\SchoolScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -37,9 +38,12 @@ class PindahKelasController extends Controller
         $data['columnsUrl'] = route('admin.master-data.pindah-kelas.get-column');
         $data['datasUrl'] = route('admin.master-data.pindah-kelas.get-data');
         $data['thn_aka'] = mst_thn_aka::where('thn_aka', '!=', null)->orderBy('thn_aka','asc')->get();
-        $data['kelas'] = mst_kelas::when($this->unitScope, function ($query) {
-            $query->where("unit", $this->unitScope);
-        })->orderBy('kelas','asc')->get();
+        $data['kelas'] = mst_kelas::query()
+            ->tap(fn ($q) => SchoolScope::applyKelas($q))
+            ->orderBy('unit')
+            ->orderBy('jenjang')
+            ->orderBy('kelas')
+            ->get();
 
         return view('admin.master_data.pindah_kelas.index', $data);
     }

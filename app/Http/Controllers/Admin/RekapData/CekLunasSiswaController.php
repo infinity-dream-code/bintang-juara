@@ -8,6 +8,7 @@ use App\Models\mst_tagihan;
 use App\Models\mst_thn_aka;
 use App\Models\scctbill;
 use App\Models\scctcust;
+use App\Support\SchoolScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -39,7 +40,8 @@ class CekLunasSiswaController extends Controller
             ->distinct()
             ->orderBy("thn_aka", "desc")
             ->get();
-        $data["kelas"] = mst_kelas::when($this->unitScope, fn ($q) => $q->where("unit", $this->unitScope))
+        $data["kelas"] = mst_kelas::query()
+            ->tap(fn ($q) => SchoolScope::applyKelas($q))
             ->orderByRaw("CASE WHEN kelas REGEXP '^[0-9]+$' THEN 0 ELSE 1 END, kelas")
             ->get();
         $data["tagihan"] = mst_tagihan::orderBy("urut", "asc")->get();

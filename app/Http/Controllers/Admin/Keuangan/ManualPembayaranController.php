@@ -11,6 +11,7 @@ use App\Models\sccttran;
 use App\Models\User;
 use App\Models\ValidationMessage;
 use App\Support\ManualPaymentBuilder;
+use App\Support\SchoolScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Database\QueryException;
@@ -80,6 +81,17 @@ class ManualPembayaranController extends Controller
         $rowperpage = $request->get("length");
 
         if ($request->siswa) {
+            $siswaScope = scctcust::where('CUSTID', $request->siswa)->first();
+            if ($denied = SchoolScope::denyStudentMessage($siswaScope)) {
+                return response()->json([
+                    'draw' => intval($draw),
+                    'recordsTotal' => 0,
+                    'recordsFiltered' => 0,
+                    'data' => [],
+                    'message' => $denied,
+                ], 422);
+            }
+
             $columnName_arr = $request->get('columns');
             $search_arr = $request->get('search');
 
@@ -132,6 +144,7 @@ class ManualPembayaranController extends Controller
                 ->where('scctbill.CUSTID', $request->siswa)
                 ->where('scctbill.PAIDST', '=', 0)
                 ->where('scctbill.FSTSBolehBayar', '=', 1)
+                ->tap(fn ($q) => SchoolScope::apply($q, 'scctcust'))
                 ->when($tahun_pelajaran && $tahun_pelajaran != 'all', function ($query) use ($tahun_pelajaran) {
                     return $query->where('scctbill.BTA', '=', $tahun_pelajaran);
                 })
@@ -202,6 +215,11 @@ class ManualPembayaranController extends Controller
             return response()->json(['message' => 'Silahkan periksa form anda'], 422);
         }
 
+        $siswaScope = scctcust::where('CUSTID', $request->siswa)->first();
+        if ($denied = SchoolScope::denyStudentMessage($siswaScope)) {
+            return response()->json(['message' => $denied], 422);
+        }
+
         $whereAny = [
             'scctcust.nmcust',
             'scctcust.nocust',
@@ -224,6 +242,7 @@ class ManualPembayaranController extends Controller
             ->where('scctbill.PAIDST', 0)
             ->select($select)
             ->where('scctbill.CUSTID', $request->siswa)
+            ->tap(fn ($q) => SchoolScope::apply($q, 'scctcust'))
             ->orderBy('scctbill.PAIDST', 'asc')
             ->orderBy('scctbill.FUrutan', 'asc')
             ->get();
@@ -294,6 +313,9 @@ class ManualPembayaranController extends Controller
                 'siswa' => $request->input('siswa'),
             ]);
             return response()->json(['message' => 'Siswa tidak ditemukan'], 422);
+        }
+        if ($denied = SchoolScope::denyStudentMessage($siswa)) {
+            return response()->json(['message' => $denied], 422);
         }
 
         $tagihans = scctbill::whereIn('AA', $posts)
@@ -622,6 +644,9 @@ class ManualPembayaranController extends Controller
             ->first();
 
         if (!$siswa) return response()->json(['message' => 'Siswa tidak ditemukan'], 422);
+        if ($denied = SchoolScope::denyStudentMessage($siswa)) {
+            return response()->json(['message' => $denied], 422);
+        }
         try {
             $tagihans = scctbill::leftJoin('scctcust', 'scctcust.CUSTID', 'scctbill.CUSTID')
                 ->where('scctbill.CUSTID', $request->siswa)
@@ -665,6 +690,9 @@ class ManualPembayaranController extends Controller
         $siswa = scctcust::where('CUSTID', $request->custid)->first();
         if (!$siswa) {
             return response()->json(['message' => 'Siswa tidak ditemukan'], 422);
+        }
+        if ($denied = SchoolScope::denyStudentMessage($siswa)) {
+            return response()->json(['message' => $denied], 422);
         }
 
         $nocust = trim((string) $request->nocust);

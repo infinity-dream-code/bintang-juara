@@ -10,6 +10,7 @@ use App\Models\mst_thn_aka;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
 use App\Support\InputSiswaProcedure;
+use App\Support\SchoolScope;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -34,8 +35,10 @@ class ExportImportDataController extends Controller
         $data['dataTitle'] = $this->dataTitle;
         $data['columnsUrl'] = route('admin.master-data.export-import-data.get-column');
         $data['datasUrl'] = route('admin.master-data.export-import-data.get-data');
+        $schoolCode = SchoolScope::codeFromUser();
         $data['sekolah'] = mst_sekolah::query()
             ->select(['CODE01', 'DESC01'])
+            ->when($schoolCode, fn ($q) => $q->where('CODE01', $schoolCode))
             ->orderBy('DESC01')
             ->get();
 

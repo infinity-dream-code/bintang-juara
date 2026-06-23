@@ -56,19 +56,7 @@ class SaldoVirtualAccountController extends Controller
             return [];
         }
 
-        $unit = trim((string) $this->sekolah);
-        return mst_sekolah::query()
-            ->where(function ($q) use ($unit) {
-                $q->whereRaw('TRIM(CAST(CODE01 AS CHAR)) = ?', [$unit])
-                    ->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$unit])
-                    ->orWhereRaw('UPPER(TRIM(DESC01)) = UPPER(?)', [$unit]);
-            })
-            ->pluck('CODE01')
-            ->map(fn ($code) => trim((string) $code))
-            ->filter(fn ($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
+        return [trim((string) $this->sekolah)];
     }
 
     private function applyFilterQuery($query, array $filters): void

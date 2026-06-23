@@ -272,17 +272,7 @@ class DataPenerimaanController extends Controller
             DB::raw('NULL as GENUS1'),
         ];
 
-        $query = sccttran::query()
-            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
-            ->leftJoin('scctbill', function ($join) {
-                $join->on('scctbill.AA', '=', 'sccttran.BILLID')
-                    ->on('scctbill.CUSTID', '=', 'sccttran.CUSTID');
-            })
-            ->where($this->notReversedTranScope())
-            ->where(function ($q) {
-                $q->whereRaw('CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0')
-                    ->orWhereRaw('CAST(COALESCE(sccttran.KREDIT, 0) AS SIGNED) > 0');
-            })
+        $query = $this->lunasTranBaseQuery()
             ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
                 $query->where(function ($q) use ($whereAny, $searchValue) {
                     $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
@@ -492,13 +482,7 @@ class DataPenerimaanController extends Controller
         return Cache::remember(
             "{$key}:total_all_data",
             now()->addMinutes(10),
-            fn () => sccttran::query()
-                ->where($this->notReversedTranScope())
-                ->where(function ($q) {
-                    $q->whereRaw('CAST(COALESCE(DEBET, 0) AS SIGNED) > 0')
-                        ->orWhereRaw('CAST(COALESCE(KREDIT, 0) AS SIGNED) > 0');
-                })
-                ->count()
+            fn () => $this->lunasTranBaseQuery()->count()
         );
     }
 
@@ -511,6 +495,22 @@ class DataPenerimaanController extends Controller
                     ->orWhere('sccttran.isreversal', '0');
             });
         };
+    }
+
+    private function lunasTranBaseQuery()
+    {
+        return sccttran::query()
+            ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'sccttran.CUSTID')
+            ->leftJoin('scctbill', function ($join) {
+                $join->on('scctbill.AA', '=', 'sccttran.BILLID')
+                    ->on('scctbill.CUSTID', '=', 'sccttran.CUSTID');
+            })
+            ->where($this->notReversedTranScope())
+            ->whereIn('scctbill.PAIDST', [1, '1'])
+            ->where(function ($q) {
+                $q->whereRaw('CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0')
+                    ->orWhereRaw('CAST(COALESCE(sccttran.KREDIT, 0) AS SIGNED) > 0');
+            });
     }
 
     private function resolveOrderColumn(string $column): string

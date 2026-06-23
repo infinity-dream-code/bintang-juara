@@ -45,7 +45,7 @@ class EditManualController extends Controller
             $siswa = scctcust::query()
                 ->where('CUSTID', $request->custid)
                 ->where('STCUST', 1)
-                ->when($unitScope, fn ($q) => $q->where('CODE02', $unitScope))
+                ->when($unitScope, fn ($q) => $q->where('CODE01', $unitScope))
                 ->first();
 
             if (!$siswa) {
@@ -69,7 +69,7 @@ class EditManualController extends Controller
 
         $siswa = scctcust::query()
             ->where('STCUST', 1)
-            ->when($unitScope, fn ($q) => $q->where('CODE02', $unitScope))
+            ->when($unitScope, fn ($q) => $q->where('CODE01', $unitScope))
             ->when($nis, function ($q) use ($nis) {
                 $q->where(function ($q2) use ($nis) {
                     $q2->where('nocust', 'like', $nis)

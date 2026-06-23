@@ -58,12 +58,7 @@ class DataTagihanController extends Controller
 
     private function applyUnitScope($query, string $table = 'scctcust'): void
     {
-        if (blank($this->sekolah)) {
-            return;
-        }
-
-        $unit = trim((string) $this->sekolah);
-        $query->where($table . '.CODE01', $unit);
+        \App\Support\SchoolScope::apply($query, $table, $this->sekolah);
     }
 
     private function cacheScopeSuffix(): string

@@ -10,9 +10,12 @@ use App\Models\scctcust;
 use App\Models\sccttran;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class SccttranController extends Controller
 {
+    public ?string $sekolah = null;
+
     private function topUpVaScope($query, string $tablePrefix = 'sccttran.')
     {
         $metodeColumn = $tablePrefix . 'METODE';
@@ -30,6 +33,14 @@ class SccttranController extends Controller
     public function __construct()
     {
 //        $this->middleware('CheckUserRoleOrPermission:pimpinan');
+
+        $this->middleware(function ($request, $next) {
+            if (Auth::check()) {
+                $this->sekolah = Auth::user()->sekolah;
+            }
+
+            return $next($request);
+        });
 
         $this->title = 'Keuangan';
         $this->mainTitle = 'Data Transfer VA';
@@ -50,7 +61,11 @@ class SccttranController extends Controller
             ->distinct()
             ->orderBy('thn_aka', 'desc')
             ->get();
-        $data['sekolah'] = mst_sekolah::select(['CODE01', 'DESC01'])->orderBy('DESC01')->get();
+        $schoolCodes = blank($this->sekolah) ? [] : [trim((string) $this->sekolah)];
+        $data['sekolah'] = mst_sekolah::select(['CODE01', 'DESC01'])
+            ->when(!empty($schoolCodes), fn ($q) => $q->whereIn('CODE01', $schoolCodes))
+            ->orderBy('DESC01')
+            ->get();
         $data['kelas'] = mst_kelas::get();
         $data['metodes'] = collect(['TOP UP']);
 
@@ -148,6 +163,12 @@ class SccttranController extends Controller
         }
 
         ($custid) && $filters[] = ['sccttran.CUSTID', '=', $custid];
+
+        $schoolCodes = blank($this->sekolah) ? [] : [trim((string) $this->sekolah)];
+        if (!empty($schoolCodes)) {
+            $filters[] = ['scctcust.CODE01', 'in', $schoolCodes];
+        }
+
         if (!empty($filters)) {
             $filterQuery = function ($query) use ($filters) {
                 foreach ($filters as $filter) {

@@ -121,7 +121,7 @@ class BuatTagihanController extends Controller
         ];
 
         $query = scctcust::query()
-            ->when($this->unitScope, fn ($q) => $q->where('scctcust.CODE02', $this->unitScope));
+            ->when($this->unitScope, fn ($q) => $q->where('scctcust.CODE01', $this->unitScope));
 
         $hasAnyFilter = $kelasId || $thn_aka || $nis || $nama;
         if (!$hasAnyFilter) {
@@ -159,7 +159,7 @@ class BuatTagihanController extends Controller
             $sql = $debugQuery->toSql();
             $bindings = $debugQuery->getBindings();
             $sample = scctcust::query()
-                ->when($this->unitScope, fn ($q) => $q->where('scctcust.CODE02', $this->unitScope))
+                ->when($this->unitScope, fn ($q) => $q->where('scctcust.CODE01', $this->unitScope))
                 ->select('CODE02', 'CODE03', 'DESC02', 'DESC03', 'DESC04', DB::raw('COUNT(*) as n'))
                 ->groupBy('CODE02', 'CODE03', 'DESC02', 'DESC03', 'DESC04')
                 ->orderBy('DESC04', 'desc')

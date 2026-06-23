@@ -69,16 +69,7 @@ class RekapTagihanController extends Controller
 
     private function applyUnitScope($query, string $table = 'scctcust'): void
     {
-        if (blank($this->sekolah)) {
-            return;
-        }
-
-        $unit = trim((string) $this->sekolah);
-        $query->where(function ($q) use ($table, $unit) {
-            $q->where($table . '.CODE01', $unit)
-                ->orWhere($table . '.CODE02', $unit)
-                ->orWhereRaw('UPPER(TRIM(' . $table . '.DESC01)) = UPPER(?)', [$unit]);
-        });
+        \App\Support\SchoolScope::apply($query, $table, $this->sekolah);
     }
 
     private function resolveScopedSchoolCodes(): array
@@ -87,19 +78,7 @@ class RekapTagihanController extends Controller
             return [];
         }
 
-        $unit = trim((string) $this->sekolah);
-        return mst_sekolah::query()
-            ->where(function ($q) use ($unit) {
-                $q->whereRaw('TRIM(CAST(CODE01 AS CHAR)) = ?', [$unit])
-                    ->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$unit])
-                    ->orWhereRaw('UPPER(TRIM(DESC01)) = UPPER(?)', [$unit]);
-            })
-            ->pluck('CODE01')
-            ->map(fn($code) => trim((string) $code))
-            ->filter(fn($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
+        return [trim((string) $this->sekolah)];
     }
 
     public function index()

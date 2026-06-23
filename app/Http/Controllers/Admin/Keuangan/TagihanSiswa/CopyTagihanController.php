@@ -305,7 +305,7 @@ class CopyTagihanController extends Controller
             });
         }
         if ($this->unitScope) {
-            $custQuery->where('CODE02', $this->unitScope);
+            $custQuery->where('CODE01', $this->unitScope);
         }
 
         $custIds = $custQuery->pluck('CUSTID');
@@ -348,7 +348,7 @@ class CopyTagihanController extends Controller
             });
         }
         if ($this->unitScope) {
-            $query->where('scctcust.CODE02', $this->unitScope);
+            $query->where('scctcust.CODE01', $this->unitScope);
         }
         if ($request->jenis === 'belum') {
             $query->where('scctbill.PAIDST', 0);

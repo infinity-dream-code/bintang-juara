@@ -8,7 +8,9 @@ use App\Models\mst_tagihan;
 use App\Models\scctbill;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
+use App\Support\SchoolScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +24,19 @@ class UploadTagihanExcelController extends Controller
     public string $mainTitle = 'Tagihan Siswa';
     public string $dataTitle = 'Buat Tagihan Excel';
     public string $cacheKey = 'import_tagihan_excel';
+
+    public ?string $sekolah = null;
+
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            if (Auth::check()) {
+                $this->sekolah = Auth::user()->sekolah;
+            }
+
+            return $next($request);
+        });
+    }
 
     public function index()
     {
@@ -107,7 +122,9 @@ class UploadTagihanExcelController extends Controller
 
         $records = collect($cachedData)->map(function ($item) use ($select){
             $nis = $item['nis'];
-            $siswa = scctcust::select($select)->where('scctcust.NOCUST', $nis)->first();
+            $siswa = scctcust::select($select)->where('scctcust.NOCUST', $nis);
+            SchoolScope::apply($siswa, 'scctcust', $this->sekolah);
+            $siswa = $siswa->first();
             return [
                 'nis' => $nis,
                 'name' => $siswa->NMCUST ?? null,
@@ -241,7 +258,9 @@ class UploadTagihanExcelController extends Controller
             $insertedCount = 0;
             foreach ($data as $item) {
                 if ($item['status'] != 1) continue;
-                $siswa = scctcust::where('NOCUST', $item['nis'])->first();
+                $siswa = scctcust::where('NOCUST', $item['nis']);
+                SchoolScope::apply($siswa, 'scctcust', $this->sekolah);
+                $siswa = $siswa->first();
                 if (!$siswa) return response()->json(['message' => "siswa dengan nis: {$item['nis']} tidak ditemukan!"], 422);
                 if ((int) ($siswa->STCUST ?? 0) === 0) {
                     $skippedInactive[] = trim(($item['nis'] ?? '-') . ' - ' . ($siswa->NMCUST ?? 'Tanpa Nama'));

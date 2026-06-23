@@ -64,7 +64,7 @@ class PindahKelasController extends Controller
         $query = scctcust::query()->where("STCUST", 1);
 
         if ($this->unitScope) {
-            $query->where("CODE02", $this->unitScope);
+            $query->where("CODE01", $this->unitScope);
         }
 
         if ($kelasId) {
@@ -79,7 +79,9 @@ class PindahKelasController extends Controller
             });
         }
 
-        $totalRecords = scctcust::where("STCUST", 1)->count();
+        $totalRecords = scctcust::where("STCUST", 1)
+            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
+            ->count();
         $totalFiltered = (clone $query)->count();
 
         $records = $query

@@ -51,7 +51,7 @@ class DataSiswaController extends Controller
         $data["thn_aka"] = scctcust::query()
             ->whereNotNull("DESC04")
             ->where("DESC04", "!=", "")
-            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
             ->select("DESC04 as thn_aka")
             ->distinct()
             ->orderBy("DESC04", "desc")
@@ -158,7 +158,7 @@ class DataSiswaController extends Controller
 
         if ($this->unitScope !== null) {
             $filter = array_merge($filter, [
-                "scctcust.CODE02" => $this->unitScope,
+                "scctcust.CODE01" => $this->unitScope,
             ]);
         }
 
@@ -286,7 +286,7 @@ class DataSiswaController extends Controller
 
         $siswa = scctcust::query()
             ->where("STCUST", 1)
-            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
             ->where(function ($q) use ($like) {
                 $q->where("nocust", "like", $like)
                     ->orWhere("NUM2ND", "like", $like)
@@ -342,7 +342,7 @@ class DataSiswaController extends Controller
         }
 
         $siswa = scctcust::query()
-            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
             ->when($kelas, fn ($q) => $q->where("CODE03", $kelas))
             ->when($thn_aka, fn ($q) => $q->where("DESC04", $thn_aka))
             ->when($nis, fn ($q) => $q->where("nocust", "like", $nis))
@@ -422,7 +422,7 @@ class DataSiswaController extends Controller
         }
 
         $siswaList = scctcust::query()
-            ->when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+            ->when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
             ->whereIn("CUSTID", $custids->all())
             ->get(["CUSTID", "nocust"]);
 
@@ -521,7 +521,7 @@ class DataSiswaController extends Controller
             );
         }
 
-        $siswa = scctcust::when($this->unitScope, fn ($q) => $q->where("CODE02", $this->unitScope))
+        $siswa = scctcust::when($this->unitScope, fn ($q) => $q->where("CODE01", $this->unitScope))
             ->where("CUSTID", $id)
             ->first();
 

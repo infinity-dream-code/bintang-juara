@@ -61,6 +61,15 @@ class CyberKey extends Model implements AuthenticatableContract
         return $fid !== '' ? $fid : null;
     }
 
+    /**
+     * Kode sekolah (scctcust.CODE01) dari cyber_key.fid.
+     * fid kosong/null = akses semua sekolah.
+     */
+    public function getSchoolCodeAttribute(): ?string
+    {
+        return $this->unit;
+    }
+
     public function getSekolahAttribute(): ?string
     {
         return $this->unit;

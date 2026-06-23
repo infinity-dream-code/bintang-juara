@@ -10,17 +10,29 @@ use App\Models\scctbill;
 use App\Models\scctbill_detail;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;
+use App\Support\SchoolScope;
 use App\Support\TagihanPaymentReversal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class HapusTagihanController extends Controller
 {
+    public ?string $sekolah = null;
+
     public function __construct()
     {
+        $this->middleware(function ($request, $next) {
+            if (Auth::check()) {
+                $this->sekolah = Auth::user()->sekolah;
+            }
+
+            return $next($request);
+        });
+
         $this->title = 'Hapus Tagihan Siswa';
         $this->datasUrl = route('admin.keuangan.hapus-tagihan.get-data');
         $this->columnsUrl = route('admin.keuangan.hapus-tagihan.get-column');
@@ -184,8 +196,11 @@ class HapusTagihanController extends Controller
             })
             ->where('scctbill.PAIDST', 0)
             ->where('scctbill.FSTSBolehBayar', 1)
-            ->where('scctcust.STCUST', 1)
-            ->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
+            ->where('scctcust.STCUST', 1);
+
+        SchoolScope::apply($query, 'scctcust', $this->sekolah);
+
+        $query->when(!blank($searchValue), function ($query) use ($whereAny, $searchValue) {
                 $query->where(function ($q) use ($whereAny, $searchValue) {
                     $sanitizeSearch = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $searchValue);
                     foreach ($whereAny as $column) {
@@ -199,10 +214,13 @@ class HapusTagihanController extends Controller
                 }
             });
 
-        $totalRecords = Cache::remember('total_tagihan_count', 600, function () {
-            return scctbill::select('count(*) as allcount')
+        $scopeKey = blank($this->sekolah) ? 'all' : $this->sekolah;
+        $totalRecords = Cache::remember('total_tagihan_count_' . $scopeKey, 600, function () {
+            return scctbill::query()
+                ->leftJoin('scctcust', 'scctcust.CUSTID', '=', 'scctbill.CUSTID')
                 ->where('scctbill.FSTSBolehBayar', 1)
                 ->where('scctbill.PAIDST', 0)
+                ->when($this->sekolah, fn ($q) => $q->where('scctcust.CODE01', $this->sekolah))
                 ->count();
         });
 

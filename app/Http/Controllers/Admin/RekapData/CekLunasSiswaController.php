@@ -122,7 +122,7 @@ class CekLunasSiswaController extends Controller
 
         $baseQuery = scctbill::leftJoin("scctcust", "scctcust.CUSTID", "scctbill.CUSTID")
             ->where("scctbill.FSTSBolehBayar", 1)
-            ->when($unitScope, fn ($q) => $q->where("scctcust.CODE02", $unitScope))
+            ->when($unitScope, fn ($q) => $q->where("scctcust.CODE01", $unitScope))
             ->when(!blank($searchValue), function ($q) use ($searchValue) {
                 $sanitized = str_replace(["\\", "%", "_"], ["\\\\", "\\%", "\\_"], $searchValue);
                 $q->where(function ($q2) use ($sanitized) {

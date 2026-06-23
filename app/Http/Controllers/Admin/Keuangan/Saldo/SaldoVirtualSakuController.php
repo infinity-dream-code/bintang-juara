@@ -30,7 +30,7 @@ class SaldoVirtualSakuController extends Controller
 
     private array $allowedFilters = [
         'kelas' => 'scctcust.DESC02',
-        'sekolah' => 'scctcust.CODE02',
+        'sekolah' => 'scctcust.CODE01',
         'siswa' => 'scctcust.nmcust',
         'angkatan' => 'scctcust.DESC04',
     ];
@@ -41,58 +41,7 @@ class SaldoVirtualSakuController extends Controller
             return [];
         }
 
-        $unit = trim((string) $this->sekolah);
-        return mst_sekolah::query()
-            ->where(function ($q) use ($unit) {
-                $q->whereRaw('TRIM(CAST(CODE01 AS CHAR)) = ?', [$unit])
-                    ->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$unit])
-                    ->orWhereRaw('UPPER(TRIM(DESC01)) = UPPER(?)', [$unit]);
-            })
-            ->pluck('CODE01')
-            ->map(fn($code) => trim((string) $code))
-            ->filter(fn($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function resolveUnitCodesForSekolahFilter(string $sekolahCode): array
-    {
-        $trimmed = trim($sekolahCode);
-        if ($trimmed === '') {
-            return [];
-        }
-
-        return mst_sekolah::query()
-            ->where(function ($q) use ($trimmed) {
-                $q->whereRaw('TRIM(CAST(CODE01 AS CHAR)) = ?', [$trimmed])
-                    ->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$trimmed]);
-            })
-            ->get()
-            ->flatMap(fn($row) => [trim((string) $row->CODE01), trim((string) $row->CODE02)])
-            ->filter(fn($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function scopedUnitCodes(): array
-    {
-        if (blank($this->sekolah)) {
-            return [];
-        }
-
-        $schoolCodes = $this->resolveScopedSchoolCodes();
-        if (empty($schoolCodes)) {
-            return $this->resolveUnitCodesForSekolahFilter((string) $this->sekolah);
-        }
-
-        return collect($schoolCodes)
-            ->flatMap(fn($code) => $this->resolveUnitCodesForSekolahFilter($code))
-            ->filter(fn($code) => $code !== '')
-            ->unique()
-            ->values()
-            ->all();
+        return [trim((string) $this->sekolah)];
     }
 
     private function applyFilterQuery($query, array $filters): void
@@ -105,11 +54,7 @@ class SaldoVirtualSakuController extends Controller
             if (($filter[0] ?? null) === '_sekolah') {
                 $codes = $filter[2] ?? [];
                 if (!empty($codes)) {
-                    $query->where(function ($q) use ($codes) {
-                        foreach ($codes as $code) {
-                            $q->orWhereRaw('TRIM(CAST(scctcust.CODE02 AS CHAR)) = ?', [$code]);
-                        }
-                    });
+                    $query->whereIn('scctcust.CODE01', $codes);
                 }
                 continue;
             }
@@ -286,7 +231,7 @@ class SaldoVirtualSakuController extends Controller
                 if (strtolower($val) != 'all' && $val !== null && $val !== '') {
                     $colName = match ($key) {
                         'kelas' => 'scctcust.DESC02',
-                        'sekolah' => 'scctcust.CODE02',
+                        'sekolah' => 'scctcust.CODE01',
                         'siswa' => 'scctcust.nmcust',
                         'angkatan' => 'scctcust.DESC04',
                         'saldo_positif' => '_saldo_positif',
@@ -299,10 +244,7 @@ class SaldoVirtualSakuController extends Controller
                     } else if ($key == 'kelas') {
                         $filters[] = ['scctcust.CODE03', '=', $val];
                     } else if ($key === 'sekolah') {
-                        $unitCodes = $this->resolveUnitCodesForSekolahFilter((string) $val);
-                        if (!empty($unitCodes)) {
-                            $filters[] = ['_sekolah', 'in', $unitCodes];
-                        }
+                        $filters[] = ['scctcust.CODE01', '=', trim((string) $val)];
                     } else if ($key == 'saldo_positif') {
                         if ((string) $val === '1') {
                             $filters[] = ['whereRaw', '(COALESCE(trx.kredit, 0) - COALESCE(trx.debet, 0)) > 0', []];
@@ -313,18 +255,18 @@ class SaldoVirtualSakuController extends Controller
                 }
             }
 
-            $scopedCodes = $this->scopedUnitCodes();
+            $scopedCodes = $this->resolveScopedSchoolCodes();
             if (!empty($scopedCodes)) {
-                $filters[] = ['_sekolah', 'in', $scopedCodes];
+                $filters[] = ['scctcust.CODE01', 'in', $scopedCodes];
             }
 
             if (!empty($filters)) {
                 $filterQuery = fn($query) => $this->applyFilterQuery($query, $filters);
             }
         } else {
-            $scopedCodes = $this->scopedUnitCodes();
+            $scopedCodes = $this->resolveScopedSchoolCodes();
             if (!empty($scopedCodes)) {
-                $filters[] = ['_sekolah', 'in', $scopedCodes];
+                $filters[] = ['scctcust.CODE01', 'in', $scopedCodes];
                 $filterQuery = fn($query) => $this->applyFilterQuery($query, $filters);
             }
         }
@@ -372,14 +314,10 @@ class SaldoVirtualSakuController extends Controller
             });
         }
 
-        $scopedCodesForCount = $this->scopedUnitCodes();
+        $scopedCodesForCount = $this->resolveScopedSchoolCodes();
         $totalRecords = Cache::remember('scctcust_total_count_saku_' . md5(json_encode($scopedCodesForCount)), 600, function () use ($scopedCodesForCount) {
             return scctcust::when(!empty($scopedCodesForCount), function ($query) use ($scopedCodesForCount) {
-                $query->where(function ($q) use ($scopedCodesForCount) {
-                    foreach ($scopedCodesForCount as $code) {
-                        $q->orWhereRaw('TRIM(CAST(CODE02 AS CHAR)) = ?', [$code]);
-                    }
-                });
+                $query->whereIn('CODE01', $scopedCodesForCount);
             })->count('CUSTID');
         });
 

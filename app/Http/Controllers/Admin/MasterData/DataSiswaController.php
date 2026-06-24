@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\MasterData;
 
 use App\Http\Controllers\Controller;
+use App\Models\mst_kelas;
 use App\Models\mst_sekolah;
 use App\Models\scctcust;
 use App\Models\ValidationMessage;

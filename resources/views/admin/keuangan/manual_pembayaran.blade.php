@@ -99,9 +99,6 @@
                                 <option value="1140001">Manual BMI</option>
                                 <option value="1140002">Manual Saldo</option>
                                 <option value="1140003">Transfer Bank Lain</option>
-                                <option value="1140004">INFAQ</option>
-                                <option value="1200001">Loket Manual - Beasiswa</option>
-                                <option value="1200002">Loket Manual - Potongan</option>
                             </select>
                         </div>
                     </div>
@@ -771,7 +768,10 @@
                 }
             }
 
-            function formatMetodePembayaran(data) {
+            function formatMetodePembayaran(data, noreff) {
+                if (String(noreff || '').trim().toLowerCase() === 'mobile') {
+                    return 'ANDROID';
+                }
                 const descriptions = {
                     '1140000': 'Manual Cash', '1140001': 'Manual BMI', '1140002': 'Manual SALDO',
                     '1140003': 'Transfer Bank Lain', '1140004': 'INFAQ', '1140005': 'Transfer Bank BRI',
@@ -894,8 +894,8 @@
                         if (m && uniqueMetode.indexOf(m) === -1) uniqueMetode.push(m);
                     });
                     const metodeLabel = paymentBank
-                        ? formatMetodePembayaran(paymentBank)
-                        : (uniqueMetode.length > 1 ? 'Beragam' : formatMetodePembayaran(fidBank));
+                        ? formatMetodePembayaran(paymentBank, firstTagihan.NOREFF)
+                        : (uniqueMetode.length > 1 ? 'Beragam' : formatMetodePembayaran(fidBank, firstTagihan.NOREFF));
                     const ortu = siswa.GENUS || siswa.genus || '-';
 
                     const mainTable = [
@@ -926,7 +926,7 @@
                             { text: item.BTA, alignment: 'left' },
                             { text: formatRupiah(billAm), alignment: 'right' },
                             { text: formatRupiah(nominalBayar), alignment: 'right' },
-                            { text: formatMetodePembayaran(itemFidBank), alignment: 'left' },
+                            { text: formatMetodePembayaran(itemFidBank, item.NOREFF), alignment: 'left' },
                             { text: tanggalBayar, alignment: 'left' },
                         ]);
                     });

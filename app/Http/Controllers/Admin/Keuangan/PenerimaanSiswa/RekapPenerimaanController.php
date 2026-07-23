@@ -229,6 +229,7 @@ class RekapPenerimaanController extends Controller
             '1140000' => 'Manual Cash',
             '1140002' => 'Manual SALDO',
             '1140001' => 'Manual BMI',
+            '1140003' => 'Transfer Bank Lain',
             '6' => 'ANDROID',
         ];
 
@@ -416,6 +417,13 @@ class RekapPenerimaanController extends Controller
                             }
                         } else if ($key === 'unit') {
                             $filters[] = ['_sekolah', '=', $val];
+                        } elseif ($key === 'bank') {
+                            if ((string) $val === '1140003') {
+                                // Transfer Bank Lain: ambil dari scctbill.FIDBANK
+                                $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
+                            } else {
+                                ($colName) && $filters[] = [$colName, '=', $val];
+                            }
                         } else {
                             ($colName) && $filters[] = [$colName, '=', $val];
                         }
@@ -666,6 +674,13 @@ class RekapPenerimaanController extends Controller
                     } else if ($key == 'siswa') {
                         $val = '%' . $val . '%';
                         ($colName) && $filters[] = [$colName, 'like', $val];
+                    } elseif ($key === 'bank') {
+                        if ((string) $val === '1140003') {
+                            // Transfer Bank Lain: ambil dari scctbill.FIDBANK
+                            $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
+                        } else {
+                            ($colName) && $filters[] = [$colName, '=', $val];
+                        }
                     } else {
                         ($colName) && $filters[] = [$colName, '=', $val];
                     }

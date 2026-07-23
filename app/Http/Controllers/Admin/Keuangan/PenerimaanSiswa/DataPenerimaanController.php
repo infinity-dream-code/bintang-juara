@@ -15,6 +15,7 @@ use App\Models\sccttran;
 use App\Models\User;
 use App\Support\CacheHandler;
 use App\Support\FilterHandler;
+use App\Support\MetodeBayarHelper;
 use App\Support\TagihanPaymentReversal;
 use Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -83,6 +84,7 @@ class DataPenerimaanController extends Controller
             '1140000' => 'Manual Cash',
             '1140002' => 'Manual SALDO',
             '1140001' => 'Manual BMI',
+            '1140003' => 'Transfer Bank Lain',
             '6' => 'ANDROID',
         ];
         $data['bank'] = array_intersect_key($allowedBanks, $scctbillModel->metodeBayar)
@@ -178,6 +180,7 @@ class DataPenerimaanController extends Controller
 
         $filters = [];
         $filterQuery = null;
+        $androidBankFilter = null; // null | only | exclude
 
         $filter = FilterHandler::resolveFilters($request->input('filter'), $this->allowedFilters);
         if ($this->sekolah !== null) {
@@ -236,6 +239,18 @@ class DataPenerimaanController extends Controller
                         $colName = is_numeric($val) ? 'scctcust.NOCUST' : $key;
                         ($colName) && $filters[] = [$colName, 'like', $val];
                         break;
+                    case 'sccttran.FIDBANK':
+                        if ((string) $val === MetodeBayarHelper::ANDROID_FIDBANK) {
+                            $androidBankFilter = 'only';
+                        } elseif ((string) $val === '1140003') {
+                            // Transfer Bank Lain: ambil dari scctbill.FIDBANK
+                            $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
+                            $androidBankFilter = 'exclude';
+                        } else {
+                            $filters[] = [$key, '=', $val];
+                            $androidBankFilter = 'exclude';
+                        }
+                        break;
                     default:
                         ($key) && $filters[] = [$key, '=', $val];
                         break;
@@ -278,6 +293,7 @@ class DataPenerimaanController extends Controller
             'sccttran.METODE',
             'sccttran.TRXDATE',
             'sccttran.FIDBANK',
+            'sccttran.NOREFF',
             'sccttran.DEBET',
             'sccttran.KREDIT',
             'sccttran.TRANSNO',
@@ -291,6 +307,7 @@ class DataPenerimaanController extends Controller
             'scctcust.GENUS',
             'scctbill.AA',
             'scctbill.BILLNM',
+            'scctbill.NOREFF as BILL_NOREFF',
             'scctbill.BILLAM as BILLAM_TOTAL',
             'scctbill.BILLPAID',
             'scctbill.BILLAC',
@@ -312,6 +329,12 @@ class DataPenerimaanController extends Controller
                 if ($filterQuery) {
                     $filterQuery($query);
                 }
+            })
+            ->when($androidBankFilter === 'only', function ($q) {
+                MetodeBayarHelper::applyAndroidBankFilter($q);
+            })
+            ->when($androidBankFilter === 'exclude', function ($q) {
+                MetodeBayarHelper::excludeMobileNoreff($q);
             });
 
         $cacheKey = CacheHandler::cacheKey($this->cacheKey, 'data_penerimaan_count', $filter, $searchValue ?? '');
@@ -356,7 +379,11 @@ class DataPenerimaanController extends Controller
                 $item->BILLNM = $billName;
                 $item->BILLAM = $nominalBayar;
                 $item->PAIDDT = $item->TRXDATE;
-                $item->FIDBANK = $item->FIDBANK;
+                $item->FIDBANK = MetodeBayarHelper::resolveDisplayFidBank(
+                    $item->FIDBANK ?? null,
+                    $item->NOREFF ?? null,
+                    $item->BILL_NOREFF ?? null
+                );
                 $item->delete = $billId && $nominalBayar > 0;
                 $item->detail_trx = (bool) $billId;
                 $item->NOCUST = $item->nocust;
@@ -1047,7 +1074,16 @@ class DataPenerimaanController extends Controller
                     $q->where('d.DESC04', trim((string)$filter['angkatan']));
                 })
                 ->when(!blank($filter['bank'] ?? null) && strtolower((string)$filter['bank']) !== 'all', function ($q) use ($filter) {
-                    $q->where('b.FIDBANK', trim((string)$filter['bank']));
+                    $bank = trim((string) $filter['bank']);
+                    if ($bank === MetodeBayarHelper::ANDROID_FIDBANK) {
+                        $q->where(function ($sub) {
+                            $sub->where('b.FIDBANK', MetodeBayarHelper::ANDROID_FIDBANK)
+                                ->orWhereRaw('UPPER(TRIM(COALESCE(b.NOREFF, ""))) = ?', ['MOBILE']);
+                        });
+                        return;
+                    }
+                    $q->where('b.FIDBANK', $bank)
+                        ->whereRaw('UPPER(TRIM(COALESCE(b.NOREFF, ""))) <> ?', ['MOBILE']);
                 })
                 ->when(!blank($filter['post'] ?? null), function ($q) use ($filter) {
                     $post = $filter['post'];
@@ -1178,7 +1214,16 @@ class DataPenerimaanController extends Controller
                 }
             })
             ->when(!blank($request->input('filter.bank')) && strtolower((string)$request->input('filter.bank')) !== 'all', function ($q) use ($request) {
-                $q->where('scctbill.FIDBANK', $request->input('filter.bank'));
+                $bank = trim((string) $request->input('filter.bank'));
+                if ($bank === MetodeBayarHelper::ANDROID_FIDBANK) {
+                    $q->where(function ($sub) {
+                        $sub->where('scctbill.FIDBANK', MetodeBayarHelper::ANDROID_FIDBANK)
+                            ->orWhereRaw('UPPER(TRIM(COALESCE(scctbill.NOREFF, ""))) = ?', ['MOBILE']);
+                    });
+                    return;
+                }
+                $q->where('scctbill.FIDBANK', $bank)
+                    ->whereRaw('UPPER(TRIM(COALESCE(scctbill.NOREFF, ""))) <> ?', ['MOBILE']);
             })
             ->when(!blank($request->input('filter.dari_tanggal')) && preg_match('/^\d{2}-\d{2}-\d{4}$/', (string)$request->input('filter.dari_tanggal')), function ($q) use ($request) {
                 $startDate = Carbon::createFromFormat('d-m-Y', (string)$request->input('filter.dari_tanggal'))->startOfDay();

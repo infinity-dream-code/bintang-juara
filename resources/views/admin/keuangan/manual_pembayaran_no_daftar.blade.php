@@ -99,9 +99,6 @@
                                 <option value="1140001">Manual BMI</option>
                                 <option value="1140002">Manual Saldo</option>
                                 <option value="1140003">Transfer Bank Lain</option>
-                                <option value="1140004">INFAQ</option>
-                                <option value="1200001">Loket Manual - Beasiswa</option>
-                                <option value="1200002">Loket Manual - Potongan</option>
                             </select>
                         </div>
                     </div>

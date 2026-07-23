@@ -1548,6 +1548,10 @@ async function getDT(options) {
                                 break;
                             case 'custom_code_tagihan':
                                 renderFunc = function (data, type, row) {
+                                    const noreff = String(row?.NOREFF ?? row?.BILL_NOREFF ?? row?.noreff ?? '').trim().toLowerCase();
+                                    if (noreff === 'mobile') {
+                                        return 'ANDROID';
+                                    }
                                     const descriptions = {
                                         '1140000': 'Manual Cash',
                                         '1140001': 'Manual BMI',
@@ -1562,7 +1566,7 @@ async function getDT(options) {
                                         '3': 'H2H VA BMI - IBANK',
                                         '4': 'H2H VA BMI - EDC',
                                         '5': 'H2H VA BMI - MOBILE',
-                                        '6': 'ALL BMI',
+                                        '6': 'ANDROID',
                                         null: 'Nomor VA',
                                         '': 'Nomor VA'
                                     };

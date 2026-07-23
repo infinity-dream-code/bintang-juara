@@ -11,6 +11,7 @@ use App\Models\sccttran;
 use App\Models\User;
 use App\Models\ValidationMessage;
 use App\Support\ManualPaymentBuilder;
+use App\Support\MetodeBayarHelper;
 use App\Support\SchoolScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
@@ -130,6 +131,7 @@ class ManualPembayaranController extends Controller
                 'scctbill.PAIDDT',
                 'scctbill.BTA',
                 'scctbill.FIDBANK',
+                'scctbill.NOREFF',
                 'scctbill.FUrutan',
                 'scctcust.CUSTID',
                 'scctcust.CODE02',
@@ -174,6 +176,10 @@ class ManualPembayaranController extends Controller
                     $item->PAYMENTLEFT = $this->resolvePaymentLeft($item);
                     $item->sisa_bayar = $item->PAYMENTLEFT;
                     $item->can_cicil = mst_tagihan::canInstallment($item->BILLNM) ? 1 : 0;
+                    $item->FIDBANK = MetodeBayarHelper::resolveDisplayFidBank(
+                        $item->FIDBANK !== null ? (string) $item->FIDBANK : null,
+                        $item->NOREFF !== null ? (string) $item->NOREFF : null
+                    );
                     unset($item->AA);
                     return $item;
                 })->toArray();
@@ -266,7 +272,7 @@ class ManualPembayaranController extends Controller
             [
                 'tanggal' => ['required', 'regex:/^\d{2}-\d{2}-\d{4}$/'],
                 'siswa' => ['required'],
-                'bank' => ['required', 'in:1140000,1140001,1140002,1140003,1140004,1140005,1200001,1200002'],
+                'bank' => ['required', 'in:1140000,1140001,1140002,1140003'],
                 'tagihan.post' => ['required', 'array', 'min:1'],
                 'tagihan.post.*' => ['required'],
                 'tagihan.nominal_bayar' => ['required', 'array', 'min:1'],
@@ -752,6 +758,15 @@ class ManualPembayaranController extends Controller
                 ?? $receiptBank
                 ?? $tagihan->FIDBANK;
 
+            $noreff = $receiptPayment['noreff']
+                ?? $latestTrx?->NOREFF
+                ?? ($tagihan->NOREFF ?? null);
+
+            $fidBank = MetodeBayarHelper::resolveDisplayFidBank(
+                $fidBank !== null ? (string) $fidBank : null,
+                $noreff !== null ? (string) $noreff : null
+            );
+
             $nominalBayar = (int) ($receiptPayment['nominal'] ?? $latestTrx?->DEBET ?? 0);
             if ($nominalBayar <= 0) {
                 $nominalBayar = (int) ($tagihan->BILLPAID ?? $tagihan->BILLAM ?? 0);
@@ -764,6 +779,7 @@ class ManualPembayaranController extends Controller
 
             $row = $tagihan->toArray();
             $row['FIDBANK'] = $fidBank;
+            $row['NOREFF'] = $noreff;
             $row['PAIDDT'] = $paidDt;
             $row['NOMINAL_BAYAR'] = $nominalBayar;
 

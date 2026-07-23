@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin\Keuangan\PenerimaanSiswa;
 
 use App\Http\Controllers\Controller;
 use App\Support\PerNisMatrixPdf;
+use App\Support\MetodeBayarHelper;
 use App\Models\mst_kelas;
 use App\Models\mst_tagihan;
 use App\Models\mst_thn_aka;
@@ -110,9 +111,12 @@ class RekapPenerimaanController extends Controller
 
     private function resolveMetodeLabel(object $item, array $metodeBayarMap): string
     {
-        $fidBank = $item->FIDBANK ?? null;
+        $displayFid = MetodeBayarHelper::resolveDisplayFidBank(
+            $item->BILL_FIDBANK ?? $item->FIDBANK ?? null,
+            $item->BILL_NOREFF ?? null
+        );
 
-        return $metodeBayarMap[$fidBank] ?? ($fidBank ?? '-');
+        return $metodeBayarMap[$displayFid] ?? ($displayFid !== '' ? $displayFid : '-');
     }
 
     private function resolvePeriode(object $item): ?string
@@ -418,11 +422,16 @@ class RekapPenerimaanController extends Controller
                         } else if ($key === 'unit') {
                             $filters[] = ['_sekolah', '=', $val];
                         } elseif ($key === 'bank') {
-                            if ((string) $val === '1140003') {
+                            if ((string) $val === '6') {
+                                $filters[] = ['_android_bill', '=', '1'];
+                            } elseif ((string) $val === '1140003') {
                                 // Transfer Bank Lain: ambil dari scctbill.FIDBANK
                                 $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
+                                $filters[] = ['_exclude_mobile_bill', '=', '1'];
                             } else {
-                                ($colName) && $filters[] = [$colName, '=', $val];
+                                // Manual Cash/BMI/SALDO dari scctbill.FIDBANK
+                                $filters[] = ['scctbill.FIDBANK', '=', $val];
+                                $filters[] = ['_exclude_mobile_bill', '=', '1'];
                             }
                         } else {
                             ($colName) && $filters[] = [$colName, '=', $val];
@@ -455,6 +464,14 @@ class RekapPenerimaanController extends Controller
                                         }
                                     });
                                 }
+                                continue;
+                            }
+                            if (($filter[0] ?? null) === '_android_bill') {
+                                MetodeBayarHelper::applyAndroidBankFilter($query);
+                                continue;
+                            }
+                            if (($filter[0] ?? null) === '_exclude_mobile_bill') {
+                                MetodeBayarHelper::excludeMobileNoreff($query);
                                 continue;
                             }
                             switch (count($filter)) {
@@ -507,6 +524,8 @@ class RekapPenerimaanController extends Controller
                 'scctbill.BILLCD',
                 'scctbill.BTA',
                 'scctbill.FUrutan',
+                'scctbill.NOREFF as BILL_NOREFF',
+                'scctbill.FIDBANK as BILL_FIDBANK',
                 'scctcust.NMCUST',
                 'scctcust.NOCUST',
                 'scctcust.DESC01',
@@ -675,11 +694,15 @@ class RekapPenerimaanController extends Controller
                         $val = '%' . $val . '%';
                         ($colName) && $filters[] = [$colName, 'like', $val];
                     } elseif ($key === 'bank') {
-                        if ((string) $val === '1140003') {
+                        if ((string) $val === '6') {
+                            $filters[] = ['_android_bill', '=', '1'];
+                        } elseif ((string) $val === '1140003') {
                             // Transfer Bank Lain: ambil dari scctbill.FIDBANK
                             $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
+                            $filters[] = ['_exclude_mobile_bill', '=', '1'];
                         } else {
-                            ($colName) && $filters[] = [$colName, '=', $val];
+                            $filters[] = ['scctbill.FIDBANK', '=', $val];
+                            $filters[] = ['_exclude_mobile_bill', '=', '1'];
                         }
                     } else {
                         ($colName) && $filters[] = [$colName, '=', $val];
@@ -692,8 +715,10 @@ class RekapPenerimaanController extends Controller
 
         foreach ($filters as $item) {
             if (($item[0] ?? null) === '_sekolah'
-                || str_contains($item[0], 'scctbill')
-                || str_contains($item[0], 'sccttran')) {
+                || ($item[0] ?? null) === '_android_bill'
+                || ($item[0] ?? null) === '_exclude_mobile_bill'
+                || str_contains((string) ($item[0] ?? ''), 'scctbill')
+                || str_contains((string) ($item[0] ?? ''), 'sccttran')) {
                 $filter_scctbill[] = $item;
             } else {
                 $filter_main[] = $item;
@@ -711,6 +736,14 @@ class RekapPenerimaanController extends Controller
                                     $q->whereRaw('TRIM(CAST(scctcust.CODE02 AS CHAR)) = ?', [trim((string) $value)]);
                                 });
                             }
+                            continue;
+                        }
+                        if (($filter[0] ?? null) === '_android_bill') {
+                            MetodeBayarHelper::applyAndroidBankFilter($query);
+                            continue;
+                        }
+                        if (($filter[0] ?? null) === '_exclude_mobile_bill') {
+                            MetodeBayarHelper::excludeMobileNoreff($query);
                             continue;
                         }
                         switch (count($filter)) {

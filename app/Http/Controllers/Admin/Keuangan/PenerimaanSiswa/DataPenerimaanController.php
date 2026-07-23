@@ -247,7 +247,8 @@ class DataPenerimaanController extends Controller
                             $filters[] = ['scctbill.FIDBANK', '=', '1140003'];
                             $androidBankFilter = 'exclude';
                         } else {
-                            $filters[] = [$key, '=', $val];
+                            // Manual Cash/BMI/SALDO: filter dari scctbill.FIDBANK
+                            $filters[] = ['scctbill.FIDBANK', '=', $val];
                             $androidBankFilter = 'exclude';
                         }
                         break;
@@ -308,6 +309,7 @@ class DataPenerimaanController extends Controller
             'scctbill.AA',
             'scctbill.BILLNM',
             'scctbill.NOREFF as BILL_NOREFF',
+            'scctbill.FIDBANK as BILL_FIDBANK',
             'scctbill.BILLAM as BILLAM_TOTAL',
             'scctbill.BILLPAID',
             'scctbill.BILLAC',
@@ -379,11 +381,12 @@ class DataPenerimaanController extends Controller
                 $item->BILLNM = $billName;
                 $item->BILLAM = $nominalBayar;
                 $item->PAIDDT = $item->TRXDATE;
+                // Metode dari scctbill: NOREFF Mobile → ANDROID, selain itu FIDBANK bill
                 $item->FIDBANK = MetodeBayarHelper::resolveDisplayFidBank(
-                    $item->FIDBANK ?? null,
-                    $item->NOREFF ?? null,
+                    $item->BILL_FIDBANK ?? $item->FIDBANK ?? null,
                     $item->BILL_NOREFF ?? null
                 );
+                $item->NOREFF = $item->BILL_NOREFF ?? $item->NOREFF ?? null;
                 $item->delete = $billId && $nominalBayar > 0;
                 $item->detail_trx = (bool) $billId;
                 $item->NOCUST = $item->nocust;

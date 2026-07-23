@@ -395,7 +395,7 @@
 
     {{--    <script src="{{asset('main/libs/select2/select2.full.min.js')}}"></script>--}}
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260723-mobile-android"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260723-android-bill-noreff"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
 
@@ -1120,6 +1120,7 @@
             };
 
             function formatMetodePembayaran(data, noreff) {
+                // ANDROID hanya jika scctbill.NOREFF = Mobile
                 if (String(noreff || '').trim().toLowerCase() === 'mobile') {
                     return 'ANDROID';
                 }
@@ -1237,7 +1238,7 @@
                         {text: `${item.DESC02 ?? ''} ${item.DESC03 ?? ''}`.trim() || '-', border: [true, true, true, true]},
                         {text: item.BILLNM ?? '-', border: [true, true, true, true]},
                         {text: formatRupiah(item.BILLAM ?? 0), alignment: 'right', border: [true, true, true, true]},
-                        {text: formatMetodePembayaran(item.FIDBANK ?? '', item.NOREFF ?? item.BILL_NOREFF ?? ''), border: [true, true, true, true]},
+                        {text: formatMetodePembayaran(item.FIDBANK ?? '', item.BILL_NOREFF ?? ''), border: [true, true, true, true]},
                         {text: tanggalBayar, border: [true, true, true, true]},
                         {text: item.BTA ?? '-', border: [true, true, true, true]},
                     ]);
@@ -1319,7 +1320,7 @@
                 const uniqueMetode = [...new Set(data.map(item => String(item.FIDBANK ?? '')))].filter(Boolean);
                 const metodeLabel = uniqueMetode.length > 1
                     ? 'Beragam'
-                    : formatMetodePembayaran(siswa.FIDBANK ?? '', siswa.NOREFF ?? siswa.BILL_NOREFF ?? '');
+                    : formatMetodePembayaran(siswa.FIDBANK ?? '', siswa.BILL_NOREFF ?? '');
 
                 const mainTable = [
                     [(nocust ? 'NIS ' : 'No. Pendaftaran'), ': ' + (nocust ? nocust : siswa.NUM2ND), 'Unit', ': ' + siswa.CODE02],
@@ -1376,7 +1377,7 @@
                         {text: item.BILLAC ?? item.BTA ?? '-', alignment: 'left'},
                         {text: formatRupiah(billAm), alignment: 'right'},
                         {text: formatRupiah(billPaid), alignment: 'right'},
-                        {text: formatMetodePembayaran(item.FIDBANK ?? '', item.NOREFF ?? item.BILL_NOREFF ?? ''), alignment: 'left'},
+                        {text: formatMetodePembayaran(item.FIDBANK ?? '', item.BILL_NOREFF ?? ''), alignment: 'left'},
                         {text: tanggalBayar, alignment: 'left'},
                     ]);
                 })

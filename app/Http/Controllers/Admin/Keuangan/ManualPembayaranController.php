@@ -758,13 +758,12 @@ class ManualPembayaranController extends Controller
                 ?? $receiptBank
                 ?? $tagihan->FIDBANK;
 
-            $noreff = $receiptPayment['noreff']
-                ?? $latestTrx?->NOREFF
-                ?? ($tagihan->NOREFF ?? null);
-
+            // ANDROID hanya dari scctbill.NOREFF = Mobile; metode lain dari scctbill.FIDBANK
+            $billNoreff = $tagihan->NOREFF ?? null;
+            $billFidBank = $tagihan->FIDBANK ?? $fidBank;
             $fidBank = MetodeBayarHelper::resolveDisplayFidBank(
-                $fidBank !== null ? (string) $fidBank : null,
-                $noreff !== null ? (string) $noreff : null
+                $billFidBank !== null ? (string) $billFidBank : null,
+                $billNoreff !== null ? (string) $billNoreff : null
             );
 
             $nominalBayar = (int) ($receiptPayment['nominal'] ?? $latestTrx?->DEBET ?? 0);
@@ -779,7 +778,8 @@ class ManualPembayaranController extends Controller
 
             $row = $tagihan->toArray();
             $row['FIDBANK'] = $fidBank;
-            $row['NOREFF'] = $noreff;
+            $row['NOREFF'] = $billNoreff;
+            $row['BILL_NOREFF'] = $billNoreff;
             $row['PAIDDT'] = $paidDt;
             $row['NOMINAL_BAYAR'] = $nominalBayar;
 

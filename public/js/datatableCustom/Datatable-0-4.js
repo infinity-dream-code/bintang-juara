@@ -1548,8 +1548,9 @@ async function getDT(options) {
                                 break;
                             case 'custom_code_tagihan':
                                 renderFunc = function (data, type, row) {
-                                    const noreff = String(row?.NOREFF ?? row?.BILL_NOREFF ?? row?.noreff ?? '').trim().toLowerCase();
-                                    if (noreff === 'mobile') {
+                                    // ANDROID hanya dari scctbill.NOREFF = Mobile
+                                    const billNoreff = String(row?.BILL_NOREFF ?? '').trim().toLowerCase();
+                                    if (billNoreff === 'mobile') {
                                         return 'ANDROID';
                                     }
                                     const descriptions = {

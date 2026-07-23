@@ -318,6 +318,17 @@ class DataPenerimaanController extends Controller
                 fn() => (clone $query)->count()
             );
 
+        $totalNominalKey = CacheHandler::cacheKey($this->cacheKey, 'data_penerimaan_sum_nominal', $filter, $searchValue ?? '');
+        $totalNominal = (int) Cache::remember(
+            $totalNominalKey,
+            now()->addMinutes(10),
+            function () use ($query) {
+                return (int) (clone $query)->selectRaw(
+                    'COALESCE(SUM(CASE WHEN CAST(COALESCE(sccttran.DEBET, 0) AS SIGNED) > 0 THEN CAST(sccttran.DEBET AS SIGNED) ELSE CAST(COALESCE(sccttran.KREDIT, 0) AS SIGNED) END), 0) as total_nominal'
+                )->value('total_nominal');
+            }
+        );
+
         $records = (clone $query)->orderBy($columnName, $columnSortOrder)
             ->select($select)
             ->skip($start)
@@ -353,6 +364,13 @@ class DataPenerimaanController extends Controller
             "recordsTotal" => $totalRecords ?? 0,
             "recordsFiltered" => $totalRecordswithFilter ?? 0,
             "data" => $records ?? [],
+            "totals" => [
+                "billam" => [
+                    "location" => 8,
+                    "value" => $totalNominal,
+                    "columnType" => "currency",
+                ],
+            ],
         );
         return response()->json($response);
     }

@@ -398,7 +398,7 @@
 
     {{--    <script src="{{asset('main/libs/select2/select2.full.min.js')}}"></script>--}}
     <script src="{{asset('main/libs/datatables-bs5/datatables-bootstrap5.js')}}"></script>
-    <script src="{{asset('js/datatableCustom/Datatable-0-4.min.js')}}"></script>
+    <script src="{{asset('js/datatableCustom/Datatable-0-4.js')}}?v=20260723-excel-total"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-datepicker/bootstrap-datepicker.js')}}"></script>
 
@@ -492,6 +492,7 @@
             pageLength: 10,
             lengthMenu: [10, 25, 50, 75, 100],
             buttons: ['excel'],
+            excelCurrencyTotal: true,
         };
 
         const modalDeleteElement = document.getElementById('modal-delete');

@@ -224,6 +224,106 @@ function getExcelColumnName(index) {
     return columnName;
 }
 
+function parseExcelCurrencyValue(raw) {
+    if (raw === null || raw === undefined) {
+        return 0;
+    }
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+        return raw;
+    }
+    const cleaned = String(raw)
+        .replace(/Rp\.?\s*/gi, '')
+        .replace(/\s/g, '')
+        .replace(/\./g, '')
+        .replace(/,/g, '')
+        .replace(/[^\d\-]/g, '');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function appendExcelCurrencyTotalRow(xlsx, sheet, dataColumns, options = {}) {
+    const exportable = (dataColumns || []).filter((col) => col.exportable === true);
+    if (!exportable.length) {
+        return;
+    }
+
+    const currencyIndexes = [];
+    exportable.forEach((col, idx) => {
+        const type = String(col.columnType || '').toLowerCase();
+        if (type === 'currency' || type === 'money' || type === 'rupiah') {
+            currencyIndexes.push(idx);
+        }
+    });
+
+    if (!currencyIndexes.length) {
+        return;
+    }
+
+    const sheetData = $('sheetData', sheet);
+    const rows = $('row', sheetData);
+    if (rows.length < 2) {
+        return;
+    }
+
+    const totals = {};
+    currencyIndexes.forEach((idx) => {
+        totals[idx] = 0;
+    });
+
+    rows.each(function (rowIdx) {
+        if (rowIdx === 0) {
+            return;
+        }
+        currencyIndexes.forEach((idx) => {
+            const cell = $('c', this).eq(idx);
+            if (!cell.length) {
+                return;
+            }
+            totals[idx] += parseExcelCurrencyValue(getExcelCellValue(cell));
+        });
+    });
+
+    const lastRowAttr = parseInt($(rows.last()).attr('r') || String(rows.length), 10);
+    const totalRowNumber = lastRowAttr + 1;
+    const totalCells = [];
+
+    exportable.forEach((col, idx) => {
+        const colName = getExcelColumnName(idx);
+        const cellRef = `${colName}${totalRowNumber}`;
+
+        if (idx === 0) {
+            totalCells.push(`<c r="${cellRef}" t="inlineStr"><is><t>TOTAL</t></is></c>`);
+            return;
+        }
+
+        if (currencyIndexes.includes(idx)) {
+            totalCells.push(`<c r="${cellRef}"><v>${totals[idx]}</v></c>`);
+            return;
+        }
+
+        totalCells.push(`<c r="${cellRef}" t="inlineStr"><is><t></t></is></c>`);
+    });
+
+    sheetData.append(`<row r="${totalRowNumber}">${totalCells.join('')}</row>`);
+
+    const rupiahStyleIndex = addRupiahStyleOnce(xlsx);
+    const boldStyleIndex = addBoldHeaderStyleOnce(xlsx);
+    const totalRow = $(`row[r="${totalRowNumber}"]`, sheetData);
+
+    exportable.forEach((col, idx) => {
+        const cell = $('c', totalRow).eq(idx);
+        if (!cell.length) {
+            return;
+        }
+        if (currencyIndexes.includes(idx)) {
+            cell.attr('s', String(rupiahStyleIndex));
+            cell.removeAttr('t');
+        } else if (idx === 0) {
+            cell.attr('s', String(boldStyleIndex));
+        }
+    });
+}
+
 function getDuplicateExportColumns(dataColumns) {
     const result = [];
     let excelIdx = 0;
@@ -513,6 +613,10 @@ function dtButtons(options, buttons) {
 
                 const boldHeaderStyleIndex = addBoldHeaderStyleOnce(xlsx);
                 applyBoldHeaderRow(sheet, boldHeaderStyleIndex);
+
+                if (options.excelCurrencyTotal) {
+                    appendExcelCurrencyTotalRow(xlsx, sheet, options.dataColumns, options);
+                }
             },
         },
         pdf: {

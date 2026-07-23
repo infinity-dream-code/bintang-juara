@@ -6,6 +6,35 @@
             display: block;
         }
 
+        .math-captcha-box {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border: 1px solid #d9dee3;
+            border-radius: 0.625rem;
+            background: #f8fafc;
+        }
+
+        .math-captcha-image {
+            flex: 1 1 auto;
+            max-width: 280px;
+            width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            border: 1px solid #cfd8ea;
+            background: #fff;
+        }
+
+        #reload-math-captcha {
+            flex: 0 0 auto;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 
     <style>
@@ -134,8 +163,16 @@
                                 @enderror
                             </div>
                             @if(($useMathFallback ?? false) === false && filled(config('services.turnstile.site_key')) && config('services.turnstile.enabled', true) && !in_array(request()->getHost(), ['localhost', '127.0.0.1'], true))
-                            <div class="mb-3 text-center">
-                                <div class="cf-turnstile" data-sitekey="{{ config('services.turnstile.site_key') }}" data-language="id"></div>
+                            <div class="mb-3 text-center" id="turnstile-wrap">
+                                <div
+                                    class="cf-turnstile"
+                                    data-sitekey="{{ config('services.turnstile.site_key') }}"
+                                    data-language="id"
+                                    data-callback="onTurnstileSuccess"
+                                    data-error-callback="onTurnstileError"
+                                    data-expired-callback="onTurnstileExpired"
+                                    data-timeout-callback="onTurnstileTimeout"
+                                ></div>
                                 @error('turnstile')
                                     <div class="text-danger small mt-2">{{ $message }}</div>
                                 @enderror
@@ -144,30 +181,43 @@
                             @if(($useMathFallback ?? false) === true)
                                 <input type="hidden" name="cf_fallback" value="1">
                                 <div class="mb-3">
-                                    <div class="alert alert-warning py-2 mb-2">
-                                        Mode non-Cloudflare aktif.
-                                    <a href="{{ route('login', ['cf_fallback' => 0]) }}" class="ms-2">Coba mode Cloudflare</a>
+                                    <div class="alert alert-warning py-2 mb-3">
+                                        Verifikasi Cloudflare bermasalah. Gunakan hitungan di bawah untuk login.
+                                        <a href="{{ route('login', ['cf_fallback' => 0]) }}" class="ms-1">Coba Cloudflare lagi</a>
+                                    </div>
+                                    <label class="form-label mb-2" for="math_answer">Verifikasi Manual</label>
+                                    <div class="math-captcha-box mb-2">
+                                        <img
+                                            id="math-captcha-image"
+                                            src="{{ $mathImage ?? '' }}"
+                                            alt="Captcha hitung: {{ ($mathLeft ?? 0) }} {{ ($mathOperator ?? '+') }} {{ ($mathRight ?? 0) }}"
+                                            class="math-captcha-image"
+                                        >
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="reload-math-captcha" title="Ganti soal">
+                                            <i class="ri-refresh-line"></i>
+                                        </button>
                                     </div>
                                     <div class="input-group input-group-merge">
-                                        <span class="input-group-text"><i class="ri-function-line"></i></span>
+                                        <span class="input-group-text"><i class="ri-calculator-line"></i></span>
                                         <div class="form-floating form-floating-outline">
                                             <input
                                                 type="number"
-                                                placeholder="Isi jawaban hitung"
+                                                placeholder="Hasil perhitungan"
                                                 id="math_answer"
                                                 name="math_answer"
                                                 autocomplete="off"
                                                 class="form-control @error('math_answer') is-invalid @enderror"
                                                 required
                                             />
-                                            <label for="math_answer">Hitung: {{ $mathLeft ?? 0 }} {{ $mathOperator ?? '+' }} {{ $mathRight ?? 0 }}</label>
+                                            <label for="math_answer">Hasil perhitungan</label>
                                         </div>
                                     </div>
                                     @error('math_answer')
-                                        <div class="invalid-feedback" role="alert">
+                                        <div class="invalid-feedback d-block" role="alert">
                                             <strong>{{ $message }}</strong>
                                         </div>
                                     @enderror
+                                    <div class="form-text">Contoh: jika gambar menampilkan 1 + 12 = ?, isi 13</div>
                                 </div>
                             @endif
                             <div class="mb-3 d-flex justify-content-start">
@@ -191,28 +241,107 @@
     @endif
 
     <script>
-        window.handleTurnstileLoadError = function () {
-            const storageKey = 'cf_login_fail_count';
-            const currentFail = Math.max(0, parseInt(localStorage.getItem(storageKey) || '0', 10));
-            const nextFail = Math.max(0, currentFail + 1);
-            localStorage.setItem(storageKey, String(nextFail));
+        function switchToMathFallback(reason) {
+            try {
+                const storageKey = 'cf_login_fail_count';
+                const currentFail = Math.max(0, parseInt(localStorage.getItem(storageKey) || '0', 10));
+                const nextFail = currentFail + 1;
+                localStorage.setItem(storageKey, String(nextFail));
 
-            const target = new URL(window.location.href);
-            target.searchParams.set('cf_fallback', '1');
-            target.searchParams.set('cf_fail_count', String(nextFail));
-            window.location.replace(target.toString());
+                const target = new URL(window.location.href);
+                target.searchParams.set('cf_fallback', '1');
+                target.searchParams.set('cf_fail_count', String(nextFail));
+                if (reason) {
+                    target.searchParams.set('cf_reason', reason);
+                }
+                window.location.replace(target.toString());
+            } catch (e) {
+                window.location.href = '{{ route('login', ['cf_fallback' => 1]) }}';
+            }
+        }
+
+        window.handleTurnstileLoadError = function () {
+            switchToMathFallback('script_error');
+        };
+
+        window.onTurnstileSuccess = function () {
+            // no-op: token akan ikut terkirim bersama form
+        };
+
+        window.onTurnstileError = function () {
+            switchToMathFallback('widget_error');
+        };
+
+        window.onTurnstileExpired = function () {
+            switchToMathFallback('expired');
+        };
+
+        window.onTurnstileTimeout = function () {
+            switchToMathFallback('timeout');
         };
 
         document.addEventListener("DOMContentLoaded", function () {
             @if($errors->has('turnstile') && ($useMathFallback ?? false) === false)
-            const target = new URL(window.location.href);
-            target.searchParams.set('cf_fallback', '1');
-            window.location.replace(target.toString());
+            switchToMathFallback('server_reject');
+            @endif
+
+            @if(($useMathFallback ?? false) === true)
+            const reloadMathBtn = document.getElementById('reload-math-captcha');
+            const mathImage = document.getElementById('math-captcha-image');
+            const mathAnswer = document.getElementById('math_answer');
+
+            if (reloadMathBtn && mathImage) {
+                reloadMathBtn.addEventListener('click', function () {
+                    reloadMathBtn.disabled = true;
+                    fetch('{{ route('reload-math-captcha') }}?cf_fallback=1', {
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin',
+                    })
+                        .then(function (response) {
+                            if (!response.ok) {
+                                throw new Error('Gagal memuat captcha');
+                            }
+                            return response.json();
+                        })
+                        .then(function (data) {
+                            if (data.image) {
+                                mathImage.src = data.image;
+                                mathImage.alt = 'Captcha hitung: ' + (data.label || '');
+                            }
+                            if (mathAnswer) {
+                                mathAnswer.value = '';
+                                mathAnswer.focus();
+                            }
+                        })
+                        .catch(function () {
+                            if (typeof errorAlert === 'function') {
+                                errorAlert('Gagal mengganti soal captcha. Silakan muat ulang halaman.');
+                            } else {
+                                alert('Gagal mengganti soal captcha. Silakan muat ulang halaman.');
+                            }
+                        })
+                        .finally(function () {
+                            reloadMathBtn.disabled = false;
+                        });
+                });
+            }
             @endif
 
             $('#formAuthentication').on('submit', function () {
                 loadingAlert('');
             });
+
+            // Jika widget Cloudflare tidak muncul dalam 8 detik, otomatis fallback
+            @if(($useMathFallback ?? false) === false && filled(config('services.turnstile.site_key')) && config('services.turnstile.enabled', true))
+            setTimeout(function () {
+                const widget = document.querySelector('.cf-turnstile iframe, .cf-turnstile [name="cf-turnstile-response"]');
+                const tokenInput = document.querySelector('[name="cf-turnstile-response"]');
+                const hasToken = tokenInput && tokenInput.value;
+                if (!widget && !hasToken) {
+                    switchToMathFallback('widget_missing');
+                }
+            }, 8000);
+            @endif
 
             $('.showPassword').click(function () {
                 const passInput = $('#password');

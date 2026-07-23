@@ -29,19 +29,20 @@ class LoginController extends Controller
         }
 
         if ($this->shouldUseMathFallback($request)) {
-            [$left, $operator, $right, $expected] = $this->buildMathChallenge();
-            session(["auth_math_answer" => $expected]);
+            $challenge = $this->makeMathChallengePayload();
 
             return view("auth.login", [
                 "useMathFallback" => true,
-                "mathLeft" => $left,
-                "mathOperator" => $operator,
-                "mathRight" => $right,
+                "mathLeft" => $challenge["left"],
+                "mathOperator" => $challenge["operator"],
+                "mathRight" => $challenge["right"],
+                "mathImage" => $challenge["image"],
             ]);
         }
 
         return view("auth.login", [
             "useMathFallback" => false,
+            "mathImage" => null,
         ]);
     }
 
@@ -93,6 +94,7 @@ class LoginController extends Controller
         }
 
         $this->guard()->login($user);
+        session()->forget(["auth_cf_fallback", "auth_math_answer"]);
 
         return true;
     }
@@ -224,6 +226,64 @@ class LoginController extends Controller
         return [$left, $operator, $right, $result];
     }
 
+    private function makeMathChallengePayload(): array
+    {
+        [$left, $operator, $right, $expected] = $this->buildMathChallenge();
+        session(["auth_math_answer" => $expected]);
+
+        return [
+            "left" => $left,
+            "operator" => $operator,
+            "right" => $right,
+            "expected" => $expected,
+            "image" => $this->buildMathChallengeImage($left, $operator, $right),
+        ];
+    }
+
+    private function buildMathChallengeImage(int $left, string $operator, int $right): string
+    {
+        $text = "{$left} {$operator} {$right} = ?";
+        $escaped = htmlspecialchars($text, ENT_QUOTES | ENT_XML1, "UTF-8");
+
+        $svg = <<<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="84" viewBox="0 0 280 84" role="img" aria-label="{$escaped}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eef2ff"/>
+      <stop offset="100%" stop-color="#dbe7ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="280" height="84" rx="12" fill="url(#bg)" stroke="#c5d0f0"/>
+  <g stroke="#b7c4ea" stroke-width="1" opacity="0.55">
+    <line x1="18" y1="22" x2="62" y2="66"/>
+    <line x1="70" y1="18" x2="118" y2="70"/>
+    <line x1="140" y1="16" x2="210" y2="72"/>
+    <line x1="220" y1="20" x2="262" y2="64"/>
+    <circle cx="48" cy="28" r="3" fill="#9db0e8" stroke="none"/>
+    <circle cx="168" cy="58" r="2.5" fill="#9db0e8" stroke="none"/>
+    <circle cx="236" cy="34" r="3" fill="#9db0e8" stroke="none"/>
+  </g>
+  <text x="140" y="52" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#3b4a8a" letter-spacing="1">{$escaped}</text>
+</svg>
+SVG;
+
+        return "data:image/svg+xml;base64," . base64_encode($svg);
+    }
+
+    public function reloadMathCaptcha(Request $request)
+    {
+        if (!$this->shouldUseMathFallback($request)) {
+            session(["auth_cf_fallback" => true]);
+        }
+
+        $challenge = $this->makeMathChallengePayload();
+
+        return response()->json([
+            "image" => $challenge["image"],
+            "label" => "{$challenge["left"]} {$challenge["operator"]} {$challenge["right"]}",
+        ]);
+    }
+
     protected function redirectTo(): string
     {
         return "/admin";
@@ -231,7 +291,7 @@ class LoginController extends Controller
 
     public function __construct()
     {
-        $this->middleware("guest")->except("logout");
+        $this->middleware("guest")->except(["logout", "reloadMathCaptcha"]);
     }
 
     protected function sendFailedLoginResponse(Request $request): void

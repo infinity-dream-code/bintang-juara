@@ -11,6 +11,7 @@ Route::get("/", [AuthController::class, "index"])->name("index");
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 Route::get("/reload-captcha", [AuthController::class, "reloadCaptcha"])->name("reload-captcha");
+Route::get("/reload-math-captcha", [\App\Http\Controllers\Auth\LoginController::class, "reloadMathCaptcha"])->name("reload-math-captcha");
 
 Route::prefix("admin")
     ->name("admin.")

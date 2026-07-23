@@ -4,6 +4,79 @@
     <link rel="stylesheet" href="{{asset('main/libs/datatables-responsive-bs5/responsive.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/datatables-buttons-bs5/buttons.bootstrap5.css')}}">
     <link rel="stylesheet" href="{{asset('main/libs/select2/select2.min.css')}}">
+    <style>
+        .cicil-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.65rem;
+            justify-content: center;
+            min-width: 210px;
+        }
+
+        .cicil-switch {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .cicil-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .cicil-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #cfd3dc;
+            border-radius: 999px;
+            transition: background-color .2s ease;
+        }
+
+        .cicil-slider::before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+            transition: transform .2s ease;
+        }
+
+        .cicil-switch input:checked + .cicil-slider {
+            background: #696cff;
+        }
+
+        .cicil-switch input:checked + .cicil-slider::before {
+            transform: translateX(22px);
+        }
+
+        .cicil-switch input:disabled + .cicil-slider {
+            opacity: .6;
+            cursor: wait;
+        }
+
+        .cicil-label {
+            font-size: .8125rem;
+            font-weight: 600;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .cicil-label.is-on {
+            color: #696cff;
+        }
+
+        .cicil-label.is-off {
+            color: #8592a3;
+        }
+    </style>
 @endsection
 @section('content')
     <h3 class="page-heading d-flex text-gray-900 fw-bold flex-column justify-content-center my-0">
@@ -50,7 +123,7 @@
         </div>
         <div class="card-footer">
             <small class="text-muted">
-                Aktifkan toggle untuk memperbolehkan cicilan per nama tagihan.
+                Geser toggle untuk mengaktifkan / menonaktifkan cicilan per nama tagihan.
             </small>
         </div>
     </div>
@@ -102,7 +175,8 @@
                 const id = $toggle.data('id');
                 const nextValue = $toggle.is(':checked') ? 1 : 0;
                 const previousChecked = !$toggle.is(':checked');
-                const $label = $toggle.closest('.d-inline-flex').find('.installment-label');
+                const $wrap = $toggle.closest('.cicil-toggle');
+                const $label = $wrap.find('.cicil-label');
                 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                 const url = toggleInstallmentUrl.replace('__ID__', id);
 
@@ -132,7 +206,10 @@
                         const active = Number(data.isINSTALLMENT) === 1;
                         $toggle.prop('checked', active);
                         if ($label.length) {
-                            $label.text(active ? 'Bisa di cicil' : 'Tidak bisa di cicil');
+                            $label
+                                .text(active ? 'Bisa di cicil' : 'Tidak bisa di cicil')
+                                .toggleClass('is-on', active)
+                                .toggleClass('is-off', !active);
                         }
                         $toggle.attr('title', active ? 'Bisa di cicil' : 'Tidak bisa di cicil');
                         if (typeof successAlert === 'function') {

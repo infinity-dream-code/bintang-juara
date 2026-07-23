@@ -77,19 +77,20 @@ class MasterTagihanController extends Controller
             ->take($rowperpage)
             ->get()
             ->map(function ($item) {
-                $checked = (int) $item->isINSTALLMENT === 1 ? 'checked' : '';
-                $label = (int) $item->isINSTALLMENT === 1 ? 'Bisa di cicil' : 'Tidak bisa di cicil';
+                $isOn = (int) $item->isINSTALLMENT === 1;
+                $checked = $isOn ? 'checked' : '';
+                $label = $isOn ? 'Bisa di cicil' : 'Tidak bisa di cicil';
+                $labelClass = $isOn ? 'is-on' : 'is-off';
                 $item->isINSTALLMENT_toggle = '
-                    <div class="d-inline-flex align-items-center gap-2 justify-content-center">
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input toggle-installment"
+                    <div class="cicil-toggle">
+                        <label class="cicil-switch" title="' . e($label) . '">
+                            <input class="toggle-installment"
                                 type="checkbox"
-                                role="switch"
                                 data-id="' . (int) $item->urut . '"
-                                ' . $checked . '
-                                title="' . e($label) . '">
-                        </div>
-                        <span class="small text-muted installment-label">' . e($label) . '</span>
+                                ' . $checked . '>
+                            <span class="cicil-slider"></span>
+                        </label>
+                        <span class="cicil-label ' . $labelClass . '">' . e($label) . '</span>
                     </div>';
 
                 return $item;

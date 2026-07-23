@@ -49,8 +49,8 @@
             </table>
         </div>
         <div class="card-footer">
-            <small class="text-primary fw-semibold">
-                PERUBAHAN STATUS DAPAT DI CICIL/TIDAK HUB HELPDESK
+            <small class="text-muted">
+                Aktifkan toggle untuk memperbolehkan cicilan per nama tagihan.
             </small>
         </div>
     </div>
@@ -78,6 +78,8 @@
             lengthMenu: [10, 25, 50, 75, 100],
         };
 
+        const toggleInstallmentUrl = '{{ route('admin.master-data.master-tagihan.toggle-installment', ['id' => '__ID__']) }}';
+
         document.addEventListener("DOMContentLoaded", function () {
             if (dtOptions.dataUrl && dtOptions.columnUrl) {
                 getDT(dtOptions);
@@ -93,6 +95,59 @@
                     language: "id",
                     dropdownParent: $(wrapper)
                 });
+            });
+
+            $(document).on('change', '#main_table .toggle-installment', function () {
+                const $toggle = $(this);
+                const id = $toggle.data('id');
+                const nextValue = $toggle.is(':checked') ? 1 : 0;
+                const previousChecked = !$toggle.is(':checked');
+                const $label = $toggle.closest('.d-inline-flex').find('.installment-label');
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                const url = toggleInstallmentUrl.replace('__ID__', id);
+
+                $toggle.prop('disabled', true);
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        isINSTALLMENT: nextValue,
+                        _token: csrfToken,
+                    }),
+                })
+                    .then(function (response) {
+                        return response.json().then(function (payload) {
+                            if (!response.ok) {
+                                throw payload;
+                            }
+                            return payload;
+                        });
+                    })
+                    .then(function (data) {
+                        const active = Number(data.isINSTALLMENT) === 1;
+                        $toggle.prop('checked', active);
+                        if ($label.length) {
+                            $label.text(active ? 'Bisa di cicil' : 'Tidak bisa di cicil');
+                        }
+                        $toggle.attr('title', active ? 'Bisa di cicil' : 'Tidak bisa di cicil');
+                        if (typeof successAlert === 'function') {
+                            successAlert(data.message || 'Status cicil diperbarui');
+                        }
+                    })
+                    .catch(function (error) {
+                        $toggle.prop('checked', previousChecked);
+                        if (typeof errorAlert === 'function') {
+                            errorAlert((error && error.message) ? error.message : 'Gagal mengubah status cicil');
+                        }
+                    })
+                    .finally(function () {
+                        $toggle.prop('disabled', false);
+                    });
             });
         });
     </script>

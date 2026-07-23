@@ -53,6 +53,7 @@ Route::prefix("admin")
                 ->group(function () {
                     Route::get("get-data", "getData")->name("get-data");
                     Route::get("get-column", "getColumn")->name("get-column");
+                    Route::post("toggle-installment/{id}", "toggleInstallment")->name("toggle-installment");
                     Route::get("", "index")->name("index");
                     Route::post("", "store")->name("store");
                 });

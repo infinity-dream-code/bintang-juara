@@ -67,7 +67,7 @@ class DataPenerimaanController extends Controller
         $data['mainTitle'] = $this->mainTitle;
         $data['columnsUrl'] = $this->columnsUrl();
         $data['datasUrl'] = $this->datasUrl();
-        $data['post'] = mst_tagihan::select(['tagihan'])->get();
+        $data['post'] = mst_tagihan::select(['tagihan'])->orderBy('urut')->get();
         $data['thn_aka'] = mst_thn_aka::getMstThnAkaAttributes();
         $data['kelas'] = mst_kelas::getMstKelasAttributes($this->sekolah);
         $data['tanda_tangan'] = User::getTandaTanganBase64();
@@ -113,17 +113,17 @@ class DataPenerimaanController extends Controller
                 'exportable' => false,
                 'duplicate' => false,
             ],
-            ['data' => null, 'name' => 'no', 'columnType' => 'row'],
-            ['data' => 'nocust', 'name' => 'NIS', 'searchable' => true, 'orderable' => true],
-            ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true],
-            ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true],
-            ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true],
-            ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true],
-            ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
-            ['data' => 'BILLAM', 'name' => 'Nominal Bayar', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end'],
-            ['data' => 'FIDBANK', 'name' => 'Metode', 'columnType' => 'custom_code_tagihan', 'searchable' => true, 'orderable' => true],
-            ['data' => 'PAIDDT', 'name' => 'Tanggal Bayar', 'columnType' => 'timestamp', 'searchable' => true, 'orderable' => true],
-            ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true],
+            ['data' => null, 'name' => 'no', 'columnType' => 'row', 'exportable' => true],
+            ['data' => 'nocust', 'name' => 'NIS', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'nmcust', 'name' => 'NAMA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'CODE02', 'name' => 'Unit', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'DESC02', 'name' => 'Kelas', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'DESC03', 'name' => 'Kelompok', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'BILLNM', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'BILLAM', 'name' => 'Nominal Bayar', 'searchable' => true, 'orderable' => true, 'columnType' => 'currency', 'className' => 'text-end', 'exportable' => true],
+            ['data' => 'FIDBANK', 'name' => 'Metode', 'columnType' => 'custom_code_tagihan', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'PAIDDT', 'name' => 'Tanggal Bayar', 'columnType' => 'timestamp', 'searchable' => true, 'orderable' => true, 'exportable' => true],
+            ['data' => 'BTA', 'name' => 'Tahun AKA', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             [
                 'data' => 'delete',
                 'name' => '',
@@ -208,6 +208,22 @@ class DataPenerimaanController extends Controller
                             $filters[] = ['scctcust.DESC03', '=', $val[2]];
                         }
                         break;
+                    case 'scctbill.BILLNM':
+                        if (is_array($val)) {
+                            $billNames = array_values(array_filter(
+                                $val,
+                                fn ($item) => !is_null($item) && $item !== '' && strtolower((string) $item) !== 'all'
+                            ));
+                            if (!empty($billNames)) {
+                                $filters[] = ['scctbill.BILLNM', 'in', $billNames];
+                            }
+                        } else {
+                            $name = trim((string) $val);
+                            if ($name !== '' && strtolower($name) !== 'all') {
+                                $filters[] = ['scctbill.BILLNM', '=', $name];
+                            }
+                        }
+                        break;
                     case 'scctcust.nmcust':
                         $val = is_numeric($val) ? $val : '%' . $val . '%';
                         $colName = is_numeric($val) ? 'scctcust.NOCUST' : $key;
@@ -223,7 +239,11 @@ class DataPenerimaanController extends Controller
                 $filterQuery = function ($query) use ($filters) {
                     foreach ($filters as $filter) {
                         if (count($filter) === 3) {
-                            $query->where($filter[0], $filter[1], $filter[2]);
+                            if (($filter[1] ?? null) === 'in' && is_array($filter[2] ?? null)) {
+                                $query->whereIn($filter[0], $filter[2]);
+                            } else {
+                                $query->where($filter[0], $filter[1], $filter[2]);
+                            }
                         } elseif (count($filter) === 4) {
                             if ($filter[3] == 'whereBetween') {
                                 $query->whereBetween($filter[0], [$filter[1], $filter[2]]);

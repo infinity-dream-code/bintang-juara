@@ -278,6 +278,27 @@
                             </div>
 
                             <div class="mb-3 row">
+                                <label class="col-sm-4 col-form-label form-label" for="filter[post]">
+                                    Nama Tagihan
+                                </label>
+                                <div class="col">
+                                    <select class="form-select" id="filter[post]"
+                                            name="filter[post][]"
+                                            multiple
+                                            data-control="select2"
+                                            data-placeholder="Pilih Nama Tagihan">
+                                        @isset($post)
+                                            @foreach($post as $item)
+                                                <option value="{{$item->tagihan}}">{{$item->tagihan}}</option>
+                                            @endforeach
+                                        @else
+                                            <option>data kosong</option>
+                                        @endisset
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3 row">
                                 <label class="col-sm-4 col-form-label text-capitalize form-label" for="filter[bank]">
                                     bank
                                 </label>
@@ -314,6 +335,10 @@
                                     id="download-pdf">
                                 <span class="ri-file-pdf-2-line me-2"></span>
                                 Cetak PDF
+                            </button>
+                            <button type="button" class="btn btn-success w-100 text-nowrap mb-3" id="export-excel">
+                                <span class="ri-file-excel-2-line me-2"></span>
+                                Export Excel
                             </button>
                         </div>
                     </div>
@@ -466,6 +491,7 @@
             select: 'multi',
             pageLength: 10,
             lengthMenu: [10, 25, 50, 75, 100],
+            buttons: ['excel'],
         };
 
         const modalDeleteElement = document.getElementById('modal-delete');
@@ -765,6 +791,28 @@
                     });
                 }
             }
+
+            $('#export-excel').on('click', function () {
+                const table = $.fn.DataTable.isDataTable(`#${dtOptions.tableId}`)
+                    ? $(`#${dtOptions.tableId}`).DataTable()
+                    : null;
+                if (!table) {
+                    if (typeof warningAlert === 'function') {
+                        warningAlert('Tabel belum siap. Silahkan tunggu sebentar lalu coba lagi.');
+                    }
+                    return;
+                }
+
+                const excelBtn = document.querySelector(`#${dtOptions.tableId}_wrapper .buttons-excel`);
+                if (excelBtn) {
+                    excelBtn.click();
+                    return;
+                }
+
+                if (typeof warningAlert === 'function') {
+                    warningAlert('Tombol export Excel tidak ditemukan. Silahkan muat ulang halaman.');
+                }
+            });
 
             if (select2.length) {
                 select2.each(function () {

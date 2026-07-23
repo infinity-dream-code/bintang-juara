@@ -804,13 +804,37 @@
                     return;
                 }
 
-                const excelBtn = document.querySelector(`#${dtOptions.tableId}_wrapper .buttons-excel`);
-                if (excelBtn) {
-                    excelBtn.click();
-                    return;
+                // Excel nested di dropdown Export (.buttons-excel sering belum ada di DOM).
+                // Trigger via Buttons API; fallback klik DOM / index collection 0-0.
+                let triggered = false;
+                try {
+                    const apiExcel = table.button('.buttons-excel');
+                    if (apiExcel && apiExcel.length) {
+                        apiExcel.trigger();
+                        triggered = true;
+                    }
+                } catch (e) { /* ignore */ }
+
+                if (!triggered) {
+                    const excelBtn = document.querySelector(`#${dtOptions.tableId}_wrapper .buttons-excel`)
+                        || document.querySelector('.dt-button-collection .buttons-excel');
+                    if (excelBtn) {
+                        excelBtn.click();
+                        triggered = true;
+                    }
                 }
 
-                if (typeof warningAlert === 'function') {
+                if (!triggered) {
+                    try {
+                        const nested = table.button('0-0');
+                        if (nested && nested.length) {
+                            nested.trigger();
+                            triggered = true;
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (!triggered && typeof warningAlert === 'function') {
                     warningAlert('Tombol export Excel tidak ditemukan. Silahkan muat ulang halaman.');
                 }
             });

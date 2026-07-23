@@ -225,7 +225,12 @@ class RekapPenerimaanController extends Controller
         $data['unit'] = mst_sekolah::when(!empty($schoolCodes), function ($query) use ($schoolCodes) {
             $query->whereIn('CODE01', $schoolCodes);
         })->get();
-        $data['bank'] = (new scctbill())->metodeBayar;
+        $data['bank'] = [
+            '1140000' => 'Manual Cash',
+            '1140002' => 'Manual SALDO',
+            '1140001' => 'Manual BMI',
+            '6' => 'ANDROID',
+        ];
 
         return view('admin.keuangan.penerimaan_siswa.rekap_penerimaan', $data);
     }

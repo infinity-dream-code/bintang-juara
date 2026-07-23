@@ -32,13 +32,7 @@ class MasterTagihanController extends Controller
         return [
             ['data' => null, 'name' => 'no', 'className' => 'text-center', 'columnType' => 'no'],
             ['data' => 'tagihan', 'name' => 'Nama Tagihan', 'searchable' => true, 'orderable' => true],
-            [
-                'data' => 'isINSTALLMENT_toggle',
-                'name' => 'Status Dapat Di Cicil',
-                'searchable' => false,
-                'orderable' => true,
-                'className' => 'text-center',
-            ],
+            ['data' => 'isINSTALLMENT_label', 'name' => 'Status Dapat Di Cicil', 'searchable' => false, 'orderable' => true],
         ];
     }
 
@@ -61,9 +55,7 @@ class MasterTagihanController extends Controller
             $columnIndex = $columnIndex_arr[0]['column'] ?? null;
             if ($columnIndex !== null && !empty($columnName_arr[$columnIndex]['data']) && $columnName_arr[$columnIndex]['data'] !== 'no') {
                 $sortColumn = $columnName_arr[$columnIndex]['data'];
-                $columnName = in_array($sortColumn, ['isINSTALLMENT_label', 'isINSTALLMENT_toggle'], true)
-                    ? 'isINSTALLMENT'
-                    : $sortColumn;
+                $columnName = $sortColumn === 'isINSTALLMENT_label' ? 'isINSTALLMENT' : $sortColumn;
                 $columnSortOrder = $order_arr[0]['dir'] ?? 'asc';
             }
         }
@@ -77,22 +69,9 @@ class MasterTagihanController extends Controller
             ->take($rowperpage)
             ->get()
             ->map(function ($item) {
-                $isOn = (int) $item->isINSTALLMENT === 1;
-                $checked = $isOn ? 'checked' : '';
-                $label = $isOn ? 'Bisa di cicil' : 'Tidak bisa di cicil';
-                $labelClass = $isOn ? 'is-on' : 'is-off';
-                $item->isINSTALLMENT_toggle = '
-                    <div class="cicil-toggle">
-                        <label class="cicil-switch" title="' . e($label) . '">
-                            <input class="toggle-installment"
-                                type="checkbox"
-                                data-id="' . (int) $item->urut . '"
-                                ' . $checked . '>
-                            <span class="cicil-slider"></span>
-                        </label>
-                        <span class="cicil-label ' . $labelClass . '">' . e($label) . '</span>
-                    </div>';
-
+                $item->isINSTALLMENT_label = (int) $item->isINSTALLMENT === 1
+                    ? 'BISA DI CICIL'
+                    : 'TIDAK BISA DI CICIL';
                 return $item;
             })
             ->toArray();
@@ -103,44 +82,6 @@ class MasterTagihanController extends Controller
             'recordsFiltered' => $totalRecordswithFilter,
             'data' => $records,
         ]);
-    }
-
-    public function toggleInstallment($id, Request $request)
-    {
-        $validator = Validator::make(
-            $request->all(),
-            [
-                'isINSTALLMENT' => ['required', 'in:0,1'],
-            ],
-            ValidationMessage::messages(),
-            ValidationMessage::attributes()
-        );
-
-        if ($validator->fails()) {
-            return response()->json(['message' => $validator->errors()->first()], 422);
-        }
-
-        $tagihan = mst_tagihan::where('urut', $id)->first();
-        if (!$tagihan) {
-            return response()->json(['message' => 'Data tagihan tidak ditemukan'], 422);
-        }
-
-        try {
-            $tagihan->isINSTALLMENT = (int) $request->isINSTALLMENT;
-            $tagihan->save();
-
-            return response()->json([
-                'message' => (int) $tagihan->isINSTALLMENT === 1
-                    ? 'Tagihan "' . $tagihan->tagihan . '" sekarang bisa di cicil'
-                    : 'Tagihan "' . $tagihan->tagihan . '" sekarang tidak bisa di cicil',
-                'isINSTALLMENT' => (int) $tagihan->isINSTALLMENT,
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'message' => 'Gagal mengubah status cicil',
-                'error' => $e->getMessage(),
-            ], 422);
-        }
     }
 
     public function store(Request $request)

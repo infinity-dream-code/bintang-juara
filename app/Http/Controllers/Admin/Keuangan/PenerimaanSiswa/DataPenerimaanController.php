@@ -79,7 +79,14 @@ class DataPenerimaanController extends Controller
         })->get();
 //        dd($data['tanda_tangan']);
         $scctbillModel = new scctbill();
-        $data['bank'] = $scctbillModel->metodeBayar;
+        $allowedBanks = [
+            '1140000' => 'Manual Cash',
+            '1140002' => 'Manual SALDO',
+            '1140001' => 'Manual BMI',
+            '6' => 'ANDROID',
+        ];
+        $data['bank'] = array_intersect_key($allowedBanks, $scctbillModel->metodeBayar)
+            ?: $allowedBanks;
 
         return view('admin.keuangan.penerimaan_siswa.data_penerimaan', $data);
     }

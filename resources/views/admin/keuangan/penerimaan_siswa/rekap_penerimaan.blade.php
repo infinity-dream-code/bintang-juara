@@ -240,6 +240,10 @@
                                 <span class="ri-profile-line me-2"></span>
                                 Cetak Kartu Siswa
                             </button>
+                            <button type="button" class="btn btn-success" id="export-excel">
+                                <span class="ri-file-excel-2-line me-2"></span>
+                                Export Excel
+                            </button>
                             <button type="reset" class="btn btn-secondary" disabled>
                                 <span class="ri-reset-left-line me-2"></span>
                                 Reset
@@ -305,6 +309,7 @@
             cache: true,
             pageLength: 10,
             lengthMenu: [10, 25, 50, 75, 100],
+            buttons: ['excel'],
         };
 
         document.addEventListener("DOMContentLoaded", function () {
@@ -330,6 +335,50 @@
                     });
                 }
             }
+
+            $('#export-excel').on('click', function () {
+                const table = $.fn.DataTable.isDataTable(`#${dtOptions.tableId}`)
+                    ? $(`#${dtOptions.tableId}`).DataTable()
+                    : null;
+                if (!table) {
+                    if (typeof warningAlert === 'function') {
+                        warningAlert('Tabel belum siap. Silahkan tunggu sebentar lalu coba lagi.');
+                    }
+                    return;
+                }
+
+                let triggered = false;
+                try {
+                    const apiExcel = table.button('.buttons-excel');
+                    if (apiExcel && apiExcel.length) {
+                        apiExcel.trigger();
+                        triggered = true;
+                    }
+                } catch (e) { /* ignore */ }
+
+                if (!triggered) {
+                    const excelBtn = document.querySelector(`#${dtOptions.tableId}_wrapper .buttons-excel`)
+                        || document.querySelector('.dt-button-collection .buttons-excel');
+                    if (excelBtn) {
+                        excelBtn.click();
+                        triggered = true;
+                    }
+                }
+
+                if (!triggered) {
+                    try {
+                        const nested = table.button('0-0');
+                        if (nested && nested.length) {
+                            nested.trigger();
+                            triggered = true;
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (!triggered && typeof warningAlert === 'function') {
+                    warningAlert('Tombol export Excel tidak ditemukan. Silahkan muat ulang halaman.');
+                }
+            });
 
             if (select2.length) {
                 select2.each(function () {

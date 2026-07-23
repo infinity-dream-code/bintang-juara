@@ -192,7 +192,7 @@ class RekapPenerimaanController extends Controller
     public function getColumn()
     {
         return [
-            ['data' => null, 'name' => 'no', 'columnType' => 'row'],
+            ['data' => null, 'name' => 'no', 'columnType' => 'row', 'exportable' => true],
             ['data' => 'PAIDDT', 'name' => 'Tanggal', 'columnType' => 'timestamp', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NOVA', 'name' => 'VANO', 'searchable' => true, 'orderable' => true, 'exportable' => true],
             ['data' => 'NMCUST', 'name' => 'Nama', 'searchable' => true, 'orderable' => true, 'exportable' => true],

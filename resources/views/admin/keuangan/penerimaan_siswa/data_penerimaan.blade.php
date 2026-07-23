@@ -327,10 +327,7 @@
                                 <span class="ri-info-card-line me-2"></span>
                                 Cetak Kuitansi
                             </button>
-                            <button type="button" class="btn btn-facebook w-100 text-nowrap  mb-3" id="cetak-kuitansi-2000">
-                                <span class="ri-info-card-line me-2"></span>
-                                Cetak Kuitansi Dengan 2000
-                            </button>
+                            {{-- Cetak Kuitansi Dengan 2000 disembunyikan --}}
                             <button type="button" class="btn btn-google-plus w-100 text-nowrap download-pdf-new  mb-3"
                                     id="download-pdf">
                                 <span class="ri-file-pdf-2-line me-2"></span>
@@ -1477,11 +1474,6 @@
             document.getElementById('cetak-kuitansi').addEventListener('click', async function (e) {
                 e.preventDefault();
                 await generateKuitansi();
-            });
-
-            document.getElementById('cetak-kuitansi-2000').addEventListener('click', async function (e) {
-                e.preventDefault();
-                await generateKuitansi(true);
             });
 
             document.getElementById('cetak-kartu-siswa').addEventListener('click', async function (e) {

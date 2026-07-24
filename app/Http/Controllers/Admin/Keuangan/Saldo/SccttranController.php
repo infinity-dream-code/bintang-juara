@@ -97,76 +97,100 @@ class SccttranController extends Controller
         $filterQuery = null;
 
         $draw = $request->get('draw');
-        $start = $request->get("start");
-        $rowperpage = $request->get("length");
+        $start = (int) $request->get('start', 0);
+        $rowperpage = (int) $request->get('length', 10);
 
-        $columnName_arr = $request->get('columns');
-        $search_arr = $request->get('search');
+        $columnName_arr = $request->get('columns', []);
+        $search_arr = $request->get('search', []);
+        $order_arr = $request->get('order', []);
 
-        $defaultColumn =  'sccttran.TRXDATE';
-        $defaultOrder = 'asc';
+        $defaultColumn = 'sccttran.TRXDATE';
+        $defaultOrder = 'desc';
+        $columnName = $defaultColumn;
+        $columnSortOrder = $defaultOrder;
 
-        if ($request->has('order')) {
-            $columnIndex_arr = $request->get('order');
-            $columnIndex = $columnIndex_arr[0]['column'];
-            $columnSortOrder = $columnIndex_arr[0]['dir'];
+        if (!empty($order_arr)) {
+            $columnIndex = $order_arr[0]['column'] ?? null;
+            $columnSortOrder = $order_arr[0]['dir'] ?? $defaultOrder;
+            $requestedColumn = ($columnIndex !== null && isset($columnName_arr[$columnIndex]['data']))
+                ? $columnName_arr[$columnIndex]['data']
+                : null;
 
-        } else {
-            $columnIndex = $defaultColumn;
-            $columnSortOrder = $defaultOrder;
+            if (!$requestedColumn || $requestedColumn === 'no') {
+                $columnName = $defaultColumn;
+            } elseif ($requestedColumn === 'NOMINAL') {
+                $columnName = 'sccttran.KREDIT';
+            } elseif (!str_contains((string) $requestedColumn, '.')) {
+                $columnName = in_array($requestedColumn, ['NOCUST', 'NMCUST', 'NUM2ND', 'NOVA'], true)
+                    ? 'scctcust.' . ($requestedColumn === 'NOVA' ? 'NOCUST' : $requestedColumn)
+                    : 'sccttran.' . $requestedColumn;
+            } else {
+                $columnName = $requestedColumn;
+            }
         }
 
-        $columnName = $columnName_arr[$columnIndex]['data'];
-        $searchValue = $search_arr['value'];
+        $searchValue = $search_arr['value'] ?? '';
 
-        if (!$columnName || $columnName == 'no') {
-            $columnName = $defaultColumn;
-            $columnSortOrder = $defaultOrder;
-        } elseif ($columnName === 'NOMINAL') {
-            $columnName = 'sccttran.KREDIT';
-        } elseif (!str_contains((string) $columnName, '.')) {
-            $columnName = in_array($columnName, ['NOCUST', 'NMCUST', 'NUM2ND'], true)
-                ? 'scctcust.' . $columnName
-                : 'sccttran.' . $columnName;
-        }
-
-        $filter = $request->input('filter');
-        if ($filter) {
+        $filter = $request->input('filter', []);
+        if (is_array($filter)) {
             foreach ($filter as $key => $val) {
-                if (strtolower($val) != 'all' && $val !== null && $val !== '') {
-                    $colName = match ($key) {
-                        'dari_tanggal', 'sampai_tanggal' => 'sccttran.TRXDATE',
-                        'kelas' => 'scctcust.CODE03',
-                        'nama' => 'scctcust.NMCUST',
-                        'nis' => 'scctcust.NOCUST',
-                        'sekolah' => 'scctcust.CODE01',
-                        'angkatan' => 'scctcust.DESC04',
-                        'metode' => 'sccttran.METODE',
-                        default => null
-                    };
-                    if (in_array($key, ['dari_tanggal', 'sampai_tanggal']) && preg_match('/^\d{2}-\d{2}-\d{4}$/', $val)) {
-                        if ($key == 'dari_tanggal'){
-                            $date = Carbon::createFromFormat('d-m-Y', $val)->startOfDay();
-                        }else{
-                            $date = Carbon::createFromFormat('d-m-Y', $val)->endOfDay();
-                        }
-
-                        if ($date && $colName) {
-                            $operator = $key === 'dari_tanggal' ? '>=' : '<=';
-                            $filters[] = [$colName, $operator, $date];
-                        }
-                    } elseif (in_array($key, ['nama', 'nis', 'metode'])) {
-                        ($colName) && $filters[] = [$colName, 'like', '%' . $val . '%'];
-                    } else if ($key === 'sekolah') {
-                        ($colName) && $filters[] = [$colName, '=', $val];
-                    } else {
-                        ($colName) && $filters[] = [$colName, '=', $val];
+                if (is_array($val)) {
+                    $val = collect($val)
+                        ->filter(fn ($item) => !blank($item) && strtolower((string) $item) !== 'all')
+                        ->values()
+                        ->all();
+                    if ($val === []) {
+                        continue;
                     }
+                } elseif (blank($val) || strtolower((string) $val) === 'all') {
+                    continue;
                 }
-            };
+
+                $colName = match ($key) {
+                    'dari_tanggal', 'sampai_tanggal' => 'sccttran.TRXDATE',
+                    'kelas' => 'scctcust.CODE03',
+                    'nama' => 'scctcust.NMCUST',
+                    'nis' => 'scctcust.NOCUST',
+                    'sekolah' => 'scctcust.CODE01',
+                    'angkatan' => 'scctcust.DESC04',
+                    'metode' => 'sccttran.METODE',
+                    default => null
+                };
+
+                if (!$colName) {
+                    continue;
+                }
+
+                if (in_array($key, ['dari_tanggal', 'sampai_tanggal'], true)
+                    && is_string($val)
+                    && preg_match('/^\d{2}-\d{2}-\d{4}$/', $val)
+                ) {
+                    $date = $key === 'dari_tanggal'
+                        ? Carbon::createFromFormat('d-m-Y', $val)->startOfDay()
+                        : Carbon::createFromFormat('d-m-Y', $val)->endOfDay();
+                    if ($date) {
+                        $operator = $key === 'dari_tanggal' ? '>=' : '<=';
+                        $filters[] = [$colName, $operator, $date];
+                    }
+                    continue;
+                }
+
+                if (in_array($key, ['nama', 'nis', 'metode'], true) && is_string($val)) {
+                    $filters[] = [$colName, 'like', '%' . $val . '%'];
+                    continue;
+                }
+
+                if (is_array($val)) {
+                    $filters[] = [$colName, 'in', $val];
+                } else {
+                    $filters[] = [$colName, '=', $val];
+                }
+            }
         }
 
-        ($custid) && $filters[] = ['sccttran.CUSTID', '=', $custid];
+        if ($custid) {
+            $filters[] = ['sccttran.CUSTID', '=', $custid];
+        }
 
         $schoolCodes = blank($this->sekolah) ? [] : [trim((string) $this->sekolah)];
         if (!empty($schoolCodes)) {
@@ -175,11 +199,14 @@ class SccttranController extends Controller
 
         if (!empty($filters)) {
             $filterQuery = function ($query) use ($filters) {
-                foreach ($filters as $filter) {
-                    if (count($filter) === 3) {
-                        $query->where($filter[0], $filter[1], $filter[2]);
-                    } elseif (count($filter) === 4) {
-                        $query->{$filter[3]}($filter[0], $filter[1], $filter[2]);
+                foreach ($filters as $filterItem) {
+                    if (count($filterItem) !== 3) {
+                        continue;
+                    }
+                    if (($filterItem[1] ?? null) === 'in' && is_array($filterItem[2] ?? null)) {
+                        $query->whereIn($filterItem[0], $filterItem[2]);
+                    } else {
+                        $query->where($filterItem[0], $filterItem[1], $filterItem[2]);
                     }
                 }
             };
@@ -193,7 +220,10 @@ class SccttranController extends Controller
             'sccttran.NOREFF',
         ];
 
-        $select = array_merge($whereAny, [
+        $select = [
+            'scctcust.NMCUST',
+            'scctcust.NOCUST',
+            'scctcust.NUM2ND',
             'sccttran.METODE',
             'sccttran.TRXDATE',
             'sccttran.NOREFF',
@@ -203,7 +233,7 @@ class SccttranController extends Controller
             'sccttran.KREDIT',
             'sccttran.REFFBANK',
             'sccttran.TRANSNO',
-        ]);
+        ];
 
         $query = $this->topUpVaScope(
             sccttran::query()
@@ -219,26 +249,22 @@ class SccttranController extends Controller
             });
         }
 
-        $query->where(function ($query) use ($filterQuery) {
+        $query->where(function ($q) use ($filterQuery) {
             if ($filterQuery) {
-                $filterQuery($query);
+                $filterQuery($q);
             }
         });
 
-        if ($custid) {
-            $custQuery = $this->topUpVaScope(sccttran::query())->where('CUSTID', $custid);
-            $totalNominal = (clone $custQuery)->sum('KREDIT');
-        }
-
         $totalRecords = $this->topUpVaScope(sccttran::query())->count();
         $totalRecordswithFilter = (clone $query)->count();
+        $totalNominal = (int) (clone $query)->sum('sccttran.KREDIT');
 
         $records = (clone $query)->orderBy($columnName, $columnSortOrder)
             ->select($select)
             ->skip($start)
-            ->take($rowperpage)
+            ->take($rowperpage > 0 ? $rowperpage : 10)
             ->get()
-            ->map(function ($item, $index) {
+            ->map(function ($item) {
                 if ($item->NOCUST && $item->NOCUST != '-') {
                     $NOVA = scctcust::showVA($item->NOCUST);
                 } else {
@@ -251,19 +277,18 @@ class SccttranController extends Controller
                 return $item;
             })->toArray();
 
-        $response = array(
-            "draw" => intval($draw),
-            "recordsTotal" => $totalRecords,
-            "recordsFiltered" => $totalRecordswithFilter,
-            "data" => $records,
-        );
-
-        if ($custid) {
-            $response['totals'] = [
-                'nominal' => ['location' => 7, 'value' => $totalNominal, 'columnType' => 'currency'],
-            ];
-        }
-
-        return response()->json($response);
+        return response()->json([
+            'draw' => intval($draw),
+            'recordsTotal' => $totalRecords,
+            'recordsFiltered' => $totalRecordswithFilter,
+            'data' => $records,
+            'totals' => [
+                'nominal' => [
+                    'location' => 7,
+                    'value' => $totalNominal,
+                    'columnType' => 'currency',
+                ],
+            ],
+        ]);
     }
 }

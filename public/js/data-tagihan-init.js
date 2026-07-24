@@ -48,6 +48,7 @@
             select: true,
             rowId: 'AA',
             buttons: ['excel', 'pdf', 'print'],
+            excelCurrencyTotal: true,
             pdfOrientation: 'landscape',
             pdfPageSize: 'A3',
             pdfMargins: [10, 14, 10, 14],

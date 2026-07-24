@@ -500,7 +500,7 @@
             prefetchedColumns: @json($tableColumns ?? []),
         };
     </script>
-    <script src="{{asset('js/data-tagihan-init.js')}}?v=20260619"></script>
+    <script src="{{asset('js/data-tagihan-init.js')}}?v=20260724-excel-total"></script>
     <script src="{{asset('main/libs/moment/moment.js')}}"></script>
     <script src="{{asset('main/libs/bootstrap-daterangepicker/bootstrap-daterangepicker.js')}}"></script>
 

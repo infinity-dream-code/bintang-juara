@@ -106,6 +106,7 @@ class RekapPenerimaanController extends Controller
                     ->orWhere('sccttran.isreversal', 0)
                     ->orWhere('sccttran.isreversal', '0');
             })
+            ->where('scctbill.FSTSBolehBayar', 1)
             ->whereRaw("UPPER(TRIM(COALESCE(sccttran.METODE, ''))) <> 'TOP UP'");
     }
 
